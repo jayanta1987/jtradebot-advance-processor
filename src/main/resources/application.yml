@@ -46,3 +46,7 @@ management:
       show-details: always
     loggers:
       enabled: true
+
+jtradebot:
+  strategy:
+    enable-scalping-volume-surge: true

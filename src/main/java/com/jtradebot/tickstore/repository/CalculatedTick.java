@@ -10,5 +10,5 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Data
 public class CalculatedTick {
     private TickModel tick;
-    private CpDetailsModel cpDetails;
+    // CP details removed - no longer used in new strategy
 }

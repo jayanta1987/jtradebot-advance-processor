@@ -1,6 +1,5 @@
 package com.jtradebot.processor.kafka;
 
-import com.jtradebot.processor.model.CpDetails;
 import com.jtradebot.tickstore.repository.CalculatedTick;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +19,8 @@ public class KafkaTickProducer {
     private final KafkaTemplate<String, CalculatedTick> kafkaTemplate;
 
     @Async
-    public void sendTickDetails(Tick tick, CpDetails cpDetails) {
-        CalculatedTick calculatedTick = toCalculatedTick(tick, cpDetails);
+    public void sendTickDetails(Tick tick) {
+        CalculatedTick calculatedTick = toCalculatedTick(tick);
         String partitionKey = String.valueOf(tick.getInstrumentToken());
         String TOPIC = "jtradebot-kiteconnect-ticks";
         kafkaTemplate.send(TOPIC, partitionKey, calculatedTick);

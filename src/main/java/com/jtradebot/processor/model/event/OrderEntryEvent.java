@@ -2,7 +2,6 @@ package com.jtradebot.processor.model.event;
 
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.TradeMode;
-import com.jtradebot.processor.repository.document.EntryRule;
 import com.jtradebot.processor.repository.document.Ntp;
 import lombok.Data;
 
@@ -14,7 +13,7 @@ public class OrderEntryEvent {
     private String RefOrderId;
     private OrderTypeEnum orderType;
     private Date tickTimeStamp;
-    private EntryRule entryRule;
+    // TODO: EntryRule removed from old CP-based system
     private TradeMode tradeMode;
     private int indexStopLoss;
     private int indexTarget;

@@ -2,9 +2,8 @@ package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.manager.ApplicationCacheManager;
 import com.jtradebot.processor.model.enums.EntryReason;
-import com.jtradebot.processor.repository.document.EntryRule;
-import com.jtradebot.processor.rule.EntryRuleService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,40 +12,33 @@ import java.util.List;
 @RestController
 @RequestMapping("/rules")
 @RequiredArgsConstructor
+@Slf4j
 public class RuleController {
 
-    private final EntryRuleService entryRuleService;
+    // TODO: Old CP-based rule system removed - these services need refactoring
     private final ApplicationCacheManager cacheManager;
 
     @PostMapping
-    public ResponseEntity<EntryRule> createRule(@RequestBody EntryRule rule) {
-        entryRuleService.saveRule(rule);
-        return ResponseEntity.ok(rule);
+    public ResponseEntity<String> createRule(@RequestBody String rule) {
+        log.warn("createRule called but old CP-based rule system has been removed - returning error");
+        return ResponseEntity.badRequest().body("Old CP-based rule system has been removed - needs refactoring");
     }
 
     @PutMapping
-    public ResponseEntity<EntryRule> updateRule(@RequestBody EntryRule updatedRule) {
-        EntryRule existingRule = cacheManager.getRule(updatedRule.getEntryReason());
-        existingRule.setConditions(updatedRule.getConditions());
-        existingRule.setCombineWith(updatedRule.getCombineWith());
-        existingRule.setActive(updatedRule.isActive());
-        existingRule.setExitNtp(updatedRule.getExitNtp());
-        existingRule.setMaxQty(updatedRule.getMaxQty());
-        existingRule.setTradeMode(updatedRule.getTradeMode());
-
-        entryRuleService.saveRule(existingRule);
-        return ResponseEntity.ok(existingRule);
+    public ResponseEntity<String> updateRule(@RequestBody String updatedRule) {
+        log.warn("updateRule called but old CP-based rule system has been removed - returning error");
+        return ResponseEntity.badRequest().body("Old CP-based rule system has been removed - needs refactoring");
     }
 
     @GetMapping("/{name}")
-    public ResponseEntity<EntryRule> getRule(@PathVariable EntryReason entryReason) {
-        EntryRule rule = cacheManager.getRule(entryReason);
-        return ResponseEntity.ok(rule);
+    public ResponseEntity<String> getRule(@PathVariable EntryReason entryReason) {
+        log.warn("getRule called but old CP-based rule system has been removed - returning error");
+        return ResponseEntity.badRequest().body("Old CP-based rule system has been removed - needs refactoring");
     }
 
     @GetMapping
-    public ResponseEntity<List<EntryRule>> getAllRules() {
-        List<EntryRule> rules = cacheManager.getAllRules();
-        return ResponseEntity.ok(rules);
+    public ResponseEntity<String> getAllRules() {
+        log.warn("getAllRules called but old CP-based rule system has been removed - returning error");
+        return ResponseEntity.badRequest().body("Old CP-based rule system has been removed - needs refactoring");
     }
 }

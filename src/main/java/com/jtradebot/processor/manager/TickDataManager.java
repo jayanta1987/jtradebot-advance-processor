@@ -3,23 +3,25 @@ package com.jtradebot.processor.manager;
 import com.jtradebot.processor.indicator.MultiEmaIndicator;
 import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
-import com.jtradebot.processor.model.*;
+import com.jtradebot.processor.model.EmaIndicatorInfo;
+import com.jtradebot.processor.model.EmaInfo;
+import com.jtradebot.processor.model.IndexData;
+import com.jtradebot.processor.model.Resistance;
+import com.jtradebot.processor.model.Support;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.TrendEnum;
-import com.jtradebot.processor.score.NoTradeScoreTracker;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
-import org.ta4j.core.indicators.ATRIndicator;
 
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
-
-
-import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +32,6 @@ public class TickDataManager {
     private final SupportResistanceIndicator supportResistanceIndicator;
     private final MultiEmaIndicator multiEmaIndicator;
     private final RsiIndicator rsiIndicator;
-    private final ScoreManager scoreManager;
-    private final NoTradeScoreTracker noTradeScoreTracker;
     private final com.jtradebot.processor.handler.KiteInstrumentHandler kiteInstrumentHandler;
 
     private final ConcurrentHashMap<CandleTimeFrameEnum, IndexData> indexDataMap = new ConcurrentHashMap<>();
@@ -39,7 +39,6 @@ public class TickDataManager {
     private final ReentrantLock lock = new ReentrantLock();
 
     public void initialize(String instrumentToken, Date latestWorkingDay) {
-        //barSeriesManager.reset();
         barSeriesManager.initializeBarSeriesData(instrumentToken, latestWorkingDay);
     }
 
@@ -47,18 +46,17 @@ public class TickDataManager {
         return !barSeriesManager.isInitialized(instrumentToken);
     }
 
-
     public void add(String instrumentToken, Tick tick) {
         lock.lock();
         try {
             barSeriesManager.addTick(instrumentToken, tick);
             if(instrumentToken.equals(kiteInstrumentHandler.getNifty50Token().toString())){
-                addIndexData(instrumentToken, tick, ONE_MIN);
-                addIndexData(instrumentToken, tick, THREE_MIN);
-                addIndexData(instrumentToken, tick, FIVE_MIN);
-                addIndexData(instrumentToken, tick, FIFTEEN_MIN);
-                addIndexData(instrumentToken, tick, ONE_HOUR);
-                addIndexData(instrumentToken, tick, ONE_DAY);
+                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_MIN);
+                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.THREE_MIN);
+                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.FIVE_MIN);
+                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.FIFTEEN_MIN);
+                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_HOUR);
+                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_DAY);
             }
         } catch (Exception e) {
             log.error("Error adding tick to Nifty50 - {}", e.getMessage());
@@ -77,14 +75,6 @@ public class TickDataManager {
         Double rsiValue = rsiIndicator.getRsiValue(barSeriesForTimeFrame, 14);
         TrendEnum trend = multiEmaIndicator.determineOverallTrendByEma(barSeriesForTimeFrame);
 
-        CallScoresTF callScoresTF = scoreManager.getCallScores(tick, timeFrame, trend, barSeriesForTimeFrame, emaIndicatorInfo, supports, resistances, rsiValue, instrumentToken);
-        PutScoresTF putScoresTF = scoreManager.getPutScores(tick, timeFrame, trend, barSeriesForTimeFrame, emaIndicatorInfo, supports, resistances, rsiValue, instrumentToken);
-        NoTradeScores noTradeScores = noTradeScoreTracker.getPreConfirmationScore(barSeriesForTimeFrame, emaIndicatorInfo, supports, resistances, tick, instrumentToken);
-        noTradeScores.setTimeFrame(timeFrame);
-
-        ATRIndicator atrIndicator = new ATRIndicator(barSeriesForTimeFrame, 14);
-        Double atrValue = atrIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).doubleValue();
-
         IndexData indexData = IndexData.builder()
                 .emaIndicatorInfo(emaIndicatorInfo)
                 .emaValues(emaValues)
@@ -93,10 +83,6 @@ public class TickDataManager {
                 .resistances(resistances)
                 .rsiValue(rsiValue)
                 .trend(trend)
-                .callScoresTF(callScoresTF)
-                .putScoresTF(putScoresTF)
-                .noTradeScores(noTradeScores)
-                .atrValue(atrValue)
                 .build();
         indexDataMap.put(timeFrame, indexData);
     }
@@ -111,28 +97,6 @@ public class TickDataManager {
 
     public Tick getLastTick(String instrumentToken) {
         return barSeriesManager.getLastTick(instrumentToken);
-    }
-
-    public List<NoTradeScores> getNoTradeScoresList() {
-        List<NoTradeScores> noTradeScoresList = new ArrayList<>();
-        for (CandleTimeFrameEnum timeFrame : CandleTimeFrameEnum.values()) {
-            IndexData indexData = getIndexData(timeFrame);
-            if (indexData != null) {
-                noTradeScoresList.add(indexData.getNoTradeScores());
-            }
-        }
-        return noTradeScoresList;
-    }
-
-    public Map<CandleTimeFrameEnum, Double> getTimeFrameWiseAtrValues() {
-        Map<CandleTimeFrameEnum, Double> atrValues = new HashMap<>();
-        for (CandleTimeFrameEnum timeFrame : CandleTimeFrameEnum.values()) {
-            IndexData indexData = getIndexData(timeFrame);
-            if (indexData != null) {
-                atrValues.put(timeFrame, indexData.getAtrValue());
-            }
-        }
-        return atrValues;
     }
 
     public Map<CandleTimeFrameEnum, Set<Support>> getAllSupportMap() {

@@ -9,7 +9,6 @@ import org.ta4j.core.BarSeries;
 
 import java.util.Set;
 
-
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
@@ -24,11 +23,4 @@ public class IndexData {
     private Set<Resistance> resistances;
     private Double rsiValue;
     private TrendEnum trend;
-
-    private CallScoresTF callScoresTF;
-    private PutScoresTF putScoresTF;
-
-    private NoTradeScores noTradeScores;
-    private Double atrValue;
-
 }

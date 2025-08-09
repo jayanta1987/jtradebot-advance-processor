@@ -1,9 +1,7 @@
 package com.jtradebot.processor.mapper;
 
-import com.jtradebot.processor.model.CpDetails;
 import com.jtradebot.tickstore.repository.CalculatedTick;
 import com.jtradebot.processor.repository.document.TickDocument;
-import com.jtradebot.tickstore.repository.CpDetailsModel;
 import com.jtradebot.tickstore.repository.TickModel;
 import com.zerodhatech.models.Tick;
 
@@ -65,51 +63,9 @@ public class TickMapper {
         return tickModel;
     }
 
-    public static CpDetailsModel convertToCpDetailsModel(CpDetails cpDetails) {
-        CpDetailsModel cpDetailsModel = new CpDetailsModel();
-
-        cpDetailsModel.setCp(cpDetails.getCp());
-        cpDetailsModel.setCpAbs(cpDetails.getCpAbs());
-
-        cpDetailsModel.setShortAvgCp(cpDetails.getShortAvgCp());
-        cpDetailsModel.setShortAvgCpAbs(cpDetails.getShortAvgCpAbs());
-
-        cpDetailsModel.setMidAvgCp(cpDetails.getMidAvgCp());
-        cpDetailsModel.setMidAvgCpAbs(cpDetails.getMidAvgCpAbs());
-
-        cpDetailsModel.setLongTrendCp(cpDetails.getLongTrendCp());
-        cpDetailsModel.setLongTrendCpAbs(cpDetails.getLongTrendCpAbs());
-
-        cpDetailsModel.setLongTrendAvgCp(cpDetails.getLongTrendAvgCp());
-        cpDetailsModel.setLongTrendAvgCpAbs(cpDetails.getLongTrendAvgCpAbs());
-
-        cpDetailsModel.setOneMinCp(cpDetails.getOneMinCp());
-        cpDetailsModel.setOneMinCpAbs(cpDetails.getOneMinCpAbs());
-
-        cpDetailsModel.setOneMinAvgCp(cpDetails.getOneMinAvgCp());
-        cpDetailsModel.setOneMinAvgCpAbs(cpDetails.getOneMinAvgCpAbs());
-        cpDetailsModel.setCpDelta(cpDetails.getCpDelta());
-        cpDetailsModel.setOneMinCpDelta(cpDetails.getOneMinCpDelta());
-        cpDetailsModel.setLongCpDelta(cpDetails.getLongCpDelta());
-        cpDetailsModel.setTotalCpDelta(cpDetails.getTotalCpDelta());
-        cpDetailsModel.setAllCpInSameDirection(cpDetails.isAllCpInSameDirection());
-        cpDetailsModel.setFutureSignal(cpDetails.isFutureSignal());
-        cpDetailsModel.setFutureTrend(cpDetails.getFutureTrend());
-        cpDetailsModel.setFutureBullishSurge(cpDetails.isFutureBullishSurge());
-        cpDetailsModel.setFutureBearishSurge(cpDetails.isFutureBearishSurge());
-        cpDetailsModel.setNtp(cpDetails.getNtp());
-        cpDetailsModel.setOrderType(cpDetails.getOrderType());
-
-        return cpDetailsModel;
-    }
-
-    public static CalculatedTick toCalculatedTick(Tick tick, CpDetails cpDetails) {
+    public static CalculatedTick toCalculatedTick(Tick tick) {
         CalculatedTick calculatedTick = new CalculatedTick();
-        if(cpDetails != null) {
-            calculatedTick.setCpDetails(convertToCpDetailsModel(cpDetails));
-        }
         calculatedTick.setTick(convertToTickModel(tick));
-
         return calculatedTick;
     }
 }

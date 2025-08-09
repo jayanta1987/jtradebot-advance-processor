@@ -2,47 +2,34 @@ package com.jtradebot.processor.service;
 
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
-import com.jtradebot.processor.kafka.KafkaCpDetailsProducer;
-import com.jtradebot.processor.kafka.KafkaTickProducer;
-import com.jtradebot.processor.manager.CPManager;
-import com.jtradebot.processor.manager.StrategyManager;
 import com.jtradebot.processor.manager.TickDataManager;
-import com.jtradebot.processor.model.CallFutureScores;
-import com.jtradebot.processor.model.PutFutureScores;
-import com.jtradebot.processor.model.enums.TradeMode;
-import com.jtradebot.processor.score.NiftyFutureScoreTracker;
+import com.jtradebot.processor.manager.EmaCrossTrackingManager;
+import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.model.FlattenedIndicators;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.ta4j.core.BarSeries;
 
 import java.util.*;
-
-import static com.jtradebot.processor.mapper.ScoreEventMapper.mapToProcessedScoreEvent;
-import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.THREE_MIN;
-import static com.jtradebot.processor.model.enums.TradeMode.SCALPING;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class TickProcessService {
 
-    private final CPManager cpManager;
-    private final StrategyManager strategyManager;
     private final TickDataManager tickDataManager;
-    private final KafkaCpDetailsProducer kafkaCpDetailsProducer;
-
     private final TickSetupService tickSetupService;
     private final TickEventTracker tickEventTracker;
-    private final KafkaTickProducer kafkaTickProducer;
-
-    private final NiftyFutureScoreTracker niftyFutureScoreTracker;
     private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final EmaCrossTrackingManager emaCrossTrackingManager;
+    
+    // ScalpingVolumeSurgeService for strategy evaluation
+    private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
 
-    @Value("${spring.profiles.active:}")
-    private String activeProfile;
+    @Value("${jtradebot.strategy.enable-scalping-volume-surge:true}")
+    private boolean enableScalpingVolumeSurge;
 
     public void processLiveTicks(List<Tick> ticks) {
         // IGNORE IF MARKET NOT STARTED YET
@@ -68,7 +55,11 @@ public class TickProcessService {
             initializeOnFirstTick(tick);
             tickEventTracker.setLastTickEventTimestamp(String.valueOf(tick.getInstrumentToken()), System.currentTimeMillis());
             tickDataManager.add(String.valueOf(tick.getInstrumentToken()), tick);
-            kafkaTickProducer.sendTickDetails(tick, null);
+            
+            // Process with ScalpingVolumeSurge strategy if enabled
+            if (enableScalpingVolumeSurge) {
+                processWithScalpingVolumeSurgeStrategy(tick);
+            }
         }
     }
 
@@ -79,25 +70,52 @@ public class TickProcessService {
         initializeOnFirstTick(tick);
         tickEventTracker.setLastTickEventTimestamp(String.valueOf(tick.getInstrumentToken()), System.currentTimeMillis());
         tickDataManager.add(String.valueOf(tick.getInstrumentToken()), tick);
-        cpManager.getCpDetails(tickDataManager.getLastTick(kiteInstrumentHandler.getNifty50Token().toString()), tickDataManager.getNoTradeScoresList()).ifPresentOrElse(cpDetails -> {
-            // need to remove jtradebot-order logic to here later to track cp details after placing order
-            BarSeries barSeriesForTimeFrame = tickDataManager.getBarSeriesForTimeFrame(kiteInstrumentHandler.getNifty50FutureToken().toString(), THREE_MIN);
-
-            if (barSeriesForTimeFrame != null) {
-                CallFutureScores callFutureScores = niftyFutureScoreTracker.getFuturePointsForCallEntry(barSeriesForTimeFrame);
-                PutFutureScores putFutureScores = niftyFutureScoreTracker.getFuturePointsForPutEntry(barSeriesForTimeFrame);
-                cpManager.addFutureCpDetails(cpDetails, callFutureScores, putFutureScores);
+        
+        // Process with ScalpingVolumeSurge strategy if enabled
+        if (enableScalpingVolumeSurge) {
+            processWithScalpingVolumeSurgeStrategy(tick);
+        }
+    }
+    
+    /**
+     * Process tick using ScalpingVolumeSurge strategy
+     */
+    private void processWithScalpingVolumeSurgeStrategy(Tick tick) {
+        try {
+            log.info("Processing tick with SCALPING_FUTURE_VOLUME_SURGE strategy for instrument: {}", tick.getInstrumentToken());
+            
+            // Print current Nifty tick information on every tick
+            emaCrossTrackingManager.printCurrentNiftyTickInfo();
+            
+            // Get flattened indicators
+            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
+            
+            // Get strategy recommendation
+            String recommendedStrategy = scalpingVolumeSurgeService.getRecommendedStrategy(tick);
+            
+            // Get strategy confidence
+            Double strategyConfidence = scalpingVolumeSurgeService.getStrategyConfidence(tick);
+            
+            // Check entry conditions
+            boolean shouldMakeCallEntry = scalpingVolumeSurgeService.shouldMakeCallEntry(tick);
+            boolean shouldMakePutEntry = scalpingVolumeSurgeService.shouldMakePutEntry(tick);
+            
+            // Log strategy evaluation results
+            log.info("SCALPING_FUTURE_VOLUME_SURGE Strategy Evaluation - Instrument: {}, Strategy: {}, Confidence: {}, Call Entry: {}, Put Entry: {}", 
+                    tick.getInstrumentToken(), recommendedStrategy, strategyConfidence, shouldMakeCallEntry, shouldMakePutEntry);
+            
+            // Log flattened indicators for debugging
+            if (log.isDebugEnabled()) {
+                log.debug("Flattened Indicators for instrument {}: {}", tick.getInstrumentToken(), indicators);
             }
-
-            kafkaCpDetailsProducer.sendCpDetails(mapToProcessedScoreEvent(cpDetails, tick, tickDataManager.getAllSupportMap(), tickDataManager.getAllResistanceMap()));
-            TradeMode[] tradeModes = {SCALPING/*, INTRA_DAY*/};
-            Arrays.stream(tradeModes)
-                    .forEach(tradeMode -> strategyManager.findStrategyBasedEntry(cpDetails, tradeMode));
-
-            if (!"local".equalsIgnoreCase(activeProfile)) {
-                kafkaTickProducer.sendTickDetails(tick, cpDetails);
-            }
-        }, () -> log.error("CP details not found"));
+            
+            // TODO: Add order placement logic here when ready
+            // TODO: Add performance tracking for backtesting
+            // TODO: Add Kafka producer for strategy decisions if needed
+            
+        } catch (Exception e) {
+            log.error("Error processing tick with SCALPING_FUTURE_VOLUME_SURGE strategy for instrument: {}", tick.getInstrumentToken(), e);
+        }
     }
 
     private void initializeOnFirstTick(Tick tick) {

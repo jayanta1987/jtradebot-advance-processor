@@ -30,7 +30,7 @@ public class TradeOrder {
     private Date startTime;
     private Date endTime;
 
-    private EntryRule entryRule;
+    // TODO: EntryRule removed from old CP-based system
     private TradeMode tradeMode;
     private double entryIndexPrice;
     private double exitIndexPrice;

@@ -1,6 +1,5 @@
 package com.jtradebot.processor.common;
 
-import com.jtradebot.processor.model.CpDetails;
 import com.jtradebot.processor.model.enums.EntryReason;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.Transaction;

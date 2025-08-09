@@ -21,14 +21,8 @@ public class Order {
     private Double ntp;
     private Double riskFactor;
 
-    private Double cp;
-    private Double shortAvgCp;
-
-    private Double longTrendCp;
-    private Double longTrendAvgCp;
-
-    private Double oneMinCp;
-    private Double oneMinAvgCp;
+    // CP-related fields removed - no longer used in new strategy
+    // The new strategy will track different metrics
 
     private EntryReason entryReason;
     private ExitReasonEnum exitReason;

@@ -1,11 +1,10 @@
 package com.jtradebot.processor.manager;
 
-import com.jtradebot.processor.model.CallEmaRsiScores;
 import com.jtradebot.processor.model.EmaCrossOverConfirmation;
-import com.jtradebot.processor.model.IntraDayConfirmationScores;
-import com.jtradebot.processor.model.PutEmaRsiScores;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
+import com.jtradebot.processor.handler.KiteInstrumentHandler;
+import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.jtradebot.processor.mapper.IntraDayScoreMapper.mapToIntraDayConfirmationScores;
 import static com.jtradebot.processor.model.enums.OrderTypeEnum.CALL_BUY;
 import static com.jtradebot.processor.model.enums.OrderTypeEnum.PUT_BUY;
 
@@ -22,53 +20,37 @@ import static com.jtradebot.processor.model.enums.OrderTypeEnum.PUT_BUY;
 @RequiredArgsConstructor
 public class EmaCrossTrackingManager {
     private final TickDataManager tickDataManager;
-    private final Map<OrderTypeEnum, EmaCrossOverConfirmation> entryDataMap = new ConcurrentHashMap<>(); // Dynamic data map
+    private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final Map<OrderTypeEnum, EmaCrossOverConfirmation> entryDataMap = new ConcurrentHashMap<>();
 
+    // TODO: Old CP-based scoring system removed - this method needs refactoring for new strategy
     public EmaCrossOverConfirmation getEmaCrossOverConfirmation(OrderTypeEnum orderType, CandleTimeFrameEnum candleTimeFrame) {
-        IntraDayConfirmationScores intraDayScores = new IntraDayConfirmationScores();
-        switch (orderType) {
-            case CALL_BUY -> {
-                CallEmaRsiScores callEmaRsiScores = tickDataManager.getIndexData(candleTimeFrame).getCallScoresTF().getCallEmaRsiScores();
-                intraDayScores = mapToIntraDayConfirmationScores(callEmaRsiScores);
+        log.warn("getEmaCrossOverConfirmation called but old CP-based scoring system has been removed - returning stub data");
+        
+        // Print current Nifty tick timestamp
+        try {
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
+            
+            Tick lastNiftyTick = tickDataManager.getLastTick(niftyToken);
+            Tick lastNiftyFutureTick = tickDataManager.getLastTick(niftyFutureToken);
+            
+            if (lastNiftyTick != null && lastNiftyFutureTick != null) {
+                log.info("Current Nifty: Time={}, LTP={}, Vol(Fut)={}", 
+                    lastNiftyTick.getTickTimestamp(),
+                    lastNiftyTick.getLastTradedPrice(),
+                    lastNiftyFutureTick.getVolumeTradedToday());
+            } else {
+                log.warn("No Nifty tick data available - Spot: {}, Future: {}", 
+                    lastNiftyTick != null, lastNiftyFutureTick != null);
             }
-            case PUT_BUY -> {
-                PutEmaRsiScores putEmaRsiScores = tickDataManager.getIndexData(candleTimeFrame).getPutScoresTF().getPutEmaRsiScores();
-                intraDayScores = mapToIntraDayConfirmationScores(putEmaRsiScores);
-            }
+        } catch (Exception e) {
+            log.error("Error getting Nifty tick timestamp: {}", e.getMessage());
         }
-
-        boolean isEmaCrossedEma14 = intraDayScores.getEma5CrossedEma14() > 0;
-        boolean isEmaCrossedEma34 = intraDayScores.getEma5CrossedEma34() > 0;
-        boolean isCurrentCandleCrossingEma = intraDayScores.getCrossedMultipleEmas() > 0
-                || intraDayScores.getLtpCrossedEma5() > 0
-                || intraDayScores.getLtpCrossedEma9() > 0
-                || intraDayScores.getLtpCrossedEma14() > 0;
-
+        
         EmaCrossOverConfirmation emaCrossOverConfirmation = getEntryData(orderType);
-        if(!emaCrossOverConfirmation.isEma5CrossedEma14()){
-            emaCrossOverConfirmation.setEma5CrossedEma14(isEmaCrossedEma14);
-        }
-        if(!emaCrossOverConfirmation.isEma5CrossedEma34()){
-            emaCrossOverConfirmation.setEma5CrossedEma34(isEmaCrossedEma34);
-        }
-        emaCrossOverConfirmation.setCurrentCandleCrossingEma(isCurrentCandleCrossingEma);
-        updateEntryData(orderType, emaCrossOverConfirmation);
-
-        if (emaCrossOverConfirmation.isEma5CrossedEma14() && emaCrossOverConfirmation.isCurrentCandleCrossingEma()) {
-            log.info("Ema5 crossed Ema14 and current candle crossing Ema5 for order type: {}", orderType);
-        }else if (emaCrossOverConfirmation.isEma5CrossedEma34() && emaCrossOverConfirmation.isCurrentCandleCrossingEma()) {
-            log.info("Ema5 crossed Ema34 and current candle crossing Ema5 for order type: {}", orderType);
-        }
+        // Return stub data until refactored for new strategy
         return emaCrossOverConfirmation;
-    }
-
-    public void checkEmaCrossReversal(double currentAvgCp) {
-        if (isEntryDataForOrderType(CALL_BUY) && currentAvgCp < 0) {
-            resetEntryData();
-        }
-        if (isEntryDataForOrderType(PUT_BUY) && currentAvgCp > 0) {
-            resetEntryData();
-        }
     }
 
     public EmaCrossOverConfirmation getEntryData(OrderTypeEnum orderType) {
@@ -79,7 +61,7 @@ public class EmaCrossTrackingManager {
     }
 
     public void updateEntryData(OrderTypeEnum orderType, EmaCrossOverConfirmation newData) {
-        entryDataMap.put(orderType, newData); // Update dynamic data if needed during entry execution
+        entryDataMap.put(orderType, newData);
     }
 
     public void resetEntryData() {
@@ -97,6 +79,33 @@ public class EmaCrossTrackingManager {
     public void reset() {
         entryDataMap.clear();
     }
-
-
+    
+    /**
+     * Print current Nifty tick timestamp and LTP
+     */
+    public void printCurrentNiftyTickInfo() {
+        try {
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
+            
+            Tick lastNiftyTick = tickDataManager.getLastTick(niftyToken);
+            Tick lastNiftyFutureTick = tickDataManager.getLastTick(niftyFutureToken);
+            
+            if (lastNiftyTick != null && lastNiftyFutureTick != null) {
+                log.info("Nifty: Time={}, LTP={}, Vol(Fut)={}, H={}, L={}, O={}, C={}", 
+                    lastNiftyTick.getTickTimestamp(),
+                    lastNiftyTick.getLastTradedPrice(),
+                    lastNiftyFutureTick.getVolumeTradedToday(),
+                    lastNiftyTick.getHighPrice(),
+                    lastNiftyTick.getLowPrice(),
+                    lastNiftyTick.getOpenPrice(),
+                    lastNiftyTick.getClosePrice());
+            } else {
+                log.warn("No Nifty tick data available - Spot: {}, Future: {}", 
+                    lastNiftyTick != null, lastNiftyFutureTick != null);
+            }
+        } catch (Exception e) {
+            log.error("Error getting Nifty tick info: {}", e.getMessage());
+        }
+    }
 }
