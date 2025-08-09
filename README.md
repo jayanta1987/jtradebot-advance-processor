@@ -1,2 +1,2 @@
-# jtradebot-processor
-A Service that detrmines call and put entry signals
+# jtradebot-advance-processor
+A Service that determines call and put entry signals

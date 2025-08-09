@@ -14,8 +14,8 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY target/jtradebot-processor-0.0.1-SNAPSHOT.jar /app/jtradebot-processor.jar
+COPY target/jtradebot-advance-processor-0.0.1-SNAPSHOT.jar /app/jtradebot-advance-processor.jar
 
 EXPOSE 8083
 
-ENTRYPOINT ["java", "-jar", "/app/jtradebot-processor.jar"]
+ENTRYPOINT ["java", "-jar", "/app/jtradebot-advance-processor.jar"]

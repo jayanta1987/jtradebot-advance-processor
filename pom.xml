@@ -9,9 +9,9 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.jtradebot</groupId>
-    <artifactId>jtradebot-processor</artifactId>
+    <artifactId>jtradebot-advance-processor</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>jtradebot processor</name>
+    <name>jtradebot advance processor</name>
     <description>algo trading service that handle the call and put entries</description>
     <properties>
         <java.version>17</java.version>

@@ -1,6 +1,6 @@
 server:
   servlet:
-    context-path: /jtradebot-processor
+    context-path: /jtradebot-advance-processor
   port: 8082
 
 spring:
@@ -8,7 +8,7 @@ spring:
   profiles:
     active: local
   application:
-    name: jtradebot-processor
+    name: jtradebot-advance-processor
   kafka:
     bootstrap-servers: pkc-l7pr2.ap-south-1.aws.confluent.cloud:9092
     properties:
