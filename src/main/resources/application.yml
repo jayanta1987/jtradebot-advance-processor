@@ -1,7 +1,7 @@
 server:
   servlet:
     context-path: /jtradebot-advance-processor
-  port: 8082
+  port: 8091
 
 spring:
   timezone: Asia/Kolkata
