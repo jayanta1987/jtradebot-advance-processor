@@ -1,0 +1,17 @@
+# Compiled class file
+*.class
+
+# Maven
+target/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Application specific
+src/main/resources/tokens/
+src/main/resources/application-local.yml
+src/main/resources/application-live.yml
