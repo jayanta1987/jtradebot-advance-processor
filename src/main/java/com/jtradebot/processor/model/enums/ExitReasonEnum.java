@@ -1,0 +1,14 @@
+package com.jtradebot.processor.model.enums;
+
+public enum ExitReasonEnum {
+    INDEX_STOPLOSS_HIT,
+    INDEX_TARGET_HIT,
+    STOPLOSS_HIT,
+    TRAILING_STOPLOSS_HIT,
+    TARGET_HIT,
+    EXIT_SIGNAL,
+    MAX_DAY_LOSS_REACHED,
+    BAD_ENTRY,
+    MAX_DAY_PROFIT_REACHED,
+    FORCE_EXIT
+}

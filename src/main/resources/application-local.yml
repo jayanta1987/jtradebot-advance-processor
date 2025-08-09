@@ -1,0 +1,14 @@
+spring:
+  kafka:
+    consumer:
+      topic: jtradebot-backtest-ticks
+  data:
+    mongodb:
+      uri: mongodb://root:pass@localhost:27017/jtradebot?authSource=admin
+
+logging:
+  level:
+    root: INFO
+    org:
+      mongodb:
+        driver: INFO

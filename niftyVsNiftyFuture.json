@@ -1,0 +1,68 @@
+[
+  {
+    "Parameter/Indicator": "1. Price / Levels",
+    "Nifty 50 Index (Spot)": "- Non-tradable (computed from 50 stocks)\n- Used widely for key S/R levels (e.g., 18000)\n- Main reference for market direction",
+    "Nifty Futures": "- Tradable instrument with possible premium/discount\n- Converges to spot at expiry\n- Actual buy/sell orders drive the price",
+    "Algo Usage & Recommendations": "- Use spot for major S/R & broad trend\n- Check futures price (and basis) for short-term divergence or confirmation"
+  },
+  {
+    "Parameter/Indicator": "2. Volume Data",
+    "Nifty 50 Index (Spot)": "- No direct volume (non-tradable index)\n- Stock-wise volumes exist, but not aggregated in real-time for the index itself",
+    "Nifty Futures": "- Provides real, tradable volume\n- Highly liquid especially in near-month contracts",
+    "Algo Usage & Recommendations": "- Rely on futures volume for breakout validation and volume-based indicators"
+  },
+  {
+    "Parameter/Indicator": "3. Open Interest (OI)",
+    "Nifty 50 Index (Spot)": "- Not applicable (no OI for a spot index)",
+    "Nifty Futures": "- OI shows how many outstanding positions exist\n- Rising OI with price up = bullish build-up\n- Falling OI with price up = short covering, etc.",
+    "Algo Usage & Recommendations": "- Track OI to gauge participation/strength of moves\n- Integrate OI-based rules in your algo for trend confirmation"
+  },
+  {
+    "Parameter/Indicator": "4. Basis (Premium/Discount)",
+    "Nifty 50 Index (Spot)": "- Not applicable to spot itself",
+    "Nifty Futures": "- Basis = Futures Price − Spot Price\n- Fluctuates intraday with sentiment, cost of carry, etc.",
+    "Algo Usage & Recommendations": "- Monitor basis for sentiment shifts\n- Sudden premium drop or discount can warn of weakening momentum"
+  },
+  {
+    "Parameter/Indicator": "5. Implied Volatility (IV)",
+    "Nifty 50 Index (Spot)": "- Spot index doesn’t have its own IV\n- India VIX is derived from Nifty Options",
+    "Nifty Futures": "- Futures per se do not have IV (that’s an options metric)\n- You can track standard price volatility (e.g., ATR)",
+    "Algo Usage & Recommendations": "- Use India VIX for overall market volatility gauge\n- For intraday futures moves, a standard volatility indicator (ATR, Bollinger) can suffice"
+  },
+  {
+    "Parameter/Indicator": "6. Technical Indicators (RSI, MACD, etc.)",
+    "Nifty 50 Index (Spot)": "- Commonly used for trend/overbought-oversold signals\n- Widely followed by institutions & retail",
+    "Nifty Futures": "- Apply the same indicators\n- Also incorporate volume-based overlays (e.g., volume-weighted RSI)",
+    "Algo Usage & Recommendations": "- Keep spot-based indicators for macro trend\n- Use futures-based indicators for finer entries/exits, aided by volume"
+  },
+  {
+    "Parameter/Indicator": "7. Support & Resistance (S/R)",
+    "Nifty 50 Index (Spot)": "- Key psychological levels (e.g., 17500, 18000)\n- Previous day’s high/low, pivot points, etc.",
+    "Nifty Futures": "- Generally moves in sync with spot’s S/R\n- Might be offset by premium/discount",
+    "Algo Usage & Recommendations": "- Primary S/R from spot\n- Translate them on the futures chart (add or subtract average basis)"
+  },
+  {
+    "Parameter/Indicator": "8. Market Profile / Volume Profile",
+    "Nifty 50 Index (Spot)": "- Cannot do volume profile on the index (no direct volume)",
+    "Nifty Futures": "- Feasible to plot volume profile on futures\n- Identify high-volume nodes, POC, value areas",
+    "Algo Usage & Recommendations": "- If using profile-based strategies, rely on futures data\n- Combine with spot S/R for a holistic view"
+  },
+  {
+    "Parameter/Indicator": "9. Liquidity & Slippage",
+    "Nifty 50 Index (Spot)": "- Non-tradable, so no slippage notion\n- Moves based on 50 component stocks",
+    "Nifty Futures": "- Highly liquid in near-month contracts\n- Slippage can occur if you use large orders or in low-volume times",
+    "Algo Usage & Recommendations": "- Always place trades in futures\n- Monitor contract rollover period for changing liquidity"
+  },
+  {
+    "Parameter/Indicator": "10. Event & News Impact",
+    "Nifty 50 Index (Spot)": "- Index may show immediate reaction from constituent stocks\n- Major announcements can cause big moves",
+    "Nifty Futures": "- Futures sometimes lead or lag the spot briefly\n- Large institutional orders can spike futures quickly",
+    "Algo Usage & Recommendations": "- Track both: if futures diverge from spot around news, that’s a potential signal\n- Tighten stops or use hedging if volatility spikes"
+  },
+  {
+    "Parameter/Indicator": "11. Algorithmic Focus",
+    "Nifty 50 Index (Spot)": "- Good for broad trend, key levels, simpler signals",
+    "Nifty Futures": "- Tradable data: volume, OI, actual order flow\n- Allows advanced indicators & direct execution",
+    "Algo Usage & Recommendations": "- Combine spot signals (direction) with futures confirmations (volume, OI)\n- Execute trades on futures, manage stops on the futures price"
+  }
+]

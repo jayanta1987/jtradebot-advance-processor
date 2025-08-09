@@ -1,0 +1,13 @@
+package com.jtradebot.processor.model.enums;
+
+public enum SchedulerNameEnum {
+    CALL_ENTRY_TRACKER,
+    PUT_ENTRY_TRACKER,
+    SPECIAL_CALL_ENTRY_TRACKER,
+    SPECIAL_PUT_ENTRY_TRACKER,
+    BACK_TESTING,
+    LIVE_TICK_PROCESSOR,
+    LIVE_CALL_ORDER_TRACKER,
+    LIVE_PUT_ORDER_TRACKER,
+    POINT_TRACKER
+}

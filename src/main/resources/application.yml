@@ -1,0 +1,48 @@
+server:
+  servlet:
+    context-path: /jtradebot-processor
+  port: 8082
+
+spring:
+  timezone: Asia/Kolkata
+  profiles:
+    active: local
+  application:
+    name: jtradebot-processor
+  kafka:
+    bootstrap-servers: pkc-l7pr2.ap-south-1.aws.confluent.cloud:9092
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='QVHT6GTXZNDX2H4R' password='mkg7xHLzmOZy3hOhBSCUU+q2Bxx7JleWeHS35qwxZ3l2rVhkWbcxik+AhZzkxkU3';
+      session.timeout.ms: 45000
+  data:
+    mongodb:
+      uri: mongodb+srv://jtradebotuser:ByQMNv50k6wWZDXj@jtradebot-prod.joexsjf.mongodb.net/jtradebot?retryWrites=true&w=majority&appName=jtradebot-prod
+
+aws:
+  region: ap-south-1
+  kite:
+    secret-name: kite_connect
+    api-key: KITE_API_KEY
+    api-secret: KITE_API_SECRET
+    basic-auth-username: APP_BASIC_AUTH_USERNAME
+    basic-auth-password: APP_BASIC_AUTH_PASSWORD
+  sqs:
+    queue-url: https://sqs.ap-south-1.amazonaws.com/644885005419/liveTickProcessor.fifo
+    region: ap-south-1
+  sns:
+    topic-arn: arn:aws:sns:ap-south-1:644885005419:jtradebot-notification
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - loggers
+  endpoint:
+    health:
+      show-details: always
+    loggers:
+      enabled: true
