@@ -1,5 +1,6 @@
 package com.jtradebot.processor.service.impl;
 
+import com.jtradebot.processor.config.StrategyConfigService;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.FlattenedIndicators;
 import com.jtradebot.processor.model.FuturesignalData;
@@ -21,61 +22,80 @@ import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeService {
     
     private final TickDataManager tickDataManager;
+    private final StrategyConfigService configService;
     
-    // Default rules - these can be made configurable later
-    private final ScalpingVolumeSurgeCallRule callRule = ScalpingVolumeSurgeCallRule.builder()
-            .ruleName("SCALPING_FUTURE_VOLUME_SURGE_BULLISH")
-            .strategyType("SCALPING_FUTURE_VOLUME_SURGE_BULLISH")
-            .isActive(true)
-            .requireAllTimeframesBullish(true)
-            .requireVolumeSurge(true)
-            .requireEmaCrossover(true)
-            .requireRsiOverbought(true)
-            .requirePriceAboveVwap(true)
-            .requirePriceAboveResistance(true)
-            .minVolumeSurgeMultiplier(2.0)
-            .minRsiThreshold(70.0)
-            .minSignalStrength(7.0)
-            .check1Min(true)
-            .check5Min(true)
-            .check15Min(true)
-            .stopLossPercentage(0.5)
-            .targetPercentage(1.0)
-            .maxHoldingTimeMinutes(30)
-            .build();
+    // Rules will be built dynamically from JSON configuration
+    private ScalpingVolumeSurgeCallRule callRule;
+    private ScalpingVolumeSurgePutRule putRule;
     
-    private final ScalpingVolumeSurgePutRule putRule = ScalpingVolumeSurgePutRule.builder()
-            .ruleName("SCALPING_FUTURE_VOLUME_SURGE_BEARISH")
-            .strategyType("SCALPING_FUTURE_VOLUME_SURGE_BEARISH")
-            .isActive(true)
-            .requireAllTimeframesBearish(true)
-            .requireVolumeSurge(true)
-            .requireEmaCrossover(true)
-            .requireRsiOversold(true)
-            .requirePriceBelowVwap(true)
-            .requirePriceBelowSupport(true)
-            .minVolumeSurgeMultiplier(2.0)
-            .maxRsiThreshold(30.0)
-            .minSignalStrength(7.0)
-            .check1Min(true)
-            .check5Min(true)
-            .check15Min(true)
-            .stopLossPercentage(0.5)
-            .targetPercentage(1.0)
-            .maxHoldingTimeMinutes(30)
-            .build();
+    // Initialize rules from configuration
+    private void initializeRules() {
+        callRule = ScalpingVolumeSurgeCallRule.builder()
+                .ruleName(configService.getCallRuleName())
+                .strategyType(configService.getCallStrategyType())
+                .isActive(configService.isCallRuleActive())
+                .requireAllTimeframesBullish(configService.isCallRequireAllTimeframesBullish())
+                .requireVolumeSurge(configService.isCallRequireVolumeSurge())
+                .requireEmaCrossover(configService.isCallRequireEmaCrossover())
+                .requireRsiOverbought(configService.isCallRequireRsiOverbought())
+                .requirePriceAboveVwap(configService.isCallRequirePriceAboveVwap())
+                .requirePriceAboveResistance(configService.isCallRequirePriceAboveResistance())
+                .minVolumeSurgeMultiplier(configService.getCallVolumeSurgeMultiplier())
+                .minRsiThreshold(configService.getCallRsiThreshold())
+                .minSignalStrength(configService.getCallSignalStrength())
+                .check1Min(configService.isCallCheck1Min())
+                .check5Min(configService.isCallCheck5Min())
+                .check15Min(configService.isCallCheck15Min())
+                .stopLossPercentage(configService.getCallStopLossPercentage())
+                .targetPercentage(configService.getCallTargetPercentage())
+                .maxHoldingTimeMinutes(configService.getCallMaxHoldingTimeMinutes())
+                .build();
+        
+        putRule = ScalpingVolumeSurgePutRule.builder()
+                .ruleName(configService.getPutRuleName())
+                .strategyType(configService.getPutStrategyType())
+                .isActive(configService.isPutRuleActive())
+                .requireAllTimeframesBearish(configService.isPutRequireAllTimeframesBearish())
+                .requireVolumeSurge(configService.isPutRequireVolumeSurge())
+                .requireEmaCrossover(configService.isPutRequireEmaCrossover())
+                .requireRsiOversold(configService.isPutRequireRsiOversold())
+                .requirePriceBelowVwap(configService.isPutRequirePriceBelowVwap())
+                .requirePriceBelowSupport(configService.isPutRequirePriceBelowSupport())
+                .minVolumeSurgeMultiplier(configService.getPutVolumeSurgeMultiplier())
+                .maxRsiThreshold(configService.getPutRsiThreshold())
+                .minSignalStrength(configService.getPutSignalStrength())
+                .check1Min(configService.isPutCheck1Min())
+                .check5Min(configService.isPutCheck5Min())
+                .check15Min(configService.isPutCheck15Min())
+                .stopLossPercentage(configService.getPutStopLossPercentage())
+                .targetPercentage(configService.getPutTargetPercentage())
+                .maxHoldingTimeMinutes(configService.getPutMaxHoldingTimeMinutes())
+                .build();
+        
+        log.info("Strategy rules initialized from JSON configuration");
+        log.info("Call Rule - RSI Threshold: {}, Volume Multiplier: {}", 
+                callRule.getMinRsiThreshold(), callRule.getMinVolumeSurgeMultiplier());
+        log.info("Put Rule - RSI Threshold: {}, Volume Multiplier: {}", 
+                putRule.getMaxRsiThreshold(), putRule.getMinVolumeSurgeMultiplier());
+    }
     
     @Override
     public boolean shouldMakeCallEntry(Tick tick) {
         try {
+            // Initialize rules if not already done
+            if (callRule == null) {
+                initializeRules();
+            }
+            
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
             // Check if all required conditions are met for CALL entry
             boolean emaCrossover = indicators.getEma9_5min_gt_ema21_5min() && 
                                  indicators.getEma9_1min_gt_ema21_1min();
             
-            boolean rsiOverbought = indicators.getRsi_5min_gt_70() && 
-                                   indicators.getRsi_1min_gt_70();
+            // Use RSI threshold from JSON configuration (56 instead of 70)
+            boolean rsiBullish = indicators.getRsi_5min_gt_56() && 
+                                indicators.getRsi_1min_gt_56();
             
             boolean volumeSurge = indicators.getVolume_5min_surge() && 
                                  indicators.getVolume_surge_multiplier() >= callRule.getMinVolumeSurgeMultiplier();
@@ -86,7 +106,17 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean futuresignals = indicators.getFuturesignals() != null && 
                                    indicators.getFuturesignals().getAllTimeframesBullish();
             
-            return emaCrossover && rsiOverbought && volumeSurge && priceAction && futuresignals;
+            boolean shouldEntry = emaCrossover && rsiBullish && volumeSurge && priceAction && futuresignals;
+            
+            // Log entry signal when all conditions are met
+            if (shouldEntry) {
+                log.info("<<<<<<<<<CALL ENTRY>>>>>>>>> - Instrument: {}, Price: {}, Time: {}", 
+                    tick.getInstrumentToken(), tick.getLastTradedPrice(), tick.getTickTimestamp());
+                log.info("CALL Entry Conditions - EMA: {}, RSI: {}, Volume: {}, Price: {}, Futures: {}", 
+                    emaCrossover, rsiBullish, volumeSurge, priceAction, futuresignals);
+            }
+            
+            return shouldEntry;
             
         } catch (Exception e) {
             log.error("Error evaluating CALL entry for tick: {}", tick.getInstrumentToken(), e);
@@ -97,14 +127,20 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     @Override
     public boolean shouldMakePutEntry(Tick tick) {
         try {
+            // Initialize rules if not already done
+            if (putRule == null) {
+                initializeRules();
+            }
+            
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
             // Check if all required conditions are met for PUT entry
             boolean emaCrossover = !indicators.getEma9_5min_gt_ema21_5min() && 
                                  !indicators.getEma9_1min_gt_ema21_1min();
             
-            boolean rsiOversold = indicators.getRsi_5min_lt_30() && 
-                                 indicators.getRsi_1min_lt_30();
+            // Use RSI threshold from JSON configuration (44 instead of 30)
+            boolean rsiBearish = indicators.getRsi_5min_lt_44() && 
+                                indicators.getRsi_1min_lt_44();
             
             boolean volumeSurge = indicators.getVolume_5min_surge() && 
                                  indicators.getVolume_surge_multiplier() >= putRule.getMinVolumeSurgeMultiplier();
@@ -115,7 +151,17 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean futuresignals = indicators.getFuturesignals() != null && 
                                    indicators.getFuturesignals().getAllTimeframesBearish();
             
-            return emaCrossover && rsiOversold && volumeSurge && priceAction && futuresignals;
+            boolean shouldEntry = emaCrossover && rsiBearish && volumeSurge && priceAction && futuresignals;
+            
+            // Log entry signal when all conditions are met
+            if (shouldEntry) {
+                log.info("<<<<<<<<<PUT ENTRY>>>>>>>>> - Instrument: {}, Price: {}, Time: {}", 
+                    tick.getInstrumentToken(), tick.getLastTradedPrice(), tick.getTickTimestamp());
+                log.info("PUT Entry Conditions - EMA: {}, RSI: {}, Volume: {}, Price: {}, Futures: {}", 
+                    emaCrossover, rsiBearish, volumeSurge, priceAction, futuresignals);
+            }
+            
+            return shouldEntry;
             
         } catch (Exception e) {
             log.error("Error evaluating PUT entry for tick: {}", tick.getInstrumentToken(), e);
@@ -207,7 +253,16 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     
     private void flattenRsiIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries) {
         try {
-            // This is a simplified approach - in a real implementation, you'd get actual RSI values
+            // Initialize rules if not already done
+            if (callRule == null || putRule == null) {
+                initializeRules();
+            }
+            
+            // Get RSI thresholds from configuration
+            double callRsiThreshold = callRule.getMinRsiThreshold(); // 56.0
+            double putRsiThreshold = putRule.getMaxRsiThreshold();   // 44.0
+            
+            // TODO: Implement actual RSI calculation using the existing RsiIndicator
             // For now, we'll set default values
             indicators.setRsi_1min_gt_70(false);
             indicators.setRsi_5min_gt_70(false);
@@ -216,8 +271,19 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             indicators.setRsi_5min_lt_30(false);
             indicators.setRsi_15min_lt_30(false);
             
-            // TODO: Implement actual RSI calculation using the existing RsiIndicator
-            // This would require getting the actual RSI values from the BarSeries
+            // New RSI thresholds from configuration
+            indicators.setRsi_1min_gt_56(false);
+            indicators.setRsi_5min_gt_56(false);
+            indicators.setRsi_15min_gt_56(false);
+            indicators.setRsi_1min_lt_44(false);
+            indicators.setRsi_5min_lt_44(false);
+            indicators.setRsi_15min_lt_44(false);
+            
+            // TODO: Calculate actual RSI values and set the boolean flags
+            // Example:
+            // Double rsi_1min = rsiIndicator.getRsiValue(oneMinSeries, 14);
+            // indicators.setRsi_1min_gt_56(rsi_1min != null && rsi_1min > callRsiThreshold);
+            // indicators.setRsi_1min_lt_44(rsi_1min != null && rsi_1min < putRsiThreshold);
             
         } catch (Exception e) {
             log.error("Error flattening RSI indicators", e);

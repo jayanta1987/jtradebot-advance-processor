@@ -24,8 +24,8 @@ aws:
   region: ap-south-1
   kite:
     secret-name: kite_connect
-    api-key: KITE_API_KEY
-    api-secret: KITE_API_SECRET
+    api-key: KITE_API_KEY_ADVANCED
+    api-secret: KITE_API_SECRET_ADVANCED
     basic-auth-username: APP_BASIC_AUTH_USERNAME
     basic-auth-password: APP_BASIC_AUTH_PASSWORD
   sqs:

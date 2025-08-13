@@ -1,5 +1,6 @@
 package com.jtradebot.processor.controller;
 
+import com.jtradebot.processor.config.StrategyConfigService;
 import com.jtradebot.processor.model.FlattenedIndicators;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
 import com.zerodhatech.models.Tick;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class ScalpingVolumeSurgeController {
     
     private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
+    private final StrategyConfigService configService;
     
     @PostMapping("/evaluate")
     public ResponseEntity<Map<String, Object>> evaluateStrategy(@RequestBody Tick tick) {
@@ -72,11 +74,25 @@ public class ScalpingVolumeSurgeController {
     @GetMapping("/rules")
     public ResponseEntity<Map<String, Object>> getRules() {
         Map<String, Object> response = new HashMap<>();
-        response.put("strategy", "SCALPING_FUTURE_VOLUME_SURGE");
-        response.put("description", "Scalping strategy based on volume surge and technical indicators");
-        response.put("timeframes", new String[]{"1min", "5min", "15min"});
+        response.put("strategy", configService.getStrategyName());
+        response.put("version", configService.getStrategyVersion());
+        response.put("description", configService.getStrategyDescription());
+        response.put("timeframes", configService.getFuturesignalTimeframes());
         response.put("indicators", new String[]{"EMA", "RSI", "Volume", "VWAP", "Support/Resistance"});
-        response.put("entryConditions", new String[]{"Volume Surge", "EMA Crossover", "RSI Overbought/Oversold", "Price vs VWAP", "Support/Resistance"});
+        response.put("entryConditions", new String[]{"Volume Surge", "EMA Crossover", "RSI Bullish/Bearish", "Price vs VWAP", "Support/Resistance"});
+        
+        // Add current thresholds
+        Map<String, Object> thresholds = new HashMap<>();
+        thresholds.put("callRsiThreshold", configService.getCallRsiThreshold());
+        thresholds.put("putRsiThreshold", configService.getPutRsiThreshold());
+        thresholds.put("volumeSurgeMultiplier", configService.getCallVolumeSurgeMultiplier());
+        response.put("currentThresholds", thresholds);
+        
         return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/configuration")
+    public ResponseEntity<String> getFullConfiguration() {
+        return ResponseEntity.ok(configService.getFullConfiguration());
     }
 }

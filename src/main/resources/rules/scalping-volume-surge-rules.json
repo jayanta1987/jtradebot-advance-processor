@@ -19,7 +19,7 @@
     
     "thresholds": {
       "minVolumeSurgeMultiplier": 2.0,
-      "minRsiThreshold": 70.0,
+      "minRsiThreshold": 56.0,
       "minSignalStrength": 7.0
     },
     
@@ -52,7 +52,7 @@
     
     "thresholds": {
       "minVolumeSurgeMultiplier": 2.0,
-      "maxRsiThreshold": 30.0,
+      "maxRsiThreshold": 44.0,
       "minSignalStrength": 7.0
     },
     

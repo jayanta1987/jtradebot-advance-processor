@@ -1,8 +1,7 @@
 package com.jtradebot.processor.service;
 
 import com.jtradebot.processor.model.FlattenedIndicators;
-import com.jtradebot.processor.model.ScalpingVolumeSurgeCallRule;
-import com.jtradebot.processor.model.ScalpingVolumeSurgePutRule;
+
 import com.zerodhatech.models.Tick;
 
 public interface ScalpingVolumeSurgeService {

@@ -23,13 +23,21 @@ public class FlattenedIndicators {
     private Boolean ema9_5min_gt_ema21_5min;
     private Boolean ema9_15min_gt_ema21_15min;
     
-    // RSI indicators
+    // RSI indicators - Updated thresholds
     private Boolean rsi_1min_gt_70;
     private Boolean rsi_5min_gt_70;
     private Boolean rsi_15min_gt_70;
     private Boolean rsi_1min_lt_30;
     private Boolean rsi_5min_lt_30;
     private Boolean rsi_15min_lt_30;
+    
+    // New RSI indicators for updated thresholds (56 and 44)
+    private Boolean rsi_1min_gt_56;
+    private Boolean rsi_5min_gt_56;
+    private Boolean rsi_15min_gt_56;
+    private Boolean rsi_1min_lt_44;
+    private Boolean rsi_5min_lt_44;
+    private Boolean rsi_15min_lt_44;
     
     // Volume surge indicators
     private Boolean volume_1min_surge;

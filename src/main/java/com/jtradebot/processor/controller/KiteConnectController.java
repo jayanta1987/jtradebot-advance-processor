@@ -50,23 +50,32 @@ public class KiteConnectController {
         return response;
     }
 
-    @PostMapping("/callback")
-    public ResponseEntity<Map<String, String>> callback(@RequestBody Map<String, String> requestBody) {
+    @GetMapping("/callback")
+    public ResponseEntity<Map<String, String>> callback(
+            @RequestParam(value = "action", required = false) String action,
+            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "request_token", required = false) String requestToken) {
         Map<String, String> response = new HashMap<>();
         String errorMessage = "Failed to obtain access token";
         try {
-            String requestToken = requestBody.get("request_token");
-            String status = requestBody.get("status");
+            if (requestToken == null || requestToken.isEmpty()) {
+                response.put("message", errorMessage + " : Missing request_token");
+                log.error(errorMessage + " : Missing request_token");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+            
             if (!"success".equals(status)) {
-                response.put("message", errorMessage);
-                log.error(errorMessage);
+                response.put("message", errorMessage + " : Status is not success");
+                log.error(errorMessage + " : Status is not success");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
             }
+            
             User user = kiteConnect.generateSession(requestToken,
                     awsSecretHandler.getSecret(kiteConnectAwsSecretName, kiteApiSecret));
             tickSetupService.saveDefaultTradeConfig(user);
             response.put("message", "Access token successfully obtained.");
-            log.info("Access token successfully obtained");
+            log.info("Access token successfully obtained for action: {}, type: {}", action, type);
             return ResponseEntity.ok(response);
         } catch (KiteException e) {
             response.put("message", errorMessage + " : " + e.getMessage());

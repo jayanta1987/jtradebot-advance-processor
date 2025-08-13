@@ -6,13 +6,17 @@ import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.manager.EmaCrossTrackingManager;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
 import com.jtradebot.processor.model.FlattenedIndicators;
+
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +31,7 @@ public class TickProcessService {
     
     // ScalpingVolumeSurgeService for strategy evaluation
     private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
+    private final ExitStrategyService exitStrategyService;
 
     @Value("${jtradebot.strategy.enable-scalping-volume-surge:true}")
     private boolean enableScalpingVolumeSurge;
@@ -82,8 +87,6 @@ public class TickProcessService {
      */
     private void processWithScalpingVolumeSurgeStrategy(Tick tick) {
         try {
-            log.info("Processing tick with SCALPING_FUTURE_VOLUME_SURGE strategy for instrument: {}", tick.getInstrumentToken());
-            
             // Print current Nifty tick information on every tick
             emaCrossTrackingManager.printCurrentNiftyTickInfo();
             
@@ -100,14 +103,15 @@ public class TickProcessService {
             boolean shouldMakeCallEntry = scalpingVolumeSurgeService.shouldMakeCallEntry(tick);
             boolean shouldMakePutEntry = scalpingVolumeSurgeService.shouldMakePutEntry(tick);
             
-            // Log strategy evaluation results
-            log.info("SCALPING_FUTURE_VOLUME_SURGE Strategy Evaluation - Instrument: {}, Strategy: {}, Confidence: {}, Call Entry: {}, Put Entry: {}", 
-                    tick.getInstrumentToken(), recommendedStrategy, strategyConfidence, shouldMakeCallEntry, shouldMakePutEntry);
+
             
             // Log flattened indicators for debugging
             if (log.isDebugEnabled()) {
                 log.debug("Flattened Indicators for instrument {}: {}", tick.getInstrumentToken(), indicators);
             }
+            
+            // Check and process exits for existing orders
+            checkAndProcessExits(tick);
             
             // TODO: Add order placement logic here when ready
             // TODO: Add performance tracking for backtesting
@@ -125,4 +129,23 @@ public class TickProcessService {
             tickDataManager.initialize(String.valueOf(tick.getInstrumentToken()), DateTimeHandler.getLastMarketTime(tick.getTickTimestamp()));
         }
     }
+    
+    /**
+     * Check and process exits for existing orders based on current tick data
+     */
+    private void checkAndProcessExits(Tick tick) {
+        try {
+            // Get current price and index price from tick
+            Double currentPrice = tick.getLastTradedPrice();
+            Double currentIndexPrice = tick.getLastTradedPrice(); // For now using same price, can be enhanced later
+            
+            // Check and process exits
+            exitStrategyService.checkAndProcessExits(currentPrice, currentIndexPrice);
+            
+        } catch (Exception e) {
+            log.error("Error checking and processing exits for tick: {}", tick.getInstrumentToken(), e);
+        }
+    }
+    
+    
 }
