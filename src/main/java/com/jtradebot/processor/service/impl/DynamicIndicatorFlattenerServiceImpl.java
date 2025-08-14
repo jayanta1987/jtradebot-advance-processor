@@ -42,7 +42,7 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
 
     @Override
     public DynamicFlattenedIndicators flattenIndicators(TickDocument tickDocument, DynamicIndicatorConfig config) {
-        log.info("Flattening indicators dynamically for instrument: {}", tickDocument.getInstrumentToken());
+        log.debug("Flattening indicators dynamically for instrument: {}", tickDocument.getInstrumentToken());
         
         DynamicFlattenedIndicators flattenedIndicators = DynamicFlattenedIndicators.builder()
                 .instrumentToken(String.valueOf(tickDocument.getInstrumentToken()))
@@ -65,7 +65,7 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
             }
         }
         
-        log.info("Dynamic indicators flattened successfully for instrument: {}", tickDocument.getInstrumentToken());
+        log.debug("Dynamic indicators flattened successfully for instrument: {}", tickDocument.getInstrumentToken());
         return flattenedIndicators;
     }
 

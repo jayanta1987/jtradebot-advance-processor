@@ -76,7 +76,7 @@ public class TickProcessService {
         
         for (Tick tick : latestTicks.values()) {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
-            log.info("Processing tick: {} : {} -> {}, isTradable = {}", 
+            log.debug("Processing tick: {} : {} -> {}, isTradable = {}", 
                     instrumentToken, tick.getTickTimestamp(), tick.getLastTradedPrice(), tick.isTradable());
             
             // Initialize on first tick for both instruments

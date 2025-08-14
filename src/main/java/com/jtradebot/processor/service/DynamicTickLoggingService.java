@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
@@ -71,14 +72,22 @@ public class DynamicTickLoggingService {
      * Log basic tick information
      */
     private void logBasicTickInfo(Tick tick) {
-        String timeStr = LocalDateTime.now().format(TIME_FORMATTER);
-        log.info("🕐 {} | 📊 {} | 💰 {:.2f} | 📈 {:.2f} | 📉 {:.2f} | 📊 Vol: {}", 
+        // Use tick timestamp instead of current time
+        String timeStr = tick.getTickTimestamp().toInstant()
+                .atZone(ZoneId.of("Asia/Kolkata"))
+                .toLocalDateTime()
+                .format(TIME_FORMATTER);
+        
+        // Use String.format() for proper number formatting
+        String logMessage = String.format("🕐 %s | 📊 %s | 💰 %.2f | 📈 %.2f | 📉 %.2f | 📊 Vol: %d", 
                 timeStr,
                 tick.getInstrumentToken(),
                 tick.getLastTradedPrice(),
                 tick.getHighPrice(),
                 tick.getLowPrice(),
                 tick.getVolumeTradedToday());
+        
+        log.info(logMessage);
     }
     
     /**

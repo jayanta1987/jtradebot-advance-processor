@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +42,8 @@ public class TickMonitoringService {
             // Verify indicator count
             long totalIndicators = flattenedIndicators.getAllIndicatorKeys().size();
             if (totalIndicators != 42) {
-                log.warn("⚠️ WARNING: Expected 42 indicators but got {} indicators", totalIndicators);
-                log.warn("⚠️ This suggests legacy indicators are still being included");
+                log.debug("⚠️ WARNING: Expected 42 indicators but got {} indicators", totalIndicators);
+                log.debug("⚠️ This suggests legacy indicators are still being included");
             }
             
             // Calculate dynamic strategy score for monitoring (not for decisions)
@@ -74,14 +75,22 @@ public class TickMonitoringService {
      * Log basic tick information
      */
     private void logBasicTickInfo(Tick tick) {
-        String timeStr = LocalDateTime.now().format(TIME_FORMATTER);
-        log.info("🕐 {} | 📊 {} | 💰 {:.2f} | 📈 {:.2f} | 📉 {:.2f} | 📊 Vol: {}", 
+        // Use tick timestamp instead of current time
+        String timeStr = tick.getTickTimestamp().toInstant()
+                .atZone(ZoneId.of("Asia/Kolkata"))
+                .toLocalDateTime()
+                .format(TIME_FORMATTER);
+        
+        // Use String.format() for proper number formatting
+        String logMessage = String.format("🕐 %s | 📊 %s | 💰 %.2f | 📈 %.2f | 📉 %.2f | 📊 Vol: %d", 
                 timeStr,
                 tick.getInstrumentToken(),
                 tick.getLastTradedPrice(),
                 tick.getHighPrice(),
                 tick.getLowPrice(),
                 tick.getVolumeTradedToday());
+        
+        log.info(logMessage);
     }
     
     /**
@@ -110,13 +119,15 @@ public class TickMonitoringService {
         String direction = getDirectionDescription(score);
         String scoreDescription = getScoreDescription(score);
         
-        log.info("{} {} | Score: {:.2f} | Direction: {} | Indicators: {}/{}", 
+        String logMessage = String.format("%s %s | Score: %.2f | Direction: %s | Indicators: %d/%d", 
                 scoreSymbol,
                 scoreDescription,
                 score,
                 direction,
                 countTotalSatisfied(indicators),
                 indicators.getAllIndicatorKeys().size());
+        
+        log.info(logMessage);
     }
     
     /**
@@ -125,7 +136,7 @@ public class TickMonitoringService {
     private void logDetailedDynamicScoreBreakdown(DynamicFlattenedIndicators indicators, DynamicIndicatorConfig config) {
         Map<String, Long> satisfiedByType = countSatisfiedIndicatorsByType(indicators);
         
-        log.info("📈 DYNAMIC SCORE BREAKDOWN - EMA: {}, RSI: {}, Volume: {}, Price: {}, Crossover: {}", 
+        log.debug("📈 DYNAMIC SCORE BREAKDOWN - EMA: {}, RSI: {}, Volume: {}, Price: {}, Crossover: {}", 
                 satisfiedByType.getOrDefault("EMA", 0L),
                 satisfiedByType.getOrDefault("RSI", 0L),
                 satisfiedByType.getOrDefault("Volume", 0L),
@@ -251,30 +262,30 @@ public class TickMonitoringService {
      * Log detailed indicator satisfaction
      */
     private void logDetailedIndicatorSatisfaction(DynamicFlattenedIndicators indicators, DynamicIndicatorConfig config) {
-        log.info("📊 DETAILED INDICATOR ANALYSIS:");
+        log.debug("📊 DETAILED INDICATOR ANALYSIS:");
         
         // EMA indicators
         List<String> satisfiedEma = getSatisfiedIndicators(indicators, "ema");
         if (!satisfiedEma.isEmpty()) {
-            log.info("  📈 EMA Satisfied: {}", String.join(", ", satisfiedEma));
+            log.debug("  📈 EMA Satisfied: {}", String.join(", ", satisfiedEma));
         }
         
         // RSI indicators
         List<String> satisfiedRsi = getSatisfiedIndicators(indicators, "rsi");
         if (!satisfiedRsi.isEmpty()) {
-            log.info("  📊 RSI Satisfied: {}", String.join(", ", satisfiedRsi));
+            log.debug("  📊 RSI Satisfied: {}", String.join(", ", satisfiedRsi));
         }
         
         // Volume indicators
         List<String> satisfiedVolume = getSatisfiedIndicators(indicators, "volume");
         if (!satisfiedVolume.isEmpty()) {
-            log.info("  📈 Volume Satisfied: {}", String.join(", ", satisfiedVolume));
+            log.debug("  📈 Volume Satisfied: {}", String.join(", ", satisfiedVolume));
         }
         
         // Price action indicators
         List<String> satisfiedPrice = getSatisfiedIndicators(indicators, "price");
         if (!satisfiedPrice.isEmpty()) {
-            log.info("  💰 Price Action Satisfied: {}", String.join(", ", satisfiedPrice));
+            log.debug("  💰 Price Action Satisfied: {}", String.join(", ", satisfiedPrice));
         }
     }
     
