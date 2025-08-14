@@ -1,5 +1,6 @@
 package com.jtradebot.processor.service;
 
+import com.jtradebot.processor.model.EntryQuality;
 import com.jtradebot.processor.model.FlattenedIndicators;
 import com.jtradebot.processor.model.StrategyScore;
 
@@ -50,5 +51,20 @@ public interface ScalpingVolumeSurgeService {
      */
     StrategyScore calculateStrategyScore(Tick tick);
     
+    /**
+     * Evaluates CALL entry quality with detailed scoring
+     * @param indicators The flattened indicators
+     * @param tick The current tick data
+     * @return EntryQuality object with quality score and breakdown
+     */
+    EntryQuality evaluateCallEntryQuality(FlattenedIndicators indicators, Tick tick);
+    
+    /**
+     * Evaluates PUT entry quality with detailed scoring
+     * @param indicators The flattened indicators
+     * @param tick The current tick data
+     * @return EntryQuality object with quality score and breakdown
+     */
+    EntryQuality evaluatePutEntryQuality(FlattenedIndicators indicators, Tick tick);
 
 }

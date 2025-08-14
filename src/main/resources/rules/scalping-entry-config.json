@@ -49,7 +49,7 @@
       "minRsiStrength": 60.0,
       "minEmaAlignment": 0.8,
       "minPriceMomentum": 0.5,
-      "minSignalStrength": 0.5,
+      "minSignalStrength": 6.0,
       "requireTrendAlignment": true,
       "requireSupportResistance": false,
       "requireVwapAlignment": true
@@ -113,7 +113,7 @@
       "minRsiStrength": 40.0,
       "minEmaAlignment": 0.8,
       "minPriceMomentum": 0.5,
-      "minSignalStrength": 0.5,
+      "minSignalStrength": 7.0,
       "requireTrendAlignment": true,
       "requireSupportResistance": false,
       "requireVwapAlignment": true

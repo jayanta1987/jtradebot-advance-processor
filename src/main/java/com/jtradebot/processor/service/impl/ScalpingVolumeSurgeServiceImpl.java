@@ -115,19 +115,10 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean shouldEntry = entryQuality.getQualityScore() >= callRule.getMinSignalStrength() &&
                                 hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
             
-            // Log entry signal with quality details
+            // Log entry signal with quality details (only for actual entry decisions, not for score calculation)
             if (shouldEntry) {
-                log.info("🚀 <<<<<<<<<STRONG CALL ENTRY>>>>>>>>> - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
+                log.debug("🚀 CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
                     tick.getInstrumentToken(), tick.getLastTradedPrice(), entryQuality.getQualityScore(), tick.getTickTimestamp());
-                log.info("📊 CALL Entry Quality - EMA: {}, RSI: {}, Volume: {}, Price: {}, Futures: {}, Momentum: {}", 
-                    entryQuality.getEmaScore(), entryQuality.getRsiScore(), entryQuality.getVolumeScore(), 
-                    entryQuality.getPriceActionScore(), entryQuality.getFuturesignalScore(), entryQuality.getMomentumScore());
-                log.info("✅ STRICT VALIDATION - Momentum: {}, Futuresignals: {}, Volume Surge: {}", 
-                    hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
-            } else {
-                // Log why entry was rejected for debugging
-                log.debug("❌ CALL Entry Rejected - Quality: {}, Momentum: {}, Futuresignals: {}, Volume: {}", 
-                    entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
             }
             
             return shouldEntry;
@@ -160,19 +151,14 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean shouldEntry = entryQuality.getQualityScore() >= putRule.getMinSignalStrength() &&
                                 hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
             
-            // Log entry signal with quality details
+            // DEBUG: Log the actual quality score being used for entry decision
+            log.debug("🔍 PUT ENTRY EVALUATION - Quality Score: {}/10, Min Required: {}, Strong Momentum: {}, Strong Futuresignals: {}, Strong Volume: {}, Should Entry: {}", 
+                entryQuality.getQualityScore(), putRule.getMinSignalStrength(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge, shouldEntry);
+            
+            // Log entry signal with quality details (only for actual entry decisions, not for score calculation)
             if (shouldEntry) {
-                log.info("📉 <<<<<<<<<STRONG PUT ENTRY>>>>>>>>> - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
+                log.debug("📉 PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
                     tick.getInstrumentToken(), tick.getLastTradedPrice(), entryQuality.getQualityScore(), tick.getTickTimestamp());
-                log.info("📊 PUT Entry Quality - EMA: {}, RSI: {}, Volume: {}, Price: {}, Futures: {}, Momentum: {}", 
-                    entryQuality.getEmaScore(), entryQuality.getRsiScore(), entryQuality.getVolumeScore(), 
-                    entryQuality.getPriceActionScore(), entryQuality.getFuturesignalScore(), entryQuality.getMomentumScore());
-                log.info("✅ STRICT VALIDATION - Momentum: {}, Futuresignals: {}, Volume Surge: {}", 
-                    hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
-            } else {
-                // Log why entry was rejected for debugging
-                log.debug("❌ PUT Entry Rejected - Quality: {}, Momentum: {}, Futuresignals: {}, Volume: {}", 
-                    entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
             }
             
             return shouldEntry;
@@ -974,7 +960,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     /**
      * Evaluate CALL entry quality with flexible scoring
      */
-    private EntryQuality evaluateCallEntryQuality(FlattenedIndicators indicators, Tick tick) {
+    public EntryQuality evaluateCallEntryQuality(FlattenedIndicators indicators, Tick tick) {
         EntryQuality quality = EntryQuality.builder()
                 .instrumentToken(String.valueOf(tick.getInstrumentToken()))
                 .timestamp(tick.getTickTimestamp().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
@@ -1038,7 +1024,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     /**
      * Evaluate PUT entry quality with flexible scoring
      */
-    private EntryQuality evaluatePutEntryQuality(FlattenedIndicators indicators, Tick tick) {
+    public EntryQuality evaluatePutEntryQuality(FlattenedIndicators indicators, Tick tick) {
         EntryQuality quality = EntryQuality.builder()
                 .instrumentToken(String.valueOf(tick.getInstrumentToken()))
                 .timestamp(tick.getTickTimestamp().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
@@ -1245,15 +1231,20 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     
     /**
      * Validate strong futuresignals for PUT entry (scalping perspective)
-     * Requires all timeframes to show bearish futuresignals
+     * Requires majority of timeframes to show bearish futuresignals
      */
     private boolean validateStrongFuturesignalsForPut(FlattenedIndicators indicators) {
         if (indicators.getFuturesignals() == null) {
             return false;
         }
         
-        // STRICT: Require ALL timeframes to be bearish for scalping
-        return indicators.getFuturesignals().getAllTimeframesBearish();
+        // RELAXED: Require at least 2 out of 3 timeframes to be bearish for scalping
+        int bearishTimeframes = 0;
+        if (indicators.getFuturesignals().getOneMinBearishSurge() != null && indicators.getFuturesignals().getOneMinBearishSurge()) bearishTimeframes++;
+        if (indicators.getFuturesignals().getFiveMinBearishSurge() != null && indicators.getFuturesignals().getFiveMinBearishSurge()) bearishTimeframes++;
+        if (indicators.getFuturesignals().getFifteenMinBearishSurge() != null && indicators.getFuturesignals().getFifteenMinBearishSurge()) bearishTimeframes++;
+        
+        return bearishTimeframes >= 2; // At least 2 out of 3 timeframes bearish
     }
     
     /**

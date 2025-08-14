@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.model.EntryQuality;
 import com.jtradebot.processor.indicator.MultiEmaIndicator;
 import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.model.EmaInfo;
@@ -166,14 +167,50 @@ public class TickProcessService {
             String volumeStatus = getVolumeStatus(realIndicators);
             String entrySignal = getEntrySignal(shouldCall, shouldPut);
             
-            // CONCISE ONE-LINER LOG
-            log.info("📊 {} | 💰 {} | 📈 {} | 📉 {} | 📊 {} | 🎯 {}", 
+            // Calculate entry proximity
+            String entryProximity = getEntryProximity(realIndicators, indexTick);
+            
+            // ENHANCED LOG WITH ENTRY PROXIMITY
+            log.info("📊 {} | 💰 {} | 📈 {} | 📉 {} | 📊 {} | 🎯 {} | 🎯 {}", 
                 indexTick.getTickTimestamp(), 
                 indexTick.getLastTradedPrice(), 
                 emaStatus, 
                 rsiStatus, 
                 volumeStatus, 
-                entrySignal);
+                entrySignal,
+                entryProximity);
+            
+            // Log actual entry signals and execute orders (only when signals are generated)
+            if (shouldCall) {
+                // Get the actual quality score used for entry decision
+                EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(scalpingVolumeSurgeService.getFlattenedIndicators(indexTick), indexTick);
+                log.info("🚀 CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
+                    indexTick.getInstrumentToken(), indexTick.getLastTradedPrice(), callQuality.getQualityScore(), indexTick.getTickTimestamp());
+                
+                // Check if we can execute the order (no active orders)
+                if (!exitStrategyService.hasActiveOrder()) {
+                    // 🔥 EXECUTE CALL ORDER
+                    log.info("🎯 EXECUTING CALL ORDER - Quality Score: {}/10 meets threshold", callQuality.getQualityScore());
+                    createTradeOrder(indexTick, "CALL_BUY");
+                } else {
+                    log.warn("⚠️ CALL SIGNAL IGNORED - Active order already exists (Risk management: only one trade at a time)");
+                }
+            }
+            if (shouldPut) {
+                // Get the actual quality score used for entry decision
+                EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(scalpingVolumeSurgeService.getFlattenedIndicators(indexTick), indexTick);
+                log.info("📉 PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
+                    indexTick.getInstrumentToken(), indexTick.getLastTradedPrice(), putQuality.getQualityScore(), indexTick.getTickTimestamp());
+                
+                // Check if we can execute the order (no active orders)
+                if (!exitStrategyService.hasActiveOrder()) {
+                    // 🔥 EXECUTE PUT ORDER
+                    log.info("🎯 EXECUTING PUT ORDER - Quality Score: {}/10 meets threshold", putQuality.getQualityScore());
+                    createTradeOrder(indexTick, "PUT_BUY");
+                } else {
+                    log.warn("⚠️ PUT SIGNAL IGNORED - Active order already exists (Risk management: only one trade at a time)");
+                }
+            }
             
         } catch (Exception e) {
             log.error("Error logging real entry logic: {}", e.getMessage());
@@ -310,6 +347,114 @@ public class TickProcessService {
         if (shouldCall) return "CALL";
         if (shouldPut) return "PUT";
         return "NONE";
+    }
+    
+    /**
+     * Helper method to calculate entry proximity - how close to entry conditions
+     */
+    private String getEntryProximity(FlattenedIndicators indicators, Tick indexTick) {
+        if (indicators == null) return "PROX:---";
+        
+        try {
+            // Get current price
+            double currentPrice = indexTick.getLastTradedPrice();
+            
+            // Get BarSeries for different timeframes
+            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), ONE_MIN);
+            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIVE_MIN);
+            
+            // Calculate EMA values
+            MultiEmaIndicator multiEmaIndicator = new MultiEmaIndicator();
+            RsiIndicator rsiIndicator = new RsiIndicator();
+            
+            // Track conditions for CALL and PUT
+            int callConditions = 0;
+            int putConditions = 0;
+            int totalConditions = 0;
+            
+            // Check 1min timeframe
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
+                totalConditions++;
+                
+                // EMA crossover check
+                EmaInfo emaInfo = multiEmaIndicator.calculateEmaValues(oneMinSeries, ONE_MIN);
+                if (emaInfo != null && emaInfo.getEma9() != null && emaInfo.getEma20() != null) {
+                    if (emaInfo.getEma9() > emaInfo.getEma20()) {
+                        callConditions++;
+                    } else {
+                        putConditions++;
+                    }
+                }
+                
+                // RSI check
+                Double rsiValue = rsiIndicator.getRsiValue(oneMinSeries, 14);
+                if (rsiValue != null) {
+                    if (rsiValue > 56) {
+                        callConditions++;
+                    } else if (rsiValue < 40) {
+                        putConditions++;
+                    }
+                }
+            }
+            
+            // Check 5min timeframe
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
+                totalConditions++;
+                
+                // EMA crossover check
+                EmaInfo emaInfo = multiEmaIndicator.calculateEmaValues(fiveMinSeries, FIVE_MIN);
+                if (emaInfo != null && emaInfo.getEma9() != null && emaInfo.getEma20() != null) {
+                    if (emaInfo.getEma9() > emaInfo.getEma20()) {
+                        callConditions++;
+                    } else {
+                        putConditions++;
+                    }
+                }
+                
+                // RSI check
+                Double rsiValue = rsiIndicator.getRsiValue(fiveMinSeries, 14);
+                if (rsiValue != null) {
+                    if (rsiValue > 56) {
+                        callConditions++;
+                    } else if (rsiValue < 40) {
+                        putConditions++;
+                    }
+                }
+            }
+            
+            // Volume surge check
+            if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) {
+                callConditions++;
+                putConditions++;
+            }
+            if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) {
+                callConditions++;
+                putConditions++;
+            }
+            
+            // Calculate proximity percentages
+            double callProximity = totalConditions > 0 ? (double) callConditions / totalConditions * 100 : 0;
+            double putProximity = totalConditions > 0 ? (double) putConditions / totalConditions * 100 : 0;
+            
+            // Determine which direction is closer to entry
+            String direction = callProximity > putProximity ? "CALL" : "PUT";
+            double maxProximity = Math.max(callProximity, putProximity);
+            
+            // Format proximity string
+            if (maxProximity >= 80) {
+                return String.format("PROX:%s %.0f%% 🔥", direction, maxProximity);
+            } else if (maxProximity >= 60) {
+                return String.format("PROX:%s %.0f%% ⚡", direction, maxProximity);
+            } else if (maxProximity >= 40) {
+                return String.format("PROX:%s %.0f%% ⚠️", direction, maxProximity);
+            } else {
+                return String.format("PROX:%s %.0f%%", direction, maxProximity);
+            }
+            
+        } catch (Exception e) {
+            log.debug("Error calculating entry proximity: {}", e.getMessage());
+            return "PROX:---";
+        }
     }
     
 
