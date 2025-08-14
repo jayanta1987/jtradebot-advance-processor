@@ -3,6 +3,7 @@ package com.jtradebot.processor.repository.document;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
+import com.jtradebot.processor.model.MilestoneSystem;
 import lombok.Data;
 import lombok.ToString;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -10,6 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
 import java.util.Date;
+import java.util.List;
 
 @Document(collection = "jtrade_orders")
 @Data
@@ -51,6 +53,12 @@ public class JtradeOrder {
     private Date createdAt;
     
     private String comments;
+    
+    // Milestone System
+    private MilestoneSystem milestoneSystem;
+    private Integer currentTargetMilestone;
+    private Double totalReleasedProfit;
+    private List<String> milestoneHistory;
     
     // Helper methods
     public boolean isActive() {

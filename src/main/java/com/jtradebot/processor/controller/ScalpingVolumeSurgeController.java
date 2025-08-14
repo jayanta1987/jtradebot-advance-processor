@@ -1,8 +1,11 @@
 package com.jtradebot.processor.controller;
 
-import com.jtradebot.processor.config.StrategyConfigService;
+import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.model.FlattenedIndicators;
+import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.service.ExitStrategyService;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -19,37 +23,33 @@ import java.util.Map;
 public class ScalpingVolumeSurgeController {
     
     private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
-    private final StrategyConfigService configService;
+    private final DynamicStrategyConfigService configService;
+    private final ExitStrategyService exitStrategyService;
     
     @PostMapping("/evaluate")
     public ResponseEntity<Map<String, Object>> evaluateStrategy(@RequestBody Tick tick) {
         try {
             log.info("Evaluating SCALPING_FUTURE_VOLUME_SURGE strategy for instrument: {}", tick.getInstrumentToken());
             
+            // Get comprehensive strategy score
+            StrategyScore strategyScore = scalpingVolumeSurgeService.calculateStrategyScore(tick);
+            
             // Get flattened indicators
             FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
-            
-            // Get strategy recommendation
-            String recommendedStrategy = scalpingVolumeSurgeService.getRecommendedStrategy(tick);
-            
-            // Get strategy confidence
-            Double strategyConfidence = scalpingVolumeSurgeService.getStrategyConfidence(tick);
-            
-            // Check entry conditions
-            boolean shouldMakeCallEntry = scalpingVolumeSurgeService.shouldMakeCallEntry(tick);
-            boolean shouldMakePutEntry = scalpingVolumeSurgeService.shouldMakePutEntry(tick);
             
             Map<String, Object> response = new HashMap<>();
             response.put("instrumentToken", tick.getInstrumentToken());
             response.put("timestamp", tick.getTickTimestamp());
             response.put("lastTradedPrice", tick.getLastTradedPrice());
-            response.put("recommendedStrategy", recommendedStrategy);
-            response.put("strategyConfidence", strategyConfidence);
-            response.put("shouldMakeCallEntry", shouldMakeCallEntry);
-            response.put("shouldMakePutEntry", shouldMakePutEntry);
+            response.put("strategyScore", strategyScore);
+            response.put("recommendedStrategy", strategyScore.getRecommendation());
+            response.put("strategyConfidence", strategyScore.getConfidence());
+            response.put("shouldMakeCallEntry", strategyScore.getShouldMakeCallEntry());
+            response.put("shouldMakePutEntry", strategyScore.getShouldMakePutEntry());
             response.put("flattenedIndicators", indicators);
             
-            log.info("Strategy evaluation completed. Recommended: {}, Confidence: {}", recommendedStrategy, strategyConfidence);
+            log.info("Strategy evaluation completed. Score: {}, Recommendation: {}, Confidence: {}", 
+                    strategyScore.getScoreWithSign(), strategyScore.getRecommendation(), strategyScore.getConfidence());
             
             return ResponseEntity.ok(response);
             
@@ -91,8 +91,47 @@ public class ScalpingVolumeSurgeController {
         return ResponseEntity.ok(response);
     }
     
+    @PostMapping("/score")
+    public ResponseEntity<StrategyScore> getStrategyScore(@RequestBody Tick tick) {
+        try {
+            log.info("Calculating strategy score for instrument: {}", tick.getInstrumentToken());
+            
+            StrategyScore strategyScore = scalpingVolumeSurgeService.calculateStrategyScore(tick);
+            
+            log.info("Strategy score calculated: {} ({})", 
+                    strategyScore.getScoreWithSign(), strategyScore.getScoreDescription());
+            
+            return ResponseEntity.ok(strategyScore);
+            
+        } catch (Exception e) {
+            log.error("Error calculating strategy score for instrument: {}", tick.getInstrumentToken(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
     @GetMapping("/configuration")
-    public ResponseEntity<String> getFullConfiguration() {
+    public ResponseEntity<Map<String, Object>> getFullConfiguration() {
         return ResponseEntity.ok(configService.getFullConfiguration());
+    }
+    
+    @GetMapping("/active-orders")
+    public ResponseEntity<Map<String, Object>> getActiveOrders() {
+        Map<String, Object> response = new HashMap<>();
+        
+        List<JtradeOrder> activeOrders = exitStrategyService.getActiveOrders();
+        response.put("activeOrdersCount", activeOrders.size());
+        response.put("activeOrders", activeOrders);
+        
+        // Add exit strategy configuration
+        Map<String, Object> exitConfig = new HashMap<>();
+        exitConfig.put("callMaxHoldingTimeMinutes", configService.getCallMaxHoldingTimeMinutes());
+        exitConfig.put("putMaxHoldingTimeMinutes", configService.getPutMaxHoldingTimeMinutes());
+        exitConfig.put("callStopLossPercentage", configService.getCallStopLossPercentage());
+        exitConfig.put("putStopLossPercentage", configService.getPutStopLossPercentage());
+        exitConfig.put("callTargetPercentage", configService.getCallTargetPercentage());
+        exitConfig.put("putTargetPercentage", configService.getPutTargetPercentage());
+        response.put("exitStrategyConfig", exitConfig);
+        
+        return ResponseEntity.ok(response);
     }
 }

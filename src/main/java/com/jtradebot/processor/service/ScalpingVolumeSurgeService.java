@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service;
 
 import com.jtradebot.processor.model.FlattenedIndicators;
+import com.jtradebot.processor.model.StrategyScore;
 
 import com.zerodhatech.models.Tick;
 
@@ -40,4 +41,21 @@ public interface ScalpingVolumeSurgeService {
      * @return Double representing confidence in the strategy
      */
     Double getStrategyConfidence(Tick tick);
+    
+    /**
+     * Calculates comprehensive strategy score (-10 to +10)
+     * Positive = Bullish/CALL strength, Negative = Bearish/PUT strength
+     * @param tick The current tick data
+     * @return StrategyScore object with detailed scoring breakdown
+     */
+    StrategyScore calculateStrategyScore(Tick tick);
+    
+    /**
+     * Calculates comprehensive strategy score with volume data from future tick
+     * This method properly handles the alternating index/future tick scenario
+     * @param indexTick The index tick data (for price calculations)
+     * @param futureTick The future tick data (for volume/OI calculations)
+     * @return StrategyScore object with detailed scoring breakdown
+     */
+    StrategyScore calculateStrategyScoreWithVolumeData(Tick indexTick, Tick futureTick);
 }

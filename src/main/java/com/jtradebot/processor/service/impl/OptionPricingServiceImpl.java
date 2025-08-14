@@ -82,7 +82,7 @@ public class OptionPricingServiceImpl implements OptionPricingService {
     }
     
     @Override
-    public Double calculateCurrentLTP(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice) {
+    public Double calculateCurrentLTP(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice, OrderTypeEnum orderType) {
         if (entryPrice == null || entryIndexPrice == null || currentIndexPrice == null) {
             log.warn("Invalid parameters for LTP calculation: entryPrice={}, entryIndexPrice={}, currentIndexPrice={}", 
                     entryPrice, entryIndexPrice, currentIndexPrice);
@@ -92,14 +92,25 @@ public class OptionPricingServiceImpl implements OptionPricingService {
         // Calculate index movement
         Double indexMovement = currentIndexPrice - entryIndexPrice;
         
-        // Calculate current LTP
-        Double currentLTP = entryPrice + indexMovement;
+        // For options, price movement is 1:1 with index movement
+        Double currentLTP;
+        
+        if (orderType == OrderTypeEnum.CALL_BUY) {
+            // CALL: option price increases when index increases
+            currentLTP = entryPrice + indexMovement;
+        } else if (orderType == OrderTypeEnum.PUT_BUY) {
+            // PUT: option price decreases when index increases
+            currentLTP = entryPrice - indexMovement;
+        } else {
+            log.warn("Unsupported order type for LTP calculation: {}", orderType);
+            return entryPrice;
+        }
         
         // Ensure LTP doesn't go below 0 (minimum option price)
         currentLTP = Math.max(currentLTP, 0.0);
         
-        log.debug("Calculated LTP: {} (Entry: {}, Index Movement: {}, Entry Index: {}, Current Index: {})", 
-                currentLTP, entryPrice, indexMovement, entryIndexPrice, currentIndexPrice);
+        log.debug("Calculated LTP: {} (Entry: {}, Index Movement: {}, Order Type: {}, Entry Index: {}, Current Index: {})", 
+                currentLTP, entryPrice, indexMovement, orderType, entryIndexPrice, currentIndexPrice);
         return currentLTP;
     }
     

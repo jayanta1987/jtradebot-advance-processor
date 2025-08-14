@@ -1,0 +1,542 @@
+{
+  "strategy": "DYNAMIC_SCALPING_VOLUME_SURGE",
+  "version": "2.0",
+  "description": "Dynamic indicator configuration for scalping strategy with full support for CALL/PUT cases and crossover/crossdown scenarios",
+  
+  "timeframes": ["1min", "5min", "15min"],
+  
+  "thresholds": {
+    "volumeSurgeMultiplier": 2.0,
+    "rsiOverbought": 70.0,
+    "rsiOversold": 30.0,
+    "rsiBullish": 56.0,
+    "rsiBearish": 44.0,
+    "priceDeviation": 0.01
+  },
+  
+  "indicators": {
+    "ema_crossover_1min": {
+      "name": "EMA Crossover 1min",
+      "type": "EMA",
+      "timeframes": ["1min"],
+      "parameters": {
+        "ema1": 9,
+        "ema2": 20
+      },
+      "comparison": "CROSSOVER",
+      "description": "EMA 9 crosses above EMA 20 on 1min timeframe"
+    },
+    
+    "ema_crossover_5min": {
+      "name": "EMA Crossover 5min",
+      "type": "EMA",
+      "timeframes": ["5min"],
+      "parameters": {
+        "ema1": 9,
+        "ema2": 20
+      },
+      "comparison": "CROSSOVER",
+      "description": "EMA 9 crosses above EMA 20 on 5min timeframe"
+    },
+    
+    "ema_crossover_15min": {
+      "name": "EMA Crossover 15min",
+      "type": "EMA",
+      "timeframes": ["15min"],
+      "parameters": {
+        "ema1": 9,
+        "ema2": 20
+      },
+      "comparison": "CROSSOVER",
+      "description": "EMA 9 crosses above EMA 20 on 15min timeframe"
+    },
+    
+    "ema_crossdown_1min": {
+      "name": "EMA Crossdown 1min",
+      "type": "EMA",
+      "timeframes": ["1min"],
+      "parameters": {
+        "ema1": 9,
+        "ema2": 20
+      },
+      "comparison": "CROSSDOWN",
+      "description": "EMA 9 crosses below EMA 20 on 1min timeframe"
+    },
+    
+    "ema_crossdown_5min": {
+      "name": "EMA Crossdown 5min",
+      "type": "EMA",
+      "timeframes": ["5min"],
+      "parameters": {
+        "ema1": 9,
+        "ema2": 20
+      },
+      "comparison": "CROSSDOWN",
+      "description": "EMA 9 crosses below EMA 20 on 5min timeframe"
+    },
+    
+    "ema_crossdown_15min": {
+      "name": "EMA Crossdown 15min",
+      "type": "EMA",
+      "timeframes": ["15min"],
+      "parameters": {
+        "ema1": 9,
+        "ema2": 20
+      },
+      "comparison": "CROSSDOWN",
+      "description": "EMA 9 crosses below EMA 20 on 15min timeframe"
+    },
+    
+    "rsi_overbought_1min": {
+      "name": "RSI Overbought 1min",
+      "type": "RSI",
+      "timeframes": ["1min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "GT",
+      "threshold": 70.0,
+      "description": "RSI above 70 on 1min timeframe (overbought)"
+    },
+    
+    "rsi_overbought_5min": {
+      "name": "RSI Overbought 5min",
+      "type": "RSI",
+      "timeframes": ["5min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "GT",
+      "threshold": 70.0,
+      "description": "RSI above 70 on 5min timeframe (overbought)"
+    },
+    
+    "rsi_overbought_15min": {
+      "name": "RSI Overbought 15min",
+      "type": "RSI",
+      "timeframes": ["15min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "GT",
+      "threshold": 70.0,
+      "description": "RSI above 70 on 15min timeframe (overbought)"
+    },
+    
+    "rsi_oversold_1min": {
+      "name": "RSI Oversold 1min",
+      "type": "RSI",
+      "timeframes": ["1min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "LT",
+      "threshold": 30.0,
+      "description": "RSI below 30 on 1min timeframe (oversold)"
+    },
+    
+    "rsi_oversold_5min": {
+      "name": "RSI Oversold 5min",
+      "type": "RSI",
+      "timeframes": ["5min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "LT",
+      "threshold": 30.0,
+      "description": "RSI below 30 on 5min timeframe (oversold)"
+    },
+    
+    "rsi_oversold_15min": {
+      "name": "RSI Oversold 15min",
+      "type": "RSI",
+      "timeframes": ["15min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "LT",
+      "threshold": 30.0,
+      "description": "RSI below 30 on 15min timeframe (oversold)"
+    },
+    
+    "rsi_bullish_1min": {
+      "name": "RSI Bullish 1min",
+      "type": "RSI",
+      "timeframes": ["1min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "GT",
+      "threshold": 56.0,
+      "description": "RSI above 56 on 1min timeframe (bullish)"
+    },
+    
+    "rsi_bullish_5min": {
+      "name": "RSI Bullish 5min",
+      "type": "RSI",
+      "timeframes": ["5min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "GT",
+      "threshold": 56.0,
+      "description": "RSI above 56 on 5min timeframe (bullish)"
+    },
+    
+    "rsi_bullish_15min": {
+      "name": "RSI Bullish 15min",
+      "type": "RSI",
+      "timeframes": ["15min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "GT",
+      "threshold": 56.0,
+      "description": "RSI above 56 on 15min timeframe (bullish)"
+    },
+    
+    "rsi_bearish_1min": {
+      "name": "RSI Bearish 1min",
+      "type": "RSI",
+      "timeframes": ["1min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "LT",
+      "threshold": 44.0,
+      "description": "RSI below 44 on 1min timeframe (bearish)"
+    },
+    
+    "rsi_bearish_5min": {
+      "name": "RSI Bearish 5min",
+      "type": "RSI",
+      "timeframes": ["5min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "LT",
+      "threshold": 44.0,
+      "description": "RSI below 44 on 5min timeframe (bearish)"
+    },
+    
+    "rsi_bearish_15min": {
+      "name": "RSI Bearish 15min",
+      "type": "RSI",
+      "timeframes": ["15min"],
+      "parameters": {
+        "period": 14
+      },
+      "comparison": "LT",
+      "threshold": 44.0,
+      "description": "RSI below 44 on 15min timeframe (bearish)"
+    },
+    
+    "volume_surge_1min": {
+      "name": "Volume Surge 1min",
+      "type": "VOLUME",
+      "timeframes": ["1min"],
+      "parameters": {
+        "historicalPeriods": 20,
+        "recentPeriods": 5
+      },
+      "comparison": "GT",
+      "threshold": 2.0,
+      "description": "Volume surge above 2x average on 1min timeframe"
+    },
+    
+    "volume_surge_5min": {
+      "name": "Volume Surge 5min",
+      "type": "VOLUME",
+      "timeframes": ["5min"],
+      "parameters": {
+        "historicalPeriods": 20,
+        "recentPeriods": 5
+      },
+      "comparison": "GT",
+      "threshold": 2.0,
+      "description": "Volume surge above 2x average on 5min timeframe"
+    },
+    
+    "volume_surge_15min": {
+      "name": "Volume Surge 15min",
+      "type": "VOLUME",
+      "timeframes": ["15min"],
+      "parameters": {
+        "historicalPeriods": 20,
+        "recentPeriods": 5
+      },
+      "comparison": "GT",
+      "threshold": 2.0,
+      "description": "Volume surge above 2x average on 15min timeframe"
+    },
+    
+    "volume_low_1min": {
+      "name": "Volume Low 1min",
+      "type": "VOLUME",
+      "timeframes": ["1min"],
+      "parameters": {
+        "historicalPeriods": 20,
+        "recentPeriods": 5
+      },
+      "comparison": "LT",
+      "threshold": 0.5,
+      "description": "Volume below 0.5x average on 1min timeframe"
+    },
+    
+    "volume_low_5min": {
+      "name": "Volume Low 5min",
+      "type": "VOLUME",
+      "timeframes": ["5min"],
+      "parameters": {
+        "historicalPeriods": 20,
+        "recentPeriods": 5
+      },
+      "comparison": "LT",
+      "threshold": 0.5,
+      "description": "Volume below 0.5x average on 5min timeframe"
+    },
+    
+    "volume_low_15min": {
+      "name": "Volume Low 15min",
+      "type": "VOLUME",
+      "timeframes": ["15min"],
+      "parameters": {
+        "historicalPeriods": 20,
+        "recentPeriods": 5
+      },
+      "comparison": "LT",
+      "threshold": 0.5,
+      "description": "Volume below 0.5x average on 15min timeframe"
+    },
+    
+    "price_above_vwap_1min": {
+      "name": "Price Above VWAP 1min",
+      "type": "VWAP",
+      "timeframes": ["1min"],
+      "parameters": {},
+      "comparison": "GT",
+      "description": "Price above VWAP on 1min timeframe"
+    },
+    
+    "price_above_vwap_5min": {
+      "name": "Price Above VWAP 5min",
+      "type": "VWAP",
+      "timeframes": ["5min"],
+      "parameters": {},
+      "comparison": "GT",
+      "description": "Price above VWAP on 5min timeframe"
+    },
+    
+    "price_above_vwap_15min": {
+      "name": "Price Above VWAP 15min",
+      "type": "VWAP",
+      "timeframes": ["15min"],
+      "parameters": {},
+      "comparison": "GT",
+      "description": "Price above VWAP on 15min timeframe"
+    },
+    
+    "price_below_vwap_1min": {
+      "name": "Price Below VWAP 1min",
+      "type": "VWAP",
+      "timeframes": ["1min"],
+      "parameters": {},
+      "comparison": "LT",
+      "description": "Price below VWAP on 1min timeframe"
+    },
+    
+    "price_below_vwap_5min": {
+      "name": "Price Below VWAP 5min",
+      "type": "VWAP",
+      "timeframes": ["5min"],
+      "parameters": {},
+      "comparison": "LT",
+      "description": "Price below VWAP on 5min timeframe"
+    },
+    
+    "price_below_vwap_15min": {
+      "name": "Price Below VWAP 15min",
+      "type": "VWAP",
+      "timeframes": ["15min"],
+      "parameters": {},
+      "comparison": "LT",
+      "description": "Price below VWAP on 15min timeframe"
+    },
+    
+    "price_above_resistance_1min": {
+      "name": "Price Above Resistance 1min",
+      "type": "SUPPORT_RESISTANCE",
+      "timeframes": ["1min"],
+      "parameters": {
+        "lookbackPeriods": 20
+      },
+      "comparison": "GT",
+      "description": "Price above resistance level on 1min timeframe"
+    },
+    
+    "price_above_resistance_5min": {
+      "name": "Price Above Resistance 5min",
+      "type": "SUPPORT_RESISTANCE",
+      "timeframes": ["5min"],
+      "parameters": {
+        "lookbackPeriods": 20
+      },
+      "comparison": "GT",
+      "description": "Price above resistance level on 5min timeframe"
+    },
+    
+    "price_above_resistance_15min": {
+      "name": "Price Above Resistance 15min",
+      "type": "SUPPORT_RESISTANCE",
+      "timeframes": ["15min"],
+      "parameters": {
+        "lookbackPeriods": 20
+      },
+      "comparison": "GT",
+      "description": "Price above resistance level on 15min timeframe"
+    },
+    
+    "price_below_support_1min": {
+      "name": "Price Below Support 1min",
+      "type": "SUPPORT_RESISTANCE",
+      "timeframes": ["1min"],
+      "parameters": {
+        "lookbackPeriods": 20
+      },
+      "comparison": "LT",
+      "description": "Price below support level on 1min timeframe"
+    },
+    
+    "price_below_support_5min": {
+      "name": "Price Below Support 5min",
+      "type": "SUPPORT_RESISTANCE",
+      "timeframes": ["5min"],
+      "parameters": {
+        "lookbackPeriods": 20
+      },
+      "comparison": "LT",
+      "description": "Price below support level on 5min timeframe"
+    },
+    
+    "price_below_support_15min": {
+      "name": "Price Below Support 15min",
+      "type": "SUPPORT_RESISTANCE",
+      "timeframes": ["15min"],
+      "parameters": {
+        "lookbackPeriods": 20
+      },
+      "comparison": "LT",
+      "description": "Price below support level on 15min timeframe"
+    },
+    
+    "ema_rsi_crossover_1min": {
+      "name": "EMA RSI Crossover 1min",
+      "type": "CROSSOVER",
+      "timeframes": ["1min"],
+      "parameters": {
+        "indicator1": "ema_9",
+        "indicator2": "rsi"
+      },
+      "description": "EMA 9 crosses above RSI on 1min timeframe"
+    },
+    
+    "ema_rsi_crossover_5min": {
+      "name": "EMA RSI Crossover 5min",
+      "type": "CROSSOVER",
+      "timeframes": ["5min"],
+      "parameters": {
+        "indicator1": "ema_9",
+        "indicator2": "rsi"
+      },
+      "description": "EMA 9 crosses above RSI on 5min timeframe"
+    },
+    
+    "ema_rsi_crossover_15min": {
+      "name": "EMA RSI Crossover 15min",
+      "type": "CROSSOVER",
+      "timeframes": ["15min"],
+      "parameters": {
+        "indicator1": "ema_9",
+        "indicator2": "rsi"
+      },
+      "description": "EMA 9 crosses above RSI on 15min timeframe"
+    },
+    
+    "ema_rsi_crossdown_1min": {
+      "name": "EMA RSI Crossdown 1min",
+      "type": "CROSSDOWN",
+      "timeframes": ["1min"],
+      "parameters": {
+        "indicator1": "ema_9",
+        "indicator2": "rsi"
+      },
+      "description": "EMA 9 crosses below RSI on 1min timeframe"
+    },
+    
+    "ema_rsi_crossdown_5min": {
+      "name": "EMA RSI Crossdown 5min",
+      "type": "CROSSDOWN",
+      "timeframes": ["5min"],
+      "parameters": {
+        "indicator1": "ema_9",
+        "indicator2": "rsi"
+      },
+      "description": "EMA 9 crosses below RSI on 5min timeframe"
+    },
+    
+    "ema_rsi_crossdown_15min": {
+      "name": "EMA RSI Crossdown 15min",
+      "type": "CROSSDOWN",
+      "timeframes": ["15min"],
+      "parameters": {
+        "indicator1": "ema_9",
+        "indicator2": "rsi"
+      },
+      "description": "EMA 9 crosses below RSI on 15min timeframe"
+    }
+  },
+  
+  "callConditions": {
+    "requiredIndicators": [
+      "ema_crossover_1min",
+      "ema_crossover_5min", 
+      "ema_crossover_15min",
+      "rsi_bullish_1min",
+      "rsi_bullish_5min",
+      "rsi_bullish_15min",
+      "volume_surge_1min",
+      "volume_surge_5min",
+      "volume_surge_15min",
+      "price_above_vwap_1min",
+      "price_above_vwap_5min",
+      "price_above_vwap_15min",
+      "price_above_resistance_1min",
+      "price_above_resistance_5min",
+      "price_above_resistance_15min"
+    ],
+    "minRequiredCount": 10,
+    "description": "Conditions for CALL strategy"
+  },
+  
+  "putConditions": {
+    "requiredIndicators": [
+      "ema_crossdown_1min",
+      "ema_crossdown_5min",
+      "ema_crossdown_15min", 
+      "rsi_bearish_1min",
+      "rsi_bearish_5min",
+      "rsi_bearish_15min",
+      "volume_surge_1min",
+      "volume_surge_5min",
+      "volume_surge_15min",
+      "price_below_vwap_1min",
+      "price_below_vwap_5min",
+      "price_below_vwap_15min",
+      "price_below_support_1min",
+      "price_below_support_5min",
+      "price_below_support_15min"
+    ],
+    "minRequiredCount": 10,
+    "description": "Conditions for PUT strategy"
+  }
+}

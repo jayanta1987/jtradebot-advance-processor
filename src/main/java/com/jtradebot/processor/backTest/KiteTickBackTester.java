@@ -67,12 +67,13 @@ public class KiteTickBackTester {
             if (tick.getInstrumentToken() == 0) {
                 tick.setInstrumentToken(kiteInstrumentHandler.getNifty50Token());
             }
-            if (tick.getInstrumentToken() == kiteInstrumentHandler.getNifty50Token()) {
-                tickProcessService.processIndexTick(tick);
-            } else {
-                tick.setTradable(true);
-                tickProcessService.processFutureTick(tick);
-            }
+            
+            // Use the new unified tick processing method
+            // Create a list with single tick to match the new interface
+            // Skip market hours check for backtesting
+            List<Tick> tickList = new ArrayList<>();
+            tickList.add(tick);
+            tickProcessService.processLiveTicks(tickList, true); // true = skip market hours check
 
         } else {
             log.info("No more ticks to process.");

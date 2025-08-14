@@ -21,9 +21,10 @@ public interface OptionPricingService {
     
     /**
      * Calculate current LTP based on index movement
-     * LTP = Entry Price + (Current Index Price - Entry Index Price)
+     * For CALL: LTP = Entry Price + (Current Index Price - Entry Index Price)
+     * For PUT: LTP = Entry Price - (Current Index Price - Entry Index Price)
      */
-    Double calculateCurrentLTP(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice);
+    Double calculateCurrentLTP(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice, OrderTypeEnum orderType);
     
     /**
      * Calculate profit/loss points based on order type

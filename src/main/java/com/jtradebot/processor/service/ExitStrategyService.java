@@ -4,6 +4,7 @@ import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 
 import com.jtradebot.processor.repository.document.JtradeOrder;
+import com.zerodhatech.models.Tick;
 
 import java.util.List;
 
@@ -53,6 +54,11 @@ public interface ExitStrategyService {
      * Check if any orders need to be exited based on current market conditions
      */
     void checkAndProcessExits(Double currentPrice, Double currentIndexPrice);
+    
+    /**
+     * Enhanced exit checking with strategy-based and time-based exits
+     */
+    void checkAndProcessExitsWithStrategy(Tick tick);
     
     /**
      * Force update all orders to database (called by scheduler)

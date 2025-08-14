@@ -57,6 +57,10 @@ public class FlattenedIndicators {
     private Boolean price_above_resistance;
     private Boolean price_below_support;
     
+    // Breakout strength indicators
+    private Double breakoutStrength; // Percentage above resistance
+    private Double breakdownStrength; // Percentage below support
+    
     // Futuresignals for each timeframe
     private FuturesignalData futuresignals;
     

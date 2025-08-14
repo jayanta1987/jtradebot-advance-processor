@@ -1,11 +1,15 @@
 package com.jtradebot.processor.service.impl;
 
+import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
+import com.jtradebot.processor.model.MilestoneSystem;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.ExitStrategyService;
 import com.jtradebot.processor.service.OptionPricingService;
+import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
+import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,8 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
     
     private final JtradeOrderRepository jtradeOrderRepository;
     private final OptionPricingService optionPricingService;
+    private final DynamicStrategyConfigService configService;
+    private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
     
     // In-memory storage for active orders
     private final Map<String, JtradeOrder> activeOrdersMap = new ConcurrentHashMap<>();
@@ -65,6 +71,9 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         order.setEntryTime(new Date());
         order.setCreatedAt(new Date());
         order.setLastUpdated(new Date());
+        
+        // Initialize milestone system
+        initializeMilestoneSystem(order);
         
         // Store in memory
         activeOrdersMap.put(order.getId(), order);
@@ -132,13 +141,27 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         order.setTotalPoints(points);
         order.setTotalProfit(points * order.getQuantity());
         
+        // Save exited order to database immediately
+        try {
+            order.updateLastUpdated();
+            jtradeOrderRepository.save(order);
+            log.info("💾 EXITED ORDER SAVED TO DATABASE - ID: {}, Status: {}", order.getId(), order.getStatus());
+        } catch (Exception e) {
+            log.error("Error saving exited order to database: {}", e.getMessage(), e);
+        }
+        
         // Remove from active orders
         activeOrdersMap.remove(orderId);
-        needsUpdate.set(true);
         
-        log.info("Exited order: {} - {} @ {} (Reason: {}, Points: {}, Profit: {})", 
+        // Enhanced exit logging with clear visual indicator
+        log.info("<<<<<<<<<EXIT>>>>>>>>> - Order: {} - {} @ {} (Reason: {}, Points: {}, Profit: {})", 
                 order.getOrderType(), order.getTradingSymbol(), exitPrice, 
                 exitReason, points, order.getTotalProfit());
+        
+        // Log exit details for analysis
+        log.info("EXIT Details - Entry: {}, Exit: {}, Index Entry: {}, Index Exit: {}, Duration: {} minutes", 
+                order.getEntryPrice(), exitPrice, order.getEntryIndexPrice(), exitIndexPrice,
+                calculateOrderDurationMinutes(order));
     }
     
     @Override
@@ -168,6 +191,7 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             // Calculate current LTP based on index movement
             Double currentLTP = calculateCurrentLTP(order, currentIndexPrice);
             
+            // Check all exit conditions
             if (shouldExitOrder(order, currentLTP, currentIndexPrice)) {
                 ordersToExit.add(order);
             }
@@ -181,6 +205,40 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         }
     }
     
+    @Override
+    public void checkAndProcessExitsWithStrategy(Tick tick) {
+        if (activeOrdersMap.isEmpty()) {
+            return;
+        }
+        
+        Double currentPrice = tick.getLastTradedPrice();
+        Double currentIndexPrice = tick.getLastTradedPrice(); // For now using same price
+        
+        // Log current profit/loss for all active orders
+        logCurrentProfitLoss(currentIndexPrice);
+        
+        List<JtradeOrder> ordersToExit = new ArrayList<>();
+        
+        for (JtradeOrder order : activeOrdersMap.values()) {
+            // Calculate current LTP based on index movement
+            Double currentLTP = calculateCurrentLTP(order, currentIndexPrice);
+            
+            // Check all exit conditions including time-based and strategy-based
+            if (shouldExitOrder(order, currentLTP, currentIndexPrice) || 
+                shouldExitBasedOnTime(order) || 
+                shouldExitBasedOnStrategy(order, tick)) {
+                ordersToExit.add(order);
+            }
+        }
+        
+        // Process exits
+        for (JtradeOrder order : ordersToExit) {
+            Double currentLTP = calculateCurrentLTP(order, currentIndexPrice);
+            ExitReasonEnum exitReason = determineEnhancedExitReason(order, currentLTP, currentIndexPrice, tick);
+            exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice);
+        }
+    }
+    
     /**
      * Calculate current LTP based on index movement
      * LTP = Entry Price + (Current Index Price - Entry Index Price)
@@ -189,8 +247,20 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         return optionPricingService.calculateCurrentLTP(
             order.getEntryPrice(), 
             order.getEntryIndexPrice(), 
-            currentIndexPrice
+            currentIndexPrice,
+            order.getOrderType()
         );
+    }
+    
+    /**
+     * Calculate order duration in minutes
+     */
+    private long calculateOrderDurationMinutes(JtradeOrder order) {
+        if (order.getEntryTime() == null || order.getExitTime() == null) {
+            return 0;
+        }
+        long durationMillis = order.getExitTime().getTime() - order.getEntryTime().getTime();
+        return durationMillis / (1000 * 60); // Convert to minutes
     }
     
     @Override
@@ -236,14 +306,54 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
     }
     
     private boolean shouldExitOrder(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
+        // Check if milestone system is enabled
+        if (order.getMilestoneSystem() != null && order.getMilestoneSystem().isEnabled()) {
+            return shouldExitOrderWithMilestones(order, currentLTP, currentIndexPrice);
+        } else {
+            return shouldExitOrderTraditional(order, currentLTP, currentIndexPrice);
+        }
+    }
+    
+    private boolean shouldExitOrderWithMilestones(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
+        MilestoneSystem milestoneSystem = order.getMilestoneSystem();
+        MilestoneSystem.MilestoneResult result = milestoneSystem.processPrice(currentLTP, currentIndexPrice);
+        
+        if (result.isExitRequired()) {
+            // Update order with milestone information
+            order.setCurrentTargetMilestone(result.getCurrentTargetMilestone());
+            order.setTotalReleasedProfit(milestoneSystem.getTotalReleasedProfit());
+            order.setMilestoneHistory(milestoneSystem.getMilestoneHistory());
+            
+            // Log milestone exit
+            log.info("🎯 Milestone Exit - {} {} @ {} | Reason: {}, Profit: {}, Milestone: {}", 
+                    order.getOrderType(), order.getTradingSymbol(), currentLTP,
+                    result.getExitReason(), result.getProfit(), result.getMilestoneNumber());
+            
+            return true;
+        }
+        
+        // Update order with current milestone status
+        order.setCurrentTargetMilestone(result.getCurrentTargetMilestone());
+        order.setTotalReleasedProfit(milestoneSystem.getTotalReleasedProfit());
+        
+        return false;
+    }
+    
+    private boolean shouldExitOrderTraditional(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
         if (order.getStopLossPrice() != null && order.getTargetPrice() != null) {
+            // Debug logging to understand exit conditions
+            log.debug("Exit Check - Order: {}, Current LTP: {}, Stop Loss: {}, Target: {}, Entry: {}", 
+                    order.getId(), currentLTP, order.getStopLossPrice(), order.getTargetPrice(), order.getEntryPrice());
+            
             // Check stop loss
             if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
                 if (currentLTP <= order.getStopLossPrice()) {
+                    log.info("🛑 CALL Stop Loss Hit - Current: {}, Stop Loss: {}", currentLTP, order.getStopLossPrice());
                     return true;
                 }
             } else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
                 if (currentLTP >= order.getStopLossPrice()) {
+                    log.info("🛑 PUT Stop Loss Hit - Current: {}, Stop Loss: {}", currentLTP, order.getStopLossPrice());
                     return true;
                 }
             }
@@ -251,16 +361,58 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             // Check target
             if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
                 if (currentLTP >= order.getTargetPrice()) {
+                    log.info("🎯 CALL Target Hit - Current: {}, Target: {}", currentLTP, order.getTargetPrice());
                     return true;
                 }
             } else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
                 if (currentLTP <= order.getTargetPrice()) {
+                    log.info("🎯 PUT Target Hit - Current: {}, Target: {}", currentLTP, order.getTargetPrice());
                     return true;
                 }
             }
         }
         
         return false;
+    }
+    
+    /**
+     * Initialize milestone system for a new order
+     */
+    private void initializeMilestoneSystem(JtradeOrder order) {
+        try {
+            // Get milestone configuration from strategy config
+            double milestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ? 
+                configService.getCallMilestonePoints() : configService.getPutMilestonePoints();
+            double maxStopLossPoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ? 
+                configService.getCallMaxStopLossPoints() : configService.getPutMaxStopLossPoints();
+            boolean trailingStopLoss = order.getOrderType() == OrderTypeEnum.CALL_BUY ? 
+                configService.isCallTrailingStopLoss() : configService.isPutTrailingStopLoss();
+            
+            // Create milestone system
+            MilestoneSystem milestoneSystem = MilestoneSystem.builder()
+                    .enabled(true)
+                    .milestonePoints(milestonePoints)
+                    .maxStopLossPoints(maxStopLossPoints)
+                    .trailingStopLoss(trailingStopLoss)
+                    .build();
+            
+            // Initialize the milestone system
+            milestoneSystem.initialize(order.getEntryPrice(), order.getEntryIndexPrice(), order.getOrderType());
+            
+            // Set milestone system in order
+            order.setMilestoneSystem(milestoneSystem);
+            order.setCurrentTargetMilestone(0);
+            order.setTotalReleasedProfit(0.0);
+            order.setMilestoneHistory(new ArrayList<>());
+            
+            log.info("🎯 Milestone system initialized for {} order - Milestone points: {}, Max SL: {}, Trailing: {}", 
+                    order.getOrderType(), milestonePoints, maxStopLossPoints, trailingStopLoss);
+            
+        } catch (Exception e) {
+            log.error("Error initializing milestone system for order: {}", order.getId(), e);
+            // Fallback to traditional system
+            order.setMilestoneSystem(null);
+        }
     }
     
     private ExitReasonEnum determineExitReason(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
@@ -289,6 +441,76 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         }
         
         return ExitReasonEnum.FORCE_EXIT;
+    }
+    
+    /**
+     * Enhanced exit reason determination including time-based and strategy-based exits
+     */
+    private ExitReasonEnum determineEnhancedExitReason(JtradeOrder order, Double currentLTP, Double currentIndexPrice, Tick tick) {
+        // Check time-based exit first
+        if (shouldExitBasedOnTime(order)) {
+            return ExitReasonEnum.TIME_BASED_EXIT;
+        }
+        
+        // Check strategy-based exit
+        if (shouldExitBasedOnStrategy(order, tick)) {
+            return ExitReasonEnum.EXIT_SIGNAL;
+        }
+        
+        // Check traditional stop loss and target
+        return determineExitReason(order, currentLTP, currentIndexPrice);
+    }
+    
+    /**
+     * Check if order should be exited based on time limit
+     */
+    private boolean shouldExitBasedOnTime(JtradeOrder order) {
+        if (order.getEntryTime() == null) {
+            return false;
+        }
+        
+        // Get max holding time from configuration
+        int maxHoldingTimeMinutes = order.getOrderType() == OrderTypeEnum.CALL_BUY ? 
+            configService.getCallMaxHoldingTimeMinutes() : 
+            configService.getPutMaxHoldingTimeMinutes();
+        
+        long currentTime = System.currentTimeMillis();
+        long entryTime = order.getEntryTime().getTime();
+        long durationMinutes = (currentTime - entryTime) / (1000 * 60);
+        
+        if (durationMinutes >= maxHoldingTimeMinutes) {
+            log.info("Time-based exit triggered for order: {} - Duration: {} minutes (Max: {})", 
+                    order.getId(), durationMinutes, maxHoldingTimeMinutes);
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if order should be exited based on strategy reversal
+     */
+    private boolean shouldExitBasedOnStrategy(JtradeOrder order, Tick tick) {
+        try {
+            // For CALL orders, exit if PUT entry conditions are met (strategy reversal)
+            if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
+                if (scalpingVolumeSurgeService.shouldMakePutEntry(tick)) {
+                    log.info("Strategy-based exit triggered for CALL order: {} - PUT entry conditions met", order.getId());
+                    return true;
+                }
+            }
+            // For PUT orders, exit if CALL entry conditions are met (strategy reversal)
+            else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
+                if (scalpingVolumeSurgeService.shouldMakeCallEntry(tick)) {
+                    log.info("Strategy-based exit triggered for PUT order: {} - CALL entry conditions met", order.getId());
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error checking strategy-based exit for order: {}", order.getId(), e);
+        }
+        
+        return false;
     }
     
     @Override
