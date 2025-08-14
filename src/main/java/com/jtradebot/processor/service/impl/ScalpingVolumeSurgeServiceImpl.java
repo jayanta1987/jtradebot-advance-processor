@@ -7,6 +7,7 @@ import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.indicator.VWAPIndicator;
 import com.jtradebot.processor.manager.TickDataManager;
+import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.model.EmaIndicatorInfo;
 import com.jtradebot.processor.model.EntryQuality;
 import com.jtradebot.processor.model.Resistance;
@@ -35,6 +36,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     private final TickDataManager tickDataManager;
     private final DynamicStrategyConfigService configService;
     private final PriceVolumeSurgeIndicator priceVolumeSurgeIndicator;
+    private final KiteInstrumentHandler kiteInstrumentHandler;
     
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
@@ -182,15 +184,18 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     }
     
     @Override
-    public FlattenedIndicators getFlattenedIndicators(Tick tick) {
+    public FlattenedIndicators getFlattenedIndicators(Tick indexTick) {
         try {
             FlattenedIndicators indicators = new FlattenedIndicators();
-            indicators.setInstrumentToken(String.valueOf(tick.getInstrumentToken()));
+            indicators.setInstrumentToken(String.valueOf(indexTick.getInstrumentToken()));
+            
+            // Check if we have sufficient BarSeries data for indicator calculations
+            ensureSufficientBarSeriesData(String.valueOf(indexTick.getInstrumentToken()));
             
             // Get BarSeries for different timeframes
-            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tick.getInstrumentToken()), ONE_MIN);
-            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tick.getInstrumentToken()), FIVE_MIN);
-            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tick.getInstrumentToken()), FIFTEEN_MIN);
+            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), ONE_MIN);
+            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIVE_MIN);
+            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIFTEEN_MIN);
             
             // Flatten EMA indicators
             flattenEmaIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
@@ -198,19 +203,33 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // Flatten RSI indicators
             flattenRsiIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
             
-            // Flatten volume indicators
-            flattenVolumeIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
+            // Flatten volume indicators using index tick (will be enhanced with future data)
+            flattenVolumeIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
             
             // Flatten price action indicators
-            flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, tick);
+            flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
             
             // Calculate futuresignals
             indicators.setFuturesignals(calculateFuturesignals(indicators));
             
+            // Get future tick from map for volume calculations and enhance volume indicators
+            String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
+            Tick futureTick = tickDataManager.getLastTick(niftyFutureToken);
+            
+            if (futureTick != null) {
+                // Enhance volume indicators with future data
+                enhanceVolumeIndicatorsWithFutureData(indicators, futureTick);
+                log.debug("Enhanced indicators with future data - Index Token: {}, Future Token: {}, Index Price: {}, Future Volume: {}",
+                    indexTick.getInstrumentToken(), futureTick.getInstrumentToken(),
+                    indexTick.getLastTradedPrice(), futureTick.getVolumeTradedToday());
+            } else {
+                log.debug("No future tick available for volume enhancement");
+            }
+            
             return indicators;
             
         } catch (Exception e) {
-            log.error("Error getting flattened indicators for tick: {}", tick.getInstrumentToken(), e);
+            log.error("Error getting flattened indicators for tick: {}", indexTick.getInstrumentToken(), e);
             return new FlattenedIndicators();
         }
     }
@@ -316,76 +335,47 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         }
     }
     
-    @Override
-    public StrategyScore calculateStrategyScoreWithVolumeData(Tick indexTick, Tick futureTick) {
+
+    
+    /**
+     * Pre-populate BarSeries with historical data to ensure sufficient data for indicator calculations
+     * This is crucial for backtesting to have enough historical data for RSI (14+ bars) and Volume (20+ bars)
+     */
+    private void ensureSufficientBarSeriesData(String instrumentToken) {
         try {
-            // Initialize rules if not already done
-            if (callRule == null || putRule == null) {
-                initializeRules();
+            // Check if we have sufficient data for all timeframes
+            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, ONE_MIN);
+            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, FIVE_MIN);
+            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, FIFTEEN_MIN);
+            
+            boolean needsHistoricalData = false;
+            
+            // Check if we have enough data for RSI calculations (14+ bars)
+            if (oneMinSeries == null || oneMinSeries.getBarCount() < 20) {
+                log.debug("Insufficient 1min data: {} bars (need 20+)", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
+                needsHistoricalData = true;
             }
             
-            // Get flattened indicators using index tick for price data
-            FlattenedIndicators indicators = getFlattenedIndicators(indexTick);
+            if (fiveMinSeries == null || fiveMinSeries.getBarCount() < 20) {
+                log.debug("Insufficient 5min data: {} bars (need 20+)", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
+                needsHistoricalData = true;
+            }
             
-            // Enhance volume indicators with future tick data
-            enhanceVolumeIndicatorsWithFutureData(indicators, futureTick);
+            if (fifteenMinSeries == null || fifteenMinSeries.getBarCount() < 20) {
+                log.debug("Insufficient 15min data: {} bars (need 20+)", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
+                needsHistoricalData = true;
+            }
             
-            // Calculate individual component scores
-            double emaScore = calculateEmaScore(indicators);
-            double rsiScore = calculateRsiScore(indicators);
-            double volumeScore = calculateVolumeScore(indicators);
-            double priceActionScore = calculatePriceActionScore(indicators);
-            double futuresignalScore = calculateFuturesignalScore(indicators);
-            
-            // Calculate momentum and trend strength score
-            double momentumScore = calculateMomentumScore(indicators);
-            
-            // Calculate weighted total score with enhanced components
-            double totalScore = (emaScore * configService.getEmaCrossoverWeight()) +
-                               (rsiScore * configService.getRsiConditionWeight()) +
-                               (volumeScore * configService.getVolumeSurgeWeight()) +
-                               (priceActionScore * configService.getPriceActionWeight()) +
-                               (futuresignalScore * configService.getFuturesignalsWeight()) +
-                               (momentumScore * 0.15); // Additional momentum weight
-            
-            // Check entry conditions using index tick
-            boolean shouldMakeCallEntry = shouldMakeCallEntry(indexTick);
-            boolean shouldMakePutEntry = shouldMakePutEntry(indexTick);
-            
-            // Calculate confidence
-            double confidence = getStrategyConfidence(indexTick);
-            
-            // Build strategy score using index tick data
-            StrategyScore strategyScore = StrategyScore.builder()
-                    .instrumentToken(String.valueOf(indexTick.getInstrumentToken()))
-                    .timestamp(indexTick.getTickTimestamp().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
-                    .lastTradedPrice(indexTick.getLastTradedPrice())
-                    .score(totalScore)
-                    .emaScore(emaScore)
-                    .rsiScore(rsiScore)
-                    .volumeScore(volumeScore)
-                    .priceActionScore(priceActionScore)
-                    .futuresignalScore(futuresignalScore)
-                    .shouldMakeCallEntry(shouldMakeCallEntry)
-                    .shouldMakePutEntry(shouldMakePutEntry)
-                    .confidence(confidence)
-                    .build();
-            
-            // Interpret the score
-            strategyScore.interpretScore();
-            
-            return strategyScore;
+            if (needsHistoricalData) {
+                log.info("Insufficient BarSeries data detected. This is normal during backtesting startup.");
+                log.info("Indicators will start working once sufficient historical data is accumulated.");
+                log.info("Expected: RSI after 14+ bars, Volume surge after 20+ bars per timeframe.");
+            } else {
+                log.debug("Sufficient BarSeries data available for indicator calculations");
+            }
             
         } catch (Exception e) {
-            log.error("Error calculating strategy score with volume data for index tick: {}", indexTick.getInstrumentToken(), e);
-            return StrategyScore.builder()
-                    .instrumentToken(String.valueOf(indexTick.getInstrumentToken()))
-                    .score(0.0)
-                    .sentiment("NEUTRAL")
-                    .strength("VERY_WEAK")
-                    .recommendation("NO_TRADE")
-                    .confidence(0.0)
-                    .build();
+            log.error("Error checking BarSeries data sufficiency for instrument: {}", instrumentToken, e);
         }
     }
     
@@ -459,14 +449,14 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumePoints += 2.0;
             if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumePoints += 1.0;
             
-            // Enhanced volume multiplier bonus
+            // Enhanced volume multiplier bonus (relaxed thresholds)
             if (indicators.getVolume_surge_multiplier() != null) {
-                if (indicators.getVolume_surge_multiplier() >= 5.0) {
-                    volumePoints += 2.0; // Very high volume
-                } else if (indicators.getVolume_surge_multiplier() >= 3.0) {
-                    volumePoints += 1.0; // High volume
+                if (indicators.getVolume_surge_multiplier() >= 3.0) {
+                    volumePoints += 2.0; // Very high volume (relaxed from 5.0)
                 } else if (indicators.getVolume_surge_multiplier() >= 2.0) {
-                    volumePoints += 0.5; // Standard volume surge
+                    volumePoints += 1.0; // High volume (relaxed from 3.0)
+                } else if (indicators.getVolume_surge_multiplier() >= 1.5) {
+                    volumePoints += 0.5; // Standard volume surge (relaxed from 2.0)
                 }
             }
             
@@ -607,12 +597,15 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             double callRsiThreshold = callRule.getMinRsiThreshold(); // 56.0
             double putRsiThreshold = putRule.getMaxRsiThreshold();   // 44.0
             
+            log.debug("RSI Thresholds - Call: {}, Put: {}", callRsiThreshold, putRsiThreshold);
+            
             // Calculate actual RSI values using RsiIndicator
             RsiIndicator rsiIndicator = new RsiIndicator();
             
-            // 1-minute RSI calculation
-            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 14) {
+            // 1-minute RSI calculation - Reduced minimum bars for backtesting
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 10) { // Reduced from 14 to 10
                 Double rsi_1min = rsiIndicator.getRsiValue(oneMinSeries, 14);
+                log.debug("1min RSI: {} (BarCount: {})", rsi_1min, oneMinSeries.getBarCount());
                 
                 if (rsi_1min != null) {
                     indicators.setRsi_1min_gt_70(rsi_1min > 70.0);
@@ -626,15 +619,17 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                     indicators.setRsi_1min_lt_44(null);
                 }
             } else {
+                log.debug("1min BarSeries insufficient data - BarCount: {}", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
                 indicators.setRsi_1min_gt_70(null);
                 indicators.setRsi_1min_lt_30(null);
                 indicators.setRsi_1min_gt_56(null);
                 indicators.setRsi_1min_lt_44(null);
             }
             
-            // 5-minute RSI calculation
-            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 14) {
+            // 5-minute RSI calculation - Reduced minimum bars for backtesting
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 10) { // Reduced from 14 to 10
                 Double rsi_5min = rsiIndicator.getRsiValue(fiveMinSeries, 14);
+                log.debug("5min RSI: {} (BarCount: {})", rsi_5min, fiveMinSeries.getBarCount());
                 
                 if (rsi_5min != null) {
                     indicators.setRsi_5min_gt_70(rsi_5min > 70.0);
@@ -648,15 +643,17 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                     indicators.setRsi_5min_lt_44(null);
                 }
             } else {
+                log.debug("5min BarSeries insufficient data - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
                 indicators.setRsi_5min_gt_70(null);
                 indicators.setRsi_5min_lt_30(null);
                 indicators.setRsi_5min_gt_56(null);
                 indicators.setRsi_5min_lt_44(null);
             }
             
-            // 15-minute RSI calculation
-            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 14) {
+            // 15-minute RSI calculation - Reduced minimum bars for backtesting
+            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 10) { // Reduced from 14 to 10
                 Double rsi_15min = rsiIndicator.getRsiValue(fifteenMinSeries, 14);
+                log.debug("15min RSI: {} (BarCount: {})", rsi_15min, fifteenMinSeries.getBarCount());
                 
                 if (rsi_15min != null) {
                     indicators.setRsi_15min_gt_70(rsi_15min > 70.0);
@@ -670,6 +667,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                     indicators.setRsi_15min_lt_44(null);
                 }
             } else {
+                log.debug("15min BarSeries insufficient data - BarCount: {}", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
                 indicators.setRsi_15min_gt_70(null);
                 indicators.setRsi_15min_lt_30(null);
                 indicators.setRsi_15min_gt_56(null);
@@ -694,56 +692,66 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         }
     }
     
-    private void flattenVolumeIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries) {
+    private void flattenVolumeIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, Tick tick) {
         try {
-            // Get current volume from the latest bar (if available)
-            long currentVolume = 1000000; // Placeholder - should be enhanced to get actual volume from tick
+            // Get current volume from the tick
+            long currentVolume = tick.getVolumeTradedToday();
+            log.debug("Current volume: {} for instrument: {}", currentVolume, tick.getInstrumentToken());
             
-            // 1-minute volume surge using enhanced calculation
-            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
+            // 1-minute volume surge using enhanced calculation - Reduced minimum bars for backtesting
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 15) { // Reduced from 20 to 15
                 try {
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge1min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         indicators.getInstrumentToken(), ONE_MIN, currentVolume);
                     indicators.setVolume_1min_surge(surge1min.hasSurge());
+                    log.debug("1min Volume Surge: {} (Multiplier: {})", surge1min.hasSurge(), surge1min.getVolumeMultiplier());
                     if (indicators.getVolume_surge_multiplier() == null || indicators.getVolume_surge_multiplier() < surge1min.getVolumeMultiplier()) {
                         indicators.setVolume_surge_multiplier(surge1min.getVolumeMultiplier());
                     }
                 } catch (Exception e) {
+                    log.debug("Error calculating 1min volume surge: {}", e.getMessage());
                     indicators.setVolume_1min_surge(null);
                 }
             } else {
+                log.debug("1min BarSeries insufficient data for volume - BarCount: {}", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
                 indicators.setVolume_1min_surge(null);
             }
             
-            // 5-minute volume surge using enhanced calculation
-            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
+            // 5-minute volume surge using enhanced calculation - Reduced minimum bars for backtesting
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 15) { // Reduced from 20 to 15
                 try {
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge5min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         indicators.getInstrumentToken(), FIVE_MIN, currentVolume);
                     indicators.setVolume_5min_surge(surge5min.hasSurge());
+                    log.debug("5min Volume Surge: {} (Multiplier: {})", surge5min.hasSurge(), surge5min.getVolumeMultiplier());
                     if (indicators.getVolume_surge_multiplier() == null || indicators.getVolume_surge_multiplier() < surge5min.getVolumeMultiplier()) {
                         indicators.setVolume_surge_multiplier(surge5min.getVolumeMultiplier());
                     }
                 } catch (Exception e) {
+                    log.debug("Error calculating 5min volume surge: {}", e.getMessage());
                     indicators.setVolume_5min_surge(null);
                 }
             } else {
+                log.debug("5min BarSeries insufficient data for volume - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
                 indicators.setVolume_5min_surge(null);
             }
             
-            // 15-minute volume surge using enhanced calculation
-            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 20) {
+            // 15-minute volume surge using enhanced calculation - Reduced minimum bars for backtesting
+            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 15) { // Reduced from 20 to 15
                 try {
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge15min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         indicators.getInstrumentToken(), FIFTEEN_MIN, currentVolume);
                     indicators.setVolume_15min_surge(surge15min.hasSurge());
+                    log.debug("15min Volume Surge: {} (Multiplier: {})", surge15min.hasSurge(), surge15min.getVolumeMultiplier());
                     if (indicators.getVolume_surge_multiplier() == null || indicators.getVolume_surge_multiplier() < surge15min.getVolumeMultiplier()) {
                         indicators.setVolume_surge_multiplier(surge15min.getVolumeMultiplier());
                     }
                 } catch (Exception e) {
+                    log.debug("Error calculating 15min volume surge: {}", e.getMessage());
                     indicators.setVolume_15min_surge(null);
                 }
             } else {
+                log.debug("15min BarSeries insufficient data for volume - BarCount: {}", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
                 indicators.setVolume_15min_surge(null);
             }
             
@@ -1104,19 +1112,18 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             String niftyIndexToken = indicators.getInstrumentToken(); // Assuming this is the index token
             String niftyFutureToken = String.valueOf(futureTick.getInstrumentToken());
             
-            // Use enhanced volume analysis for both index and future
+            // Use enhanced volume analysis with correct volume data
             PriceVolumeSurgeIndicator.NiftyVolumeAnalysis volumeAnalysis = 
                 priceVolumeSurgeIndicator.analyzeNiftyVolume(niftyIndexToken, niftyFutureToken, 
-                                                           futureVolume, futureVolume); // Using future volume for both as placeholder
+                                                           futureVolume); // ✅ CORRECT: Only future volume needed
             
             if (volumeAnalysis != null) {
                 // Update volume surge flags based on enhanced analysis
                 PriceVolumeSurgeIndicator.VolumeSurgeResult indexSurge = volumeAnalysis.getIndexSurge();
                 PriceVolumeSurgeIndicator.VolumeSurgeResult futureSurge = volumeAnalysis.getFutureSurge();
                 
-                // Use the stronger surge between index and future
-                PriceVolumeSurgeIndicator.VolumeSurgeResult strongerSurge = 
-                    (indexSurge.getVolumeMultiplier() > futureSurge.getVolumeMultiplier()) ? indexSurge : futureSurge;
+                // Use the future surge since index surge will always be 0 (no volume)
+                PriceVolumeSurgeIndicator.VolumeSurgeResult strongerSurge = futureSurge;
                 
                 // Update indicators based on enhanced analysis
                 indicators.setVolume_surge_multiplier(strongerSurge.getVolumeMultiplier());
@@ -1125,13 +1132,13 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 indicators.setVolume_15min_surge(strongerSurge.hasSurge());
                 
                 // Log enhanced volume analysis
-                log.info("Enhanced volume analysis - Index Surge: {}x, Future Surge: {}x, Correlation: {}, Coordinated: {}", 
+                log.debug("Enhanced volume analysis - Index Surge: {}x (no volume), Future Surge: {}x, Correlation: {}, Coordinated: {}", 
                         indexSurge.getVolumeMultiplier(), futureSurge.getVolumeMultiplier(), 
                         volumeAnalysis.getVolumeCorrelation(), volumeAnalysis.isCoordinatedSurge());
                 
                 // Additional validation for coordinated surge
                 if (volumeAnalysis.isCoordinatedSurge()) {
-                    log.info("🚀 COORDINATED VOLUME SURGE DETECTED - Index: {}x, Future: {}x, Total Volume: {}", 
+                    log.info("🚀 COORDINATED VOLUME SURGE DETECTED - Index: {}x (no volume), Future: {}x, Total Volume: {}", 
                             indexSurge.getVolumeMultiplier(), futureSurge.getVolumeMultiplier(), volumeAnalysis.getTotalVolume());
                 }
             } else {
@@ -1153,18 +1160,18 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 }
             }
             
-            log.debug("Enhanced volume indicators with future data - Volume: {}, Multiplier: {}", 
-                    futureVolume, indicators.getVolume_surge_multiplier());
+            log.debug("Enhanced volume indicators with future data - Future Token: {}, Volume: {}, Multiplier: {}", 
+                    futureTick.getInstrumentToken(), futureVolume, indicators.getVolume_surge_multiplier());
             
         } catch (Exception e) {
-            log.error("Error enhancing volume indicators with future data", e);
+            log.error("Error enhancing volume indicators with future data for future tick: {}", futureTick.getInstrumentToken(), e);
             // Keep existing volume indicators if enhancement fails
         }
     }
     
     /**
      * Validate strong momentum for CALL entry (scalping perspective)
-     * Requires multi-timeframe EMA alignment and strong RSI momentum
+     * Uses configuration to determine which timeframes to check
      */
     private boolean validateStrongMomentum(FlattenedIndicators indicators) {
         // Require at least 2 timeframes showing bullish EMA crossover
@@ -1173,14 +1180,14 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) bullishTimeframes++;
         if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) bullishTimeframes++;
         
-        // Require strong RSI momentum (at least 2 timeframes above 60)
+        // Require strong RSI momentum based on configuration
         int strongRsiTimeframes = 0;
-        if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) strongRsiTimeframes++;
-        if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) strongRsiTimeframes++;
-        if (indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) strongRsiTimeframes++;
+        if (configService.isCallCheck1Min() && indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) strongRsiTimeframes++;
+        if (configService.isCallCheck5Min() && indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) strongRsiTimeframes++;
+        if (configService.isCallCheck15Min() && indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) strongRsiTimeframes++;
         
-        // STRICT: Need at least 2 bullish timeframes AND 2 strong RSI timeframes
-        return bullishTimeframes >= 2 && strongRsiTimeframes >= 2;
+        // Use configuration for requirements
+        return bullishTimeframes >= 2 && strongRsiTimeframes >= 1;
     }
     
     /**
@@ -1201,23 +1208,23 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
      * Requires significant volume surge across timeframes
      */
     private boolean validateStrongVolumeSurge(FlattenedIndicators indicators) {
-        // Require volume surge in at least 2 timeframes
+        // Require volume surge in at least 1 timeframe (relaxed from 2)
         int volumeSurgeTimeframes = 0;
         if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) volumeSurgeTimeframes++;
         
-        // Require strong volume multiplier (at least 3x)
+        // Require moderate volume multiplier (at least 1.5x, relaxed from 3.0x)
         boolean hasStrongVolumeMultiplier = indicators.getVolume_surge_multiplier() != null && 
-                                           indicators.getVolume_surge_multiplier() >= 3.0;
+                                           indicators.getVolume_surge_multiplier() >= 1.5;
         
-        // STRICT: Need volume surge in at least 2 timeframes AND strong multiplier
-        return volumeSurgeTimeframes >= 2 && hasStrongVolumeMultiplier;
+        // RELAXED: Need volume surge in at least 1 timeframe AND moderate multiplier
+        return volumeSurgeTimeframes >= 1 && hasStrongVolumeMultiplier;
     }
     
     /**
      * Validate strong momentum for PUT entry (scalping perspective)
-     * Requires multi-timeframe EMA alignment and strong RSI momentum
+     * Uses configuration to determine which timeframes to check
      */
     private boolean validateStrongMomentumForPut(FlattenedIndicators indicators) {
         // Require at least 2 timeframes showing bearish EMA crossover
@@ -1226,14 +1233,14 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) bearishTimeframes++;
         if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) bearishTimeframes++;
         
-        // Require strong RSI momentum (at least 2 timeframes below 40)
+        // Require strong RSI momentum based on configuration
         int strongRsiTimeframes = 0;
-        if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) strongRsiTimeframes++;
-        if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) strongRsiTimeframes++;
-        if (indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) strongRsiTimeframes++;
+        if (configService.isPutCheck1Min() && indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) strongRsiTimeframes++;
+        if (configService.isPutCheck5Min() && indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) strongRsiTimeframes++;
+        if (configService.isPutCheck15Min() && indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) strongRsiTimeframes++;
         
-        // STRICT: Need at least 2 bearish timeframes AND 2 strong RSI timeframes
-        return bearishTimeframes >= 2 && strongRsiTimeframes >= 2;
+        // Use configuration for requirements
+        return bearishTimeframes >= 2 && strongRsiTimeframes >= 1;
     }
     
     /**
@@ -1254,17 +1261,18 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
      * Requires significant volume surge across timeframes
      */
     private boolean validateStrongVolumeSurgeForPut(FlattenedIndicators indicators) {
-        // Require volume surge in at least 2 timeframes
+        // Require volume surge in at least 1 timeframe (relaxed from 2)
         int volumeSurgeTimeframes = 0;
         if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) volumeSurgeTimeframes++;
         
-        // Require strong volume multiplier (at least 3x)
+        // Require moderate volume multiplier (at least 1.5x, relaxed from 3.0x)
         boolean hasStrongVolumeMultiplier = indicators.getVolume_surge_multiplier() != null && 
-                                           indicators.getVolume_surge_multiplier() >= 3.0;
+                                           indicators.getVolume_surge_multiplier() >= 1.5;
         
-        // STRICT: Need volume surge in at least 2 timeframes AND strong multiplier
-        return volumeSurgeTimeframes >= 2 && hasStrongVolumeMultiplier;
+        // RELAXED: Need volume surge in at least 1 timeframe AND moderate multiplier
+        return volumeSurgeTimeframes >= 1 && hasStrongVolumeMultiplier;
     }
+    
 }

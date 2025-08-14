@@ -127,8 +127,8 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             Boolean volume_15min_surge = false;
             Double volumeMultiplier = 1.0;
             
-            // Get current volume from the latest bar
-            long currentVolume = 1000000; // Placeholder - should be enhanced to get actual volume
+            // Get current volume from the tick document
+            long currentVolume = tickDocument.getVolumeTradedToday() != null ? tickDocument.getVolumeTradedToday() : 0;
             
             // 1-minute volume surge
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {

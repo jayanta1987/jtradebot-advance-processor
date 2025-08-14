@@ -1,174 +1,123 @@
 {
-  "strategy": "DYNAMIC_SCALPING_VOLUME_SURGE",
-  "version": "2.0",
-  "description": "Dynamic indicator configuration for scalping strategy with full support for CALL/PUT cases and crossover/crossdown scenarios",
+  "strategy": "PROVEN_SCALPING_STRATEGY",
+  "version": "3.0",
+  "description": "Proven scalping strategy with EMA5/EMA9/EMA34/EMA200, 1min/3min/5min/15min timeframes, and candle-EMA5 relationship",
   
-  "timeframes": ["1min", "5min", "15min"],
-  
-  "thresholds": {
-    "volumeSurgeMultiplier": 2.0,
-    "rsiOverbought": 70.0,
-    "rsiOversold": 30.0,
-    "rsiBullish": 56.0,
-    "rsiBearish": 44.0,
-    "priceDeviation": 0.01
-  },
+  "timeframes": ["1min", "3min", "5min", "15min"],
   
   "indicators": {
-    "ema_crossover_1min": {
-      "name": "EMA Crossover 1min",
+    "ema200_trend_15min": {
+      "name": "EMA200 Overall Trend 15min",
+      "type": "EMA",
+      "timeframes": ["15min"],
+      "parameters": {
+        "ema1": 200
+      },
+      "comparison": "TREND_ABOVE",
+      "description": "Price above EMA200 on 15min for overall bullish trend"
+    },
+    
+    "ema34_trend_5min": {
+      "name": "EMA34 Medium Trend 5min",
+      "type": "EMA",
+      "timeframes": ["5min"],
+      "parameters": {
+        "ema1": 34
+      },
+      "comparison": "TREND_ABOVE",
+      "description": "Price above EMA34 on 5min for medium-term bullish trend"
+    },
+    
+    "ema9_trend_5min": {
+      "name": "EMA9 Short Trend 5min",
+      "type": "EMA",
+      "timeframes": ["5min"],
+      "parameters": {
+        "ema1": 9
+      },
+      "comparison": "TREND_ABOVE",
+      "description": "Price above EMA9 on 5min for short-term bullish trend"
+    },
+    
+    "ema5_touch_5min": {
+      "name": "EMA5 Touch 5min",
+      "type": "EMA",
+      "timeframes": ["5min"],
+      "parameters": {
+        "ema1": 5
+      },
+      "comparison": "CANDLE_TOUCHES",
+      "description": "Candle touches or follows EMA5 on 5min (your key principle)"
+    },
+    
+    "ema5_touch_3min": {
+      "name": "EMA5 Touch 3min",
+      "type": "EMA",
+      "timeframes": ["3min"],
+      "parameters": {
+        "ema1": 5
+      },
+      "comparison": "CANDLE_TOUCHES",
+      "description": "Candle touches or follows EMA5 on 3min"
+    },
+    
+    "ema5_touch_1min": {
+      "name": "EMA5 Touch 1min",
       "type": "EMA",
       "timeframes": ["1min"],
       "parameters": {
-        "ema1": 9,
-        "ema2": 20
+        "ema1": 5
       },
-      "comparison": "CROSSOVER",
-      "description": "EMA 9 crosses above EMA 20 on 1min timeframe"
+      "comparison": "CANDLE_TOUCHES",
+      "description": "Candle touches or follows EMA5 on 1min"
     },
     
-    "ema_crossover_5min": {
-      "name": "EMA Crossover 5min",
+    "ema9_above_ema34_5min": {
+      "name": "EMA9 Above EMA34 5min",
       "type": "EMA",
       "timeframes": ["5min"],
       "parameters": {
         "ema1": 9,
-        "ema2": 20
+        "ema2": 34
       },
-      "comparison": "CROSSOVER",
-      "description": "EMA 9 crosses above EMA 20 on 5min timeframe"
+      "comparison": "GT",
+      "description": "EMA9 above EMA34 on 5min (bullish alignment)"
     },
     
-    "ema_crossover_15min": {
-      "name": "EMA Crossover 15min",
+    "ema9_above_ema34_3min": {
+      "name": "EMA9 Above EMA34 3min",
       "type": "EMA",
-      "timeframes": ["15min"],
+      "timeframes": ["3min"],
       "parameters": {
         "ema1": 9,
-        "ema2": 20
+        "ema2": 34
       },
-      "comparison": "CROSSOVER",
-      "description": "EMA 9 crosses above EMA 20 on 15min timeframe"
+      "comparison": "GT",
+      "description": "EMA9 above EMA34 on 3min (bullish alignment)"
     },
     
-    "ema_crossdown_1min": {
-      "name": "EMA Crossdown 1min",
-      "type": "EMA",
-      "timeframes": ["1min"],
-      "parameters": {
-        "ema1": 9,
-        "ema2": 20
-      },
-      "comparison": "CROSSDOWN",
-      "description": "EMA 9 crosses below EMA 20 on 1min timeframe"
-    },
-    
-    "ema_crossdown_5min": {
-      "name": "EMA Crossdown 5min",
+    "ema5_above_ema9_5min": {
+      "name": "EMA5 Above EMA9 5min",
       "type": "EMA",
       "timeframes": ["5min"],
       "parameters": {
-        "ema1": 9,
-        "ema2": 20
+        "ema1": 5,
+        "ema2": 9
       },
-      "comparison": "CROSSDOWN",
-      "description": "EMA 9 crosses below EMA 20 on 5min timeframe"
+      "comparison": "GT",
+      "description": "EMA5 above EMA9 on 5min (immediate bullish)"
     },
     
-    "ema_crossdown_15min": {
-      "name": "EMA Crossdown 15min",
+    "ema5_above_ema9_3min": {
+      "name": "EMA5 Above EMA9 3min",
       "type": "EMA",
-      "timeframes": ["15min"],
+      "timeframes": ["3min"],
       "parameters": {
-        "ema1": 9,
-        "ema2": 20
-      },
-      "comparison": "CROSSDOWN",
-      "description": "EMA 9 crosses below EMA 20 on 15min timeframe"
-    },
-    
-    "rsi_overbought_1min": {
-      "name": "RSI Overbought 1min",
-      "type": "RSI",
-      "timeframes": ["1min"],
-      "parameters": {
-        "period": 14
+        "ema1": 5,
+        "ema2": 9
       },
       "comparison": "GT",
-      "threshold": 70.0,
-      "description": "RSI above 70 on 1min timeframe (overbought)"
-    },
-    
-    "rsi_overbought_5min": {
-      "name": "RSI Overbought 5min",
-      "type": "RSI",
-      "timeframes": ["5min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "GT",
-      "threshold": 70.0,
-      "description": "RSI above 70 on 5min timeframe (overbought)"
-    },
-    
-    "rsi_overbought_15min": {
-      "name": "RSI Overbought 15min",
-      "type": "RSI",
-      "timeframes": ["15min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "GT",
-      "threshold": 70.0,
-      "description": "RSI above 70 on 15min timeframe (overbought)"
-    },
-    
-    "rsi_oversold_1min": {
-      "name": "RSI Oversold 1min",
-      "type": "RSI",
-      "timeframes": ["1min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "LT",
-      "threshold": 30.0,
-      "description": "RSI below 30 on 1min timeframe (oversold)"
-    },
-    
-    "rsi_oversold_5min": {
-      "name": "RSI Oversold 5min",
-      "type": "RSI",
-      "timeframes": ["5min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "LT",
-      "threshold": 30.0,
-      "description": "RSI below 30 on 5min timeframe (oversold)"
-    },
-    
-    "rsi_oversold_15min": {
-      "name": "RSI Oversold 15min",
-      "type": "RSI",
-      "timeframes": ["15min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "LT",
-      "threshold": 30.0,
-      "description": "RSI below 30 on 15min timeframe (oversold)"
-    },
-    
-    "rsi_bullish_1min": {
-      "name": "RSI Bullish 1min",
-      "type": "RSI",
-      "timeframes": ["1min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "GT",
-      "threshold": 56.0,
-      "description": "RSI above 56 on 1min timeframe (bullish)"
+      "description": "EMA5 above EMA9 on 3min (immediate bullish)"
     },
     
     "rsi_bullish_5min": {
@@ -180,68 +129,19 @@
       },
       "comparison": "GT",
       "threshold": 56.0,
-      "description": "RSI above 56 on 5min timeframe (bullish)"
+      "description": "RSI above 56 on 5min (bullish momentum)"
     },
     
-    "rsi_bullish_15min": {
-      "name": "RSI Bullish 15min",
+    "rsi_bullish_3min": {
+      "name": "RSI Bullish 3min",
       "type": "RSI",
-      "timeframes": ["15min"],
+      "timeframes": ["3min"],
       "parameters": {
         "period": 14
       },
       "comparison": "GT",
       "threshold": 56.0,
-      "description": "RSI above 56 on 15min timeframe (bullish)"
-    },
-    
-    "rsi_bearish_1min": {
-      "name": "RSI Bearish 1min",
-      "type": "RSI",
-      "timeframes": ["1min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "LT",
-      "threshold": 44.0,
-      "description": "RSI below 44 on 1min timeframe (bearish)"
-    },
-    
-    "rsi_bearish_5min": {
-      "name": "RSI Bearish 5min",
-      "type": "RSI",
-      "timeframes": ["5min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "LT",
-      "threshold": 44.0,
-      "description": "RSI below 44 on 5min timeframe (bearish)"
-    },
-    
-    "rsi_bearish_15min": {
-      "name": "RSI Bearish 15min",
-      "type": "RSI",
-      "timeframes": ["15min"],
-      "parameters": {
-        "period": 14
-      },
-      "comparison": "LT",
-      "threshold": 44.0,
-      "description": "RSI below 44 on 15min timeframe (bearish)"
-    },
-    
-    "volume_surge_1min": {
-      "name": "Volume Surge 1min",
-      "type": "VOLUME",
-      "timeframes": ["1min"],
-      "parameters": {
-        "historicalPeriods": 20,
-        "recentPeriods": 5
-      },
-      "comparison": "GT",
-      "threshold": 2.0,
-      "description": "Volume surge above 2x average on 1min timeframe"
+      "description": "RSI above 56 on 3min (bullish momentum)"
     },
     
     "volume_surge_5min": {
@@ -249,129 +149,39 @@
       "type": "VOLUME",
       "timeframes": ["5min"],
       "parameters": {
-        "historicalPeriods": 20,
-        "recentPeriods": 5
+        "multiplier": 2.0
       },
       "comparison": "GT",
       "threshold": 2.0,
-      "description": "Volume surge above 2x average on 5min timeframe"
+      "description": "Volume 2x above average on 5min"
     },
     
-    "volume_surge_15min": {
-      "name": "Volume Surge 15min",
+    "volume_surge_3min": {
+      "name": "Volume Surge 3min",
       "type": "VOLUME",
-      "timeframes": ["15min"],
+      "timeframes": ["3min"],
       "parameters": {
-        "historicalPeriods": 20,
-        "recentPeriods": 5
+        "multiplier": 2.0
       },
       "comparison": "GT",
       "threshold": 2.0,
-      "description": "Volume surge above 2x average on 15min timeframe"
-    },
-    
-    "volume_low_1min": {
-      "name": "Volume Low 1min",
-      "type": "VOLUME",
-      "timeframes": ["1min"],
-      "parameters": {
-        "historicalPeriods": 20,
-        "recentPeriods": 5
-      },
-      "comparison": "LT",
-      "threshold": 0.5,
-      "description": "Volume below 0.5x average on 1min timeframe"
-    },
-    
-    "volume_low_5min": {
-      "name": "Volume Low 5min",
-      "type": "VOLUME",
-      "timeframes": ["5min"],
-      "parameters": {
-        "historicalPeriods": 20,
-        "recentPeriods": 5
-      },
-      "comparison": "LT",
-      "threshold": 0.5,
-      "description": "Volume below 0.5x average on 5min timeframe"
-    },
-    
-    "volume_low_15min": {
-      "name": "Volume Low 15min",
-      "type": "VOLUME",
-      "timeframes": ["15min"],
-      "parameters": {
-        "historicalPeriods": 20,
-        "recentPeriods": 5
-      },
-      "comparison": "LT",
-      "threshold": 0.5,
-      "description": "Volume below 0.5x average on 15min timeframe"
-    },
-    
-    "price_above_vwap_1min": {
-      "name": "Price Above VWAP 1min",
-      "type": "VWAP",
-      "timeframes": ["1min"],
-      "parameters": {},
-      "comparison": "GT",
-      "description": "Price above VWAP on 1min timeframe"
+      "description": "Volume 2x above average on 3min"
     },
     
     "price_above_vwap_5min": {
       "name": "Price Above VWAP 5min",
       "type": "VWAP",
       "timeframes": ["5min"],
-      "parameters": {},
       "comparison": "GT",
-      "description": "Price above VWAP on 5min timeframe"
+      "description": "Price above VWAP on 5min"
     },
     
-    "price_above_vwap_15min": {
-      "name": "Price Above VWAP 15min",
+    "price_above_vwap_3min": {
+      "name": "Price Above VWAP 3min",
       "type": "VWAP",
-      "timeframes": ["15min"],
-      "parameters": {},
+      "timeframes": ["3min"],
       "comparison": "GT",
-      "description": "Price above VWAP on 15min timeframe"
-    },
-    
-    "price_below_vwap_1min": {
-      "name": "Price Below VWAP 1min",
-      "type": "VWAP",
-      "timeframes": ["1min"],
-      "parameters": {},
-      "comparison": "LT",
-      "description": "Price below VWAP on 1min timeframe"
-    },
-    
-    "price_below_vwap_5min": {
-      "name": "Price Below VWAP 5min",
-      "type": "VWAP",
-      "timeframes": ["5min"],
-      "parameters": {},
-      "comparison": "LT",
-      "description": "Price below VWAP on 5min timeframe"
-    },
-    
-    "price_below_vwap_15min": {
-      "name": "Price Below VWAP 15min",
-      "type": "VWAP",
-      "timeframes": ["15min"],
-      "parameters": {},
-      "comparison": "LT",
-      "description": "Price below VWAP on 15min timeframe"
-    },
-    
-    "price_above_resistance_1min": {
-      "name": "Price Above Resistance 1min",
-      "type": "SUPPORT_RESISTANCE",
-      "timeframes": ["1min"],
-      "parameters": {
-        "lookbackPeriods": 20
-      },
-      "comparison": "GT",
-      "description": "Price above resistance level on 1min timeframe"
+      "description": "Price above VWAP on 3min"
     },
     
     "price_above_resistance_5min": {
@@ -382,161 +192,322 @@
         "lookbackPeriods": 20
       },
       "comparison": "GT",
-      "description": "Price above resistance level on 5min timeframe"
+      "description": "Price above resistance on 5min"
     },
     
-    "price_above_resistance_15min": {
-      "name": "Price Above Resistance 15min",
+    "price_above_resistance_3min": {
+      "name": "Price Above Resistance 3min",
       "type": "SUPPORT_RESISTANCE",
-      "timeframes": ["15min"],
+      "timeframes": ["3min"],
       "parameters": {
         "lookbackPeriods": 20
       },
       "comparison": "GT",
-      "description": "Price above resistance level on 15min timeframe"
+      "description": "Price above resistance on 3min"
     },
     
-    "price_below_support_1min": {
-      "name": "Price Below Support 1min",
-      "type": "SUPPORT_RESISTANCE",
-      "timeframes": ["1min"],
-      "parameters": {
-        "lookbackPeriods": 20
-      },
-      "comparison": "LT",
-      "description": "Price below support level on 1min timeframe"
-    },
-    
-    "price_below_support_5min": {
-      "name": "Price Below Support 5min",
-      "type": "SUPPORT_RESISTANCE",
+    "bullish_engulfing_5min": {
+      "name": "Bullish Engulfing 5min",
+      "type": "CANDLESTICK",
       "timeframes": ["5min"],
       "parameters": {
-        "lookbackPeriods": 20
+        "pattern": "BULLISH_ENGULFING",
+        "barsRequired": 2
       },
-      "comparison": "LT",
-      "description": "Price below support level on 5min timeframe"
+      "description": "Bullish engulfing pattern on 5min"
     },
     
-    "price_below_support_15min": {
-      "name": "Price Below Support 15min",
-      "type": "SUPPORT_RESISTANCE",
-      "timeframes": ["15min"],
+    "bullish_engulfing_3min": {
+      "name": "Bullish Engulfing 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
       "parameters": {
-        "lookbackPeriods": 20
+        "pattern": "BULLISH_ENGULFING",
+        "barsRequired": 2
       },
-      "comparison": "LT",
-      "description": "Price below support level on 15min timeframe"
+      "description": "Bullish engulfing pattern on 3min"
     },
     
-    "ema_rsi_crossover_1min": {
-      "name": "EMA RSI Crossover 1min",
-      "type": "CROSSOVER",
-      "timeframes": ["1min"],
-      "parameters": {
-        "indicator1": "ema_9",
-        "indicator2": "rsi"
-      },
-      "description": "EMA 9 crosses above RSI on 1min timeframe"
-    },
-    
-    "ema_rsi_crossover_5min": {
-      "name": "EMA RSI Crossover 5min",
-      "type": "CROSSOVER",
+    "bullish_morning_star_5min": {
+      "name": "Bullish Morning Star 5min",
+      "type": "CANDLESTICK",
       "timeframes": ["5min"],
       "parameters": {
-        "indicator1": "ema_9",
-        "indicator2": "rsi"
+        "pattern": "BULLISH_MORNING_STAR",
+        "barsRequired": 3
       },
-      "description": "EMA 9 crosses above RSI on 5min timeframe"
+      "description": "Bullish morning star pattern on 5min"
     },
     
-    "ema_rsi_crossover_15min": {
-      "name": "EMA RSI Crossover 15min",
-      "type": "CROSSOVER",
-      "timeframes": ["15min"],
+    "bullish_morning_star_3min": {
+      "name": "Bullish Morning Star 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
       "parameters": {
-        "indicator1": "ema_9",
-        "indicator2": "rsi"
+        "pattern": "BULLISH_MORNING_STAR",
+        "barsRequired": 3
       },
-      "description": "EMA 9 crosses above RSI on 15min timeframe"
+      "description": "Bullish morning star pattern on 3min"
     },
     
-    "ema_rsi_crossdown_1min": {
-      "name": "EMA RSI Crossdown 1min",
-      "type": "CROSSDOWN",
-      "timeframes": ["1min"],
-      "parameters": {
-        "indicator1": "ema_9",
-        "indicator2": "rsi"
-      },
-      "description": "EMA 9 crosses below RSI on 1min timeframe"
-    },
-    
-    "ema_rsi_crossdown_5min": {
-      "name": "EMA RSI Crossdown 5min",
-      "type": "CROSSDOWN",
+    "hammer_5min": {
+      "name": "Hammer 5min",
+      "type": "CANDLESTICK",
       "timeframes": ["5min"],
       "parameters": {
-        "indicator1": "ema_9",
-        "indicator2": "rsi"
+        "pattern": "HAMMER",
+        "barsRequired": 1
       },
-      "description": "EMA 9 crosses below RSI on 5min timeframe"
+      "description": "Hammer pattern on 5min"
     },
     
-    "ema_rsi_crossdown_15min": {
-      "name": "EMA RSI Crossdown 15min",
-      "type": "CROSSDOWN",
-      "timeframes": ["15min"],
+    "hammer_3min": {
+      "name": "Hammer 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
       "parameters": {
-        "indicator1": "ema_9",
-        "indicator2": "rsi"
+        "pattern": "HAMMER",
+        "barsRequired": 1
       },
-      "description": "EMA 9 crosses below RSI on 15min timeframe"
+      "description": "Hammer pattern on 3min"
+    },
+    
+    "bullish_marubozu_5min": {
+      "name": "Bullish Marubozu 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BULLISH_MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Bullish marubozu pattern on 5min"
+    },
+    
+    "long_lower_shadow_5min": {
+      "name": "Long Lower Shadow 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "LONG_LOWER_SHADOW",
+        "barsRequired": 1
+      },
+      "description": "Long lower shadow on 5min"
+    },
+    
+    "bearish_engulfing_5min": {
+      "name": "Bearish Engulfing 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BEARISH_ENGULFING",
+        "barsRequired": 2
+      },
+      "description": "Bearish engulfing pattern on 5min"
+    },
+    
+    "bearish_engulfing_3min": {
+      "name": "Bearish Engulfing 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BEARISH_ENGULFING",
+        "barsRequired": 2
+      },
+      "description": "Bearish engulfing pattern on 3min"
+    },
+    
+    "bearish_evening_star_5min": {
+      "name": "Bearish Evening Star 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BEARISH_EVENING_STAR",
+        "barsRequired": 3
+      },
+      "description": "Bearish evening star pattern on 5min"
+    },
+    
+    "bearish_evening_star_3min": {
+      "name": "Bearish Evening Star 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BEARISH_EVENING_STAR",
+        "barsRequired": 3
+      },
+      "description": "Bearish evening star pattern on 3min"
+    },
+    
+    "shooting_star_5min": {
+      "name": "Shooting Star 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "SHOOTING_STAR",
+        "barsRequired": 1
+      },
+      "description": "Shooting star pattern on 5min"
+    },
+    
+    "shooting_star_3min": {
+      "name": "Shooting Star 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "SHOOTING_STAR",
+        "barsRequired": 1
+      },
+      "description": "Shooting star pattern on 3min"
+    },
+    
+    "bearish_marubozu_5min": {
+      "name": "Bearish Marubozu 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BEARISH_MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Bearish marubozu pattern on 5min"
+    },
+    
+    "long_upper_shadow_5min": {
+      "name": "Long Upper Shadow 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "LONG_UPPER_SHADOW",
+        "barsRequired": 1
+      },
+      "description": "Long upper shadow on 5min"
     }
   },
   
   "callConditions": {
-    "requiredIndicators": [
-      "ema_crossover_1min",
-      "ema_crossover_5min", 
-      "ema_crossover_15min",
-      "rsi_bullish_1min",
-      "rsi_bullish_5min",
-      "rsi_bullish_15min",
-      "volume_surge_1min",
-      "volume_surge_5min",
-      "volume_surge_15min",
-      "price_above_vwap_1min",
-      "price_above_vwap_5min",
-      "price_above_vwap_15min",
-      "price_above_resistance_1min",
-      "price_above_resistance_5min",
-      "price_above_resistance_15min"
-    ],
-    "minRequiredCount": 10,
-    "description": "Conditions for CALL strategy"
+    "categories": {
+      "EMA_TREND": {
+        "name": "EMA Trend Confirmation",
+        "description": "At least one EMA trend indicator must be satisfied",
+        "indicators": [
+          "ema200_trend_15min",
+          "ema34_trend_5min",
+          "ema9_trend_5min",
+          "ema5_touch_5min",
+          "ema9_above_ema34_5min",
+          "ema5_above_ema9_5min"
+        ],
+        "minRequired": 1
+      },
+      "VOLUME": {
+        "name": "Volume Confirmation", 
+        "description": "At least one volume indicator must be satisfied",
+        "indicators": [
+          "volume_surge_5min",
+          "volume_surge_3min"
+        ],
+        "minRequired": 1
+      },
+      "RSI": {
+        "name": "RSI Confirmation",
+        "description": "At least one RSI indicator must be satisfied",
+        "indicators": [
+          "rsi_bullish_5min",
+          "rsi_bullish_3min"
+        ],
+        "minRequired": 1
+      },
+      "PRICE_ACTION": {
+        "name": "Price Action Confirmation",
+        "description": "At least one price action indicator must be satisfied",
+        "indicators": [
+          "price_above_vwap_5min",
+          "price_above_vwap_3min",
+          "price_above_resistance_5min",
+          "price_above_resistance_3min"
+        ],
+        "minRequired": 1
+      },
+      "CANDLESTICK": {
+        "name": "Candlestick Pattern Confirmation",
+        "description": "At least one bullish candlestick pattern must be satisfied",
+        "indicators": [
+          "bullish_engulfing_5min",
+          "bullish_engulfing_3min",
+          "bullish_morning_star_5min",
+          "bullish_morning_star_3min",
+          "hammer_5min",
+          "hammer_3min",
+          "bullish_marubozu_5min",
+          "long_lower_shadow_5min"
+        ],
+        "minRequired": 1
+      }
+    },
+    "minCategoriesRequired": 4,
+    "priorityTimeframe": "5min"
   },
   
   "putConditions": {
-    "requiredIndicators": [
-      "ema_crossdown_1min",
-      "ema_crossdown_5min",
-      "ema_crossdown_15min", 
-      "rsi_bearish_1min",
-      "rsi_bearish_5min",
-      "rsi_bearish_15min",
-      "volume_surge_1min",
-      "volume_surge_5min",
-      "volume_surge_15min",
-      "price_below_vwap_1min",
-      "price_below_vwap_5min",
-      "price_below_vwap_15min",
-      "price_below_support_1min",
-      "price_below_support_5min",
-      "price_below_support_15min"
-    ],
-    "minRequiredCount": 10,
-    "description": "Conditions for PUT strategy"
+    "categories": {
+      "EMA_TREND": {
+        "name": "EMA Trend Confirmation",
+        "description": "At least one bearish EMA trend indicator must be satisfied",
+        "indicators": [
+          "ema200_trend_bearish_15min",
+          "ema34_trend_bearish_5min",
+          "ema9_trend_bearish_5min",
+          "ema5_touch_bearish_5min",
+          "ema9_below_ema34_5min",
+          "ema5_below_ema9_5min"
+        ],
+        "minRequired": 1
+      },
+      "VOLUME": {
+        "name": "Volume Confirmation",
+        "description": "At least one volume indicator must be satisfied", 
+        "indicators": [
+          "volume_surge_5min",
+          "volume_surge_3min"
+        ],
+        "minRequired": 1
+      },
+      "RSI": {
+        "name": "RSI Confirmation",
+        "description": "At least one bearish RSI indicator must be satisfied",
+        "indicators": [
+          "rsi_bearish_5min",
+          "rsi_bearish_3min"
+        ],
+        "minRequired": 1
+      },
+      "PRICE_ACTION": {
+        "name": "Price Action Confirmation",
+        "description": "At least one bearish price action indicator must be satisfied",
+        "indicators": [
+          "price_below_vwap_5min",
+          "price_below_vwap_3min",
+          "price_below_support_5min",
+          "price_below_support_3min"
+        ],
+        "minRequired": 1
+      },
+      "CANDLESTICK": {
+        "name": "Candlestick Pattern Confirmation",
+        "description": "At least one bearish candlestick pattern must be satisfied",
+        "indicators": [
+          "bearish_engulfing_5min",
+          "bearish_engulfing_3min",
+          "bearish_evening_star_5min",
+          "bearish_evening_star_3min",
+          "shooting_star_5min",
+          "shooting_star_3min",
+          "bearish_marubozu_5min",
+          "long_upper_shadow_5min"
+        ],
+        "minRequired": 1
+      }
+    },
+    "minCategoriesRequired": 4,
+    "priorityTimeframe": "5min"
   }
 }

@@ -111,15 +111,15 @@ public class DynamicStrategyConfigService {
     }
     
     public boolean isCallCheck1Min() {
-        return true; // Always check 1min in new system
+        return dynamicIndicatorConfig.getTimeframes().contains("1min");
     }
     
     public boolean isCallCheck5Min() {
-        return true; // Always check 5min in new system
+        return dynamicIndicatorConfig.getTimeframes().contains("5min");
     }
     
     public boolean isCallCheck15Min() {
-        return true; // Always check 15min in new system
+        return false; // Disable 15min RSI check as requested
     }
     
     // PUT Rule Methods (mapped to new config)
@@ -136,7 +136,7 @@ public class DynamicStrategyConfigService {
     }
     
     public double getPutRsiThreshold() {
-        return 40.0; // PUT RSI threshold
+        return scalpingEntryConfig.getPutStrategy().getEntryQuality().getMinRsiStrength();
     }
     
     public double getPutVolumeSurgeMultiplier() {
@@ -180,15 +180,15 @@ public class DynamicStrategyConfigService {
     }
     
     public boolean isPutCheck1Min() {
-        return true; // Always check 1min in new system
+        return dynamicIndicatorConfig.getTimeframes().contains("1min");
     }
     
     public boolean isPutCheck5Min() {
-        return true; // Always check 5min in new system
+        return dynamicIndicatorConfig.getTimeframes().contains("5min");
     }
     
     public boolean isPutCheck15Min() {
-        return true; // Always check 15min in new system
+        return false; // Disable 15min RSI check as requested
     }
     
     // Common Configuration Methods

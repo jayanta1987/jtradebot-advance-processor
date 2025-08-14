@@ -1,5 +1,6 @@
 package com.jtradebot.processor.indicator;
 
+import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 public class PriceVolumeSurgeIndicator {
     
     private final TickDataManager tickDataManager;
+    private final DynamicStrategyConfigService configService;
     
     /**
      * Enhanced volume surge calculation with proper historical baseline
@@ -53,8 +55,11 @@ public class PriceVolumeSurgeIndicator {
             // Calculate volume momentum (rate of change)
             double volumeMomentum = calculateVolumeMomentum(barSeries);
             
+            // Use config service for volume surge threshold (instead of hardcoded 1.3)
+            double volumeSurgeThreshold = configService.getCallVolumeSurgeMultiplier();
+            
             return VolumeSurgeResult.builder()
-                    .hasSurge(volumeMultiplier >= 2.0)
+                    .hasSurge(volumeMultiplier >= volumeSurgeThreshold)  // Use config instead of hardcoded
                     .volumeMultiplier(volumeMultiplier)
                     .recentVolumeMultiplier(recentVolumeMultiplier)
                     .averageVolume(averageVolume)
@@ -74,22 +79,28 @@ public class PriceVolumeSurgeIndicator {
     
     /**
      * Calculate volume surge for Nifty index and future comparison
+     * Note: Nifty Index doesn't have volume data, so we only analyze future volume
+     * and correlate it with index price movements
      */
     public NiftyVolumeAnalysis analyzeNiftyVolume(String niftyIndexToken, String niftyFutureToken, 
-                                                 long indexVolume, long futureVolume) {
+                                                 long futureVolume) {
         try {
-            // Calculate volume surge for both instruments
-            VolumeSurgeResult indexSurge = calculateVolumeSurge(niftyIndexToken, FIVE_MIN, indexVolume);
+            // Calculate volume surge for future instrument only (index has no volume)
             VolumeSurgeResult futureSurge = calculateVolumeSurge(niftyFutureToken, FIVE_MIN, futureVolume);
             
-            // Calculate volume correlation between index and future
+            // Create a dummy index surge result since index has no volume
+            VolumeSurgeResult indexSurge = VolumeSurgeResult.noSurge();
+            
+            // Calculate volume correlation between index and future (uses historical data)
             double volumeCorrelation = calculateVolumeCorrelation(niftyIndexToken, niftyFutureToken);
             
             // Determine if this is a coordinated volume surge
-            boolean isCoordinatedSurge = indexSurge.hasSurge() && futureSurge.hasSurge() && volumeCorrelation > 0.7;
+            // Since index has no volume, coordinated surge is based on future surge + correlation
+            boolean isCoordinatedSurge = futureSurge.hasSurge() && volumeCorrelation > 0.7;
             
-            // Calculate volume divergence (future volume vs index volume ratio)
-            double volumeDivergence = futureVolume > 0 ? (double) futureVolume / indexVolume : 1.0;
+            // Volume divergence is not meaningful since index has no volume
+            // We'll use a fixed value or calculate based on future volume strength
+            double volumeDivergence = futureSurge.getVolumeMultiplier(); // Use future surge strength instead
             
             return NiftyVolumeAnalysis.builder()
                     .indexSurge(indexSurge)
@@ -97,7 +108,7 @@ public class PriceVolumeSurgeIndicator {
                     .volumeCorrelation(volumeCorrelation)
                     .isCoordinatedSurge(isCoordinatedSurge)
                     .volumeDivergence(volumeDivergence)
-                    .totalVolume(indexVolume + futureVolume)
+                    .totalVolume(futureVolume) // Only future volume since index has no volume
                     .build();
                     
         } catch (Exception e) {
@@ -122,13 +133,16 @@ public class PriceVolumeSurgeIndicator {
     }
     
     private VolumeSurgeStrength determineSurgeStrength(double volumeMultiplier, double recentVolumeMultiplier) {
-        if (volumeMultiplier >= 5.0 || recentVolumeMultiplier >= 5.0) {
+        // Use config service for thresholds instead of hardcoded values
+        double baseThreshold = configService.getCallVolumeSurgeMultiplier();
+        
+        if (volumeMultiplier >= baseThreshold * 2.5 || recentVolumeMultiplier >= baseThreshold * 2.5) {
             return VolumeSurgeStrength.EXTREME;
-        } else if (volumeMultiplier >= 3.0 || recentVolumeMultiplier >= 3.0) {
+        } else if (volumeMultiplier >= baseThreshold * 1.8 || recentVolumeMultiplier >= baseThreshold * 1.8) {
             return VolumeSurgeStrength.HIGH;
-        } else if (volumeMultiplier >= 2.0 || recentVolumeMultiplier >= 2.0) {
+        } else if (volumeMultiplier >= baseThreshold * 1.4 || recentVolumeMultiplier >= baseThreshold * 1.4) {
             return VolumeSurgeStrength.MEDIUM;
-        } else if (volumeMultiplier >= 1.5 || recentVolumeMultiplier >= 1.5) {
+        } else if (volumeMultiplier >= baseThreshold || recentVolumeMultiplier >= baseThreshold) {
             return VolumeSurgeStrength.LOW;
         } else {
             return VolumeSurgeStrength.NONE;
@@ -152,7 +166,7 @@ public class PriceVolumeSurgeIndicator {
         }
         olderVolume = olderVolume / 5.0;
         
-        return recentVolume > olderVolume * 1.1; // 10% increase
+        return recentVolume > olderVolume * 1.05; // 5% increase (relaxed from 10%)
     }
     
     private double calculateVolumeMomentum(BarSeries barSeries) {

@@ -22,7 +22,6 @@ public class DynamicIndicatorConfig {
     
     private Map<String, IndicatorDefinition> indicators;
     private List<String> timeframes;
-    private Map<String, Object> thresholds;
     
     private CallConditions callConditions;
     private PutConditions putConditions;
@@ -49,8 +48,9 @@ public class DynamicIndicatorConfig {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CallConditions {
-        private List<String> requiredIndicators;
-        private int minRequiredCount;
+        private Map<String, Category> categories;
+        private int minCategoriesRequired;
+        private String priorityTimeframe;
         private String description;
     }
     
@@ -60,8 +60,21 @@ public class DynamicIndicatorConfig {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class PutConditions {
-        private List<String> requiredIndicators;
-        private int minRequiredCount;
+        private Map<String, Category> categories;
+        private int minCategoriesRequired;
+        private String priorityTimeframe;
         private String description;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Category {
+        private String name;
+        private String description;
+        private List<String> indicators;
+        private int minRequired;
     }
 }

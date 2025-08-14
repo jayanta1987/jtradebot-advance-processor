@@ -50,12 +50,5 @@ public interface ScalpingVolumeSurgeService {
      */
     StrategyScore calculateStrategyScore(Tick tick);
     
-    /**
-     * Calculates comprehensive strategy score with volume data from future tick
-     * This method properly handles the alternating index/future tick scenario
-     * @param indexTick The index tick data (for price calculations)
-     * @param futureTick The future tick data (for volume/OI calculations)
-     * @return StrategyScore object with detailed scoring breakdown
-     */
-    StrategyScore calculateStrategyScoreWithVolumeData(Tick indexTick, Tick futureTick);
+
 }

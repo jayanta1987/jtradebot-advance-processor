@@ -145,4 +145,5 @@ public class ScalpingEntryConfig {
         private String endTime;
         private String description;
     }
+    
 }

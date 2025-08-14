@@ -92,35 +92,58 @@ public class DynamicStrategyEvaluatorServiceImpl implements DynamicStrategyEvalu
     public StrategyEvaluationResult.CallStrategyEvaluation evaluateCallStrategy(DynamicFlattenedIndicators flattenedIndicators, DynamicIndicatorConfig config) {
         log.debug("Evaluating CALL strategy for instrument: {}", flattenedIndicators.getInstrumentToken());
         
-        List<String> requiredCallConditions = getCallConditions(config);
+        Map<String, DynamicIndicatorConfig.Category> categories = config.getCallConditions().getCategories();
+        int minCategoriesRequired = config.getCallConditions().getMinCategoriesRequired();
+        
         List<String> satisfiedConditions = new ArrayList<>();
         List<String> unsatisfiedConditions = new ArrayList<>();
+        Map<String, Boolean> categoryResults = new HashMap<>();
+        Map<String, List<String>> categorySatisfiedIndicators = new HashMap<>();
         
-        // Check each required condition
-        for (String condition : requiredCallConditions) {
-            Boolean conditionMet = flattenedIndicators.getBooleanIndicator(condition);
-            if (conditionMet != null && conditionMet) {
-                satisfiedConditions.add(condition);
-            } else {
-                unsatisfiedConditions.add(condition);
+        // Check each category
+        for (Map.Entry<String, DynamicIndicatorConfig.Category> entry : categories.entrySet()) {
+            String categoryName = entry.getKey();
+            DynamicIndicatorConfig.Category category = entry.getValue();
+            
+            List<String> categorySatisfied = new ArrayList<>();
+            int categorySatisfiedCount = 0;
+            
+            // Check each indicator in the category
+            for (String indicator : category.getIndicators()) {
+                Boolean conditionMet = flattenedIndicators.getBooleanIndicator(indicator);
+                if (conditionMet != null && conditionMet) {
+                    categorySatisfied.add(indicator);
+                    categorySatisfiedCount++;
+                    satisfiedConditions.add(indicator);
+                } else {
+                    unsatisfiedConditions.add(indicator);
+                }
             }
+            
+            // Check if category requirement is met
+            boolean categoryMet = categorySatisfiedCount >= category.getMinRequired();
+            categoryResults.put(categoryName, categoryMet);
+            categorySatisfiedIndicators.put(categoryName, categorySatisfied);
         }
         
-        // Determine if CALL is recommended
-        int minRequiredCount = getMinRequiredCount(config, "callConditions");
-        boolean isCallRecommended = satisfiedConditions.size() >= minRequiredCount;
+        // Determine if CALL is recommended (at least minCategoriesRequired categories must be satisfied)
+        int satisfiedCategories = (int) categoryResults.values().stream().filter(Boolean::booleanValue).count();
+        boolean isCallRecommended = satisfiedCategories >= minCategoriesRequired;
         
         // Calculate confidence score
-        double callConfidence = calculateConfidenceScore(flattenedIndicators, config, "CALL");
+        double callConfidence = calculateCategoryBasedConfidence(categoryResults, categorySatisfiedIndicators, categories);
         
         // Generate reasoning
-        String callReasoning = generateCallReasoning(satisfiedConditions, unsatisfiedConditions, minRequiredCount, callConfidence);
+        String callReasoning = generateCategoryBasedReasoning(categoryResults, categorySatisfiedIndicators, categories, 
+                                                             satisfiedCategories, minCategoriesRequired, "CALL");
         
         // Create evaluation details
         Map<String, Object> callDetails = new HashMap<>();
-        callDetails.put("satisfiedCount", satisfiedConditions.size());
-        callDetails.put("totalRequired", requiredCallConditions.size());
-        callDetails.put("minRequired", minRequiredCount);
+        callDetails.put("satisfiedCategories", satisfiedCategories);
+        callDetails.put("totalCategories", categories.size());
+        callDetails.put("minCategoriesRequired", minCategoriesRequired);
+        callDetails.put("categoryResults", categoryResults);
+        callDetails.put("categorySatisfiedIndicators", categorySatisfiedIndicators);
         callDetails.put("confidenceScore", callConfidence);
         
         return StrategyEvaluationResult.CallStrategyEvaluation.builder()
@@ -137,35 +160,58 @@ public class DynamicStrategyEvaluatorServiceImpl implements DynamicStrategyEvalu
     public StrategyEvaluationResult.PutStrategyEvaluation evaluatePutStrategy(DynamicFlattenedIndicators flattenedIndicators, DynamicIndicatorConfig config) {
         log.debug("Evaluating PUT strategy for instrument: {}", flattenedIndicators.getInstrumentToken());
         
-        List<String> requiredPutConditions = getPutConditions(config);
+        Map<String, DynamicIndicatorConfig.Category> categories = config.getPutConditions().getCategories();
+        int minCategoriesRequired = config.getPutConditions().getMinCategoriesRequired();
+        
         List<String> satisfiedConditions = new ArrayList<>();
         List<String> unsatisfiedConditions = new ArrayList<>();
+        Map<String, Boolean> categoryResults = new HashMap<>();
+        Map<String, List<String>> categorySatisfiedIndicators = new HashMap<>();
         
-        // Check each required condition
-        for (String condition : requiredPutConditions) {
-            Boolean conditionMet = flattenedIndicators.getBooleanIndicator(condition);
-            if (conditionMet != null && conditionMet) {
-                satisfiedConditions.add(condition);
-            } else {
-                unsatisfiedConditions.add(condition);
+        // Check each category
+        for (Map.Entry<String, DynamicIndicatorConfig.Category> entry : categories.entrySet()) {
+            String categoryName = entry.getKey();
+            DynamicIndicatorConfig.Category category = entry.getValue();
+            
+            List<String> categorySatisfied = new ArrayList<>();
+            int categorySatisfiedCount = 0;
+            
+            // Check each indicator in the category
+            for (String indicator : category.getIndicators()) {
+                Boolean conditionMet = flattenedIndicators.getBooleanIndicator(indicator);
+                if (conditionMet != null && conditionMet) {
+                    categorySatisfied.add(indicator);
+                    categorySatisfiedCount++;
+                    satisfiedConditions.add(indicator);
+                } else {
+                    unsatisfiedConditions.add(indicator);
+                }
             }
+            
+            // Check if category requirement is met
+            boolean categoryMet = categorySatisfiedCount >= category.getMinRequired();
+            categoryResults.put(categoryName, categoryMet);
+            categorySatisfiedIndicators.put(categoryName, categorySatisfied);
         }
         
-        // Determine if PUT is recommended
-        int minRequiredCount = getMinRequiredCount(config, "putConditions");
-        boolean isPutRecommended = satisfiedConditions.size() >= minRequiredCount;
+        // Determine if PUT is recommended (at least minCategoriesRequired categories must be satisfied)
+        int satisfiedCategories = (int) categoryResults.values().stream().filter(Boolean::booleanValue).count();
+        boolean isPutRecommended = satisfiedCategories >= minCategoriesRequired;
         
         // Calculate confidence score
-        double putConfidence = calculateConfidenceScore(flattenedIndicators, config, "PUT");
+        double putConfidence = calculateCategoryBasedConfidence(categoryResults, categorySatisfiedIndicators, categories);
         
         // Generate reasoning
-        String putReasoning = generatePutReasoning(satisfiedConditions, unsatisfiedConditions, minRequiredCount, putConfidence);
+        String putReasoning = generateCategoryBasedReasoning(categoryResults, categorySatisfiedIndicators, categories, 
+                                                            satisfiedCategories, minCategoriesRequired, "PUT");
         
         // Create evaluation details
         Map<String, Object> putDetails = new HashMap<>();
-        putDetails.put("satisfiedCount", satisfiedConditions.size());
-        putDetails.put("totalRequired", requiredPutConditions.size());
-        putDetails.put("minRequired", minRequiredCount);
+        putDetails.put("satisfiedCategories", satisfiedCategories);
+        putDetails.put("totalCategories", categories.size());
+        putDetails.put("minCategoriesRequired", minCategoriesRequired);
+        putDetails.put("categoryResults", categoryResults);
+        putDetails.put("categorySatisfiedIndicators", categorySatisfiedIndicators);
         putDetails.put("confidenceScore", putConfidence);
         
         return StrategyEvaluationResult.PutStrategyEvaluation.builder()
@@ -180,110 +226,13 @@ public class DynamicStrategyEvaluatorServiceImpl implements DynamicStrategyEvalu
 
     @Override
     public double calculateConfidenceScore(DynamicFlattenedIndicators flattenedIndicators, DynamicIndicatorConfig config, String strategyType) {
-        List<String> requiredConditions;
-        
-        if ("CALL".equals(strategyType)) {
-            requiredConditions = getCallConditions(config);
-        } else if ("PUT".equals(strategyType)) {
-            requiredConditions = getPutConditions(config);
-        } else {
-            return 0.0;
-        }
-        
-        if (requiredConditions.isEmpty()) {
-            return 0.0;
-        }
-        
-        // Count satisfied conditions
-        long satisfiedCount = requiredConditions.stream()
-                .map(flattenedIndicators::getBooleanIndicator)
-                .filter(Objects::nonNull)
-                .filter(Boolean::booleanValue)
-                .count();
-        
-        // Calculate base confidence as ratio of satisfied conditions
-        double baseConfidence = (double) satisfiedCount / requiredConditions.size();
-        
-        // Apply additional confidence factors based on indicator strength
-        double strengthMultiplier = calculateStrengthMultiplier(flattenedIndicators, strategyType);
-        
-        // Apply timeframe alignment bonus
-        double timeframeBonus = calculateTimeframeAlignmentBonus(flattenedIndicators, strategyType);
-        
-        // Calculate final confidence score (capped at 1.0)
-        double finalConfidence = Math.min(1.0, baseConfidence * strengthMultiplier * timeframeBonus);
-        
-        log.debug("Confidence calculation for {}: base={}, strength={}, timeframe={}, final={}", 
-                strategyType, baseConfidence, strengthMultiplier, timeframeBonus, finalConfidence);
-        
-        return finalConfidence;
+        // This method is deprecated in favor of category-based evaluation
+        return 0.0;
     }
 
-    // Helper methods
-    private List<String> getCallConditions(DynamicIndicatorConfig config) {
-        if (config.getCallConditions() != null && config.getCallConditions().getRequiredIndicators() != null) {
-            return config.getCallConditions().getRequiredIndicators();
-        }
-        return new ArrayList<>();
-    }
 
-    private List<String> getPutConditions(DynamicIndicatorConfig config) {
-        if (config.getPutConditions() != null && config.getPutConditions().getRequiredIndicators() != null) {
-            return config.getPutConditions().getRequiredIndicators();
-        }
-        return new ArrayList<>();
-    }
 
-    private int getMinRequiredCount(DynamicIndicatorConfig config, String conditionType) {
-        if ("callConditions".equals(conditionType) && config.getCallConditions() != null) {
-            return config.getCallConditions().getMinRequiredCount();
-        } else if ("putConditions".equals(conditionType) && config.getPutConditions() != null) {
-            return config.getPutConditions().getMinRequiredCount();
-        }
-        return 10; // Default minimum
-    }
 
-    private String generateCallReasoning(List<String> satisfiedConditions, List<String> unsatisfiedConditions, 
-                                       int minRequiredCount, double confidence) {
-        StringBuilder reasoning = new StringBuilder();
-        
-        if (satisfiedConditions.size() >= minRequiredCount) {
-            reasoning.append("CALL strategy recommended. ");
-            reasoning.append("Satisfied ").append(satisfiedConditions.size()).append(" out of ").append(satisfiedConditions.size() + unsatisfiedConditions.size()).append(" conditions. ");
-            reasoning.append("Confidence: ").append(String.format("%.2f", confidence * 100)).append("%. ");
-            
-            if (!satisfiedConditions.isEmpty()) {
-                reasoning.append("Key bullish signals: ").append(String.join(", ", satisfiedConditions.subList(0, Math.min(3, satisfiedConditions.size()))));
-            }
-        } else {
-            reasoning.append("CALL strategy not recommended. ");
-            reasoning.append("Only ").append(satisfiedConditions.size()).append(" conditions met, need ").append(minRequiredCount).append(". ");
-            reasoning.append("Missing: ").append(String.join(", ", unsatisfiedConditions.subList(0, Math.min(3, unsatisfiedConditions.size()))));
-        }
-        
-        return reasoning.toString();
-    }
-
-    private String generatePutReasoning(List<String> satisfiedConditions, List<String> unsatisfiedConditions, 
-                                      int minRequiredCount, double confidence) {
-        StringBuilder reasoning = new StringBuilder();
-        
-        if (satisfiedConditions.size() >= minRequiredCount) {
-            reasoning.append("PUT strategy recommended. ");
-            reasoning.append("Satisfied ").append(satisfiedConditions.size()).append(" out of ").append(satisfiedConditions.size() + unsatisfiedConditions.size()).append(" conditions. ");
-            reasoning.append("Confidence: ").append(String.format("%.2f", confidence * 100)).append("%. ");
-            
-            if (!satisfiedConditions.isEmpty()) {
-                reasoning.append("Key bearish signals: ").append(String.join(", ", satisfiedConditions.subList(0, Math.min(3, satisfiedConditions.size()))));
-            }
-        } else {
-            reasoning.append("PUT strategy not recommended. ");
-            reasoning.append("Only ").append(satisfiedConditions.size()).append(" conditions met, need ").append(minRequiredCount).append(". ");
-            reasoning.append("Missing: ").append(String.join(", ", unsatisfiedConditions.subList(0, Math.min(3, unsatisfiedConditions.size()))));
-        }
-        
-        return reasoning.toString();
-    }
 
     private double calculateStrengthMultiplier(DynamicFlattenedIndicators flattenedIndicators, String strategyType) {
         double multiplier = 1.0;
@@ -333,5 +282,70 @@ public class DynamicStrategyEvaluatorServiceImpl implements DynamicStrategyEvalu
         }
         
         return bonus;
+    }
+
+    private double calculateCategoryBasedConfidence(Map<String, Boolean> categoryResults, Map<String, List<String>> categorySatisfiedIndicators, Map<String, DynamicIndicatorConfig.Category> categories) {
+        double confidence = 0.0;
+        int totalCategories = categoryResults.size();
+        int satisfiedCategories = (int) categoryResults.values().stream().filter(Boolean::booleanValue).count();
+
+        if (totalCategories == 0) {
+            return 0.0;
+        }
+
+        // Base confidence is the ratio of satisfied categories
+        confidence = (double) satisfiedCategories / totalCategories;
+
+        // Apply strength multiplier for each category
+        for (Map.Entry<String, Boolean> entry : categoryResults.entrySet()) {
+            String categoryName = entry.getKey();
+            boolean categoryMet = entry.getValue();
+            DynamicIndicatorConfig.Category category = categories.get(categoryName);
+
+            if (category != null && categoryMet) {
+                // Give bonus for each satisfied category
+                confidence *= 1.1; // 10% bonus per satisfied category
+            }
+        }
+
+        // Cap confidence at 1.0
+        confidence = Math.min(1.0, confidence);
+
+        log.debug("Category-based confidence calculation: base={}, satisfiedCategories={}, final={}",
+                (double) satisfiedCategories / totalCategories, satisfiedCategories, confidence);
+
+        return confidence;
+    }
+
+    private String generateCategoryBasedReasoning(Map<String, Boolean> categoryResults, Map<String, List<String>> categorySatisfiedIndicators, Map<String, DynamicIndicatorConfig.Category> categories, 
+                                                  int satisfiedCategories, int minCategoriesRequired, String strategyType) {
+        StringBuilder reasoning = new StringBuilder();
+        boolean isRecommended = satisfiedCategories >= minCategoriesRequired;
+
+        if (isRecommended) {
+            reasoning.append("Strategy recommended. ");
+            reasoning.append("Satisfied ").append(satisfiedCategories).append(" out of ").append(categoryResults.size()).append(" categories. ");
+            reasoning.append("Confidence: ").append(String.format("%.2f", calculateCategoryBasedConfidence(categoryResults, categorySatisfiedIndicators, categories) * 100)).append("%. ");
+
+            if (strategyType.equals("CALL")) {
+                reasoning.append("Key bullish signals: ");
+            } else {
+                reasoning.append("Key bearish signals: ");
+            }
+            List<String> allSatisfiedIndicators = new ArrayList<>();
+            for (List<String> satisfied : categorySatisfiedIndicators.values()) {
+                allSatisfiedIndicators.addAll(satisfied);
+            }
+            reasoning.append(String.join(", ", allSatisfiedIndicators.subList(0, Math.min(3, allSatisfiedIndicators.size()))));
+        } else {
+            reasoning.append("Strategy not recommended. ");
+            reasoning.append("Only ").append(satisfiedCategories).append(" categories met, need ").append(minCategoriesRequired).append(". ");
+            List<String> allUnsatisfiedIndicators = new ArrayList<>();
+            for (List<String> unsatisfied : categorySatisfiedIndicators.values()) {
+                allUnsatisfiedIndicators.addAll(unsatisfied);
+            }
+            reasoning.append("Missing: ").append(String.join(", ", allUnsatisfiedIndicators.subList(0, Math.min(3, allUnsatisfiedIndicators.size()))));
+        }
+        return reasoning.toString();
     }
 }

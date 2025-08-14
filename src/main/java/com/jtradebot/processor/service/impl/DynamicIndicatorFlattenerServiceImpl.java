@@ -23,9 +23,13 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
+import com.jtradebot.processor.candleStick.CandlestickPattern;
+import com.jtradebot.processor.model.Support;
+import com.jtradebot.processor.model.Resistance;
 
 @Service
 @RequiredArgsConstructor
@@ -94,6 +98,9 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
             case "SUPPORT_RESISTANCE":
                 flattenSupportResistanceIndicators(tickDocument, flattenedIndicators, indicatorConfig);
                 break;
+            case "CANDLESTICK":
+                flattenCandlestickIndicators(tickDocument, flattenedIndicators, indicatorConfig);
+                break;
             case "CROSSOVER":
                 flattenCrossoverIndicators(tickDocument, flattenedIndicators, indicatorConfig);
                 break;
@@ -116,6 +123,7 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                 if (barSeries == null || barSeries.getBarCount() < 20) continue;
                 
                 EmaInfo emaInfo = multiEmaIndicator.calculateEmaValues(barSeries, timeFrameEnum);
+                Double currentPrice = tickDocument.getLastTradedPrice();
                 
                 // Only create indicators based on the configuration
                 String comparison = config.getComparison();
@@ -129,10 +137,43 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                             String crossdownKey = String.format("ema_%s_crossdown", timeframe);
                             flattenedIndicators.setBooleanIndicator(crossdownKey, detectEmaCrossdown(barSeries, emaInfo));
                             break;
+                        case "TREND_ABOVE":
+                            // Price above specific EMA (for trend identification)
+                            Integer emaPeriod = (Integer) config.getParameters().get("ema1");
+                            if (emaPeriod != null) {
+                                Double emaValue = getEmaValue(emaInfo, emaPeriod);
+                                if (emaValue != null) {
+                                    String trendKey = String.format("ema%d_trend_%s", emaPeriod, timeframe);
+                                    flattenedIndicators.setBooleanIndicator(trendKey, currentPrice > emaValue);
+                                }
+                            }
+                            break;
+                        case "CANDLE_TOUCHES":
+                            // Candle touches or follows specific EMA (your key principle)
+                            Integer emaPeriodTouch = (Integer) config.getParameters().get("ema1");
+                            if (emaPeriodTouch != null) {
+                                Double emaValueTouch = getEmaValue(emaInfo, emaPeriodTouch);
+                                if (emaValueTouch != null) {
+                                    String touchKey = String.format("ema%d_touch_%s", emaPeriodTouch, timeframe);
+                                    // Check if candle touches EMA5 (within 0.1% range)
+                                    double tolerance = emaValueTouch * 0.001; // 0.1% tolerance
+                                    boolean touches = Math.abs(currentPrice - emaValueTouch) <= tolerance;
+                                    flattenedIndicators.setBooleanIndicator(touchKey, touches);
+                                }
+                            }
+                            break;
                         case "GT":
-                            // For EMA, GT means EMA9 > EMA20
-                            String gtKey = String.format("ema_%s_9_gt_20", timeframe);
-                            flattenedIndicators.setBooleanIndicator(gtKey, emaInfo.getEma9() > emaInfo.getEma20());
+                            // Compare two EMAs (e.g., EMA9 > EMA34)
+                            Integer ema1 = (Integer) config.getParameters().get("ema1");
+                            Integer ema2 = (Integer) config.getParameters().get("ema2");
+                            if (ema1 != null && ema2 != null) {
+                                Double ema1Value = getEmaValue(emaInfo, ema1);
+                                Double ema2Value = getEmaValue(emaInfo, ema2);
+                                if (ema1Value != null && ema2Value != null) {
+                                    String gtKey = String.format("ema%d_above_ema%d_%s", ema1, ema2, timeframe);
+                                    flattenedIndicators.setBooleanIndicator(gtKey, ema1Value > ema2Value);
+                                }
+                            }
                             break;
                         default:
                             log.warn("Unknown EMA comparison type: {}", comparison);
@@ -141,6 +182,22 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
             }
         } catch (Exception e) {
             log.error("Error flattening EMA indicators", e);
+        }
+    }
+    
+    /**
+     * Get EMA value based on period
+     */
+    private Double getEmaValue(EmaInfo emaInfo, Integer period) {
+        switch (period) {
+            case 5: return emaInfo.getEma5();
+            case 9: return emaInfo.getEma9();
+            case 20: return emaInfo.getEma20();
+            case 34: return emaInfo.getEma34();
+            case 200: return emaInfo.getEma200();
+            default:
+                log.warn("Unsupported EMA period: {}", period);
+                return null;
         }
     }
 
@@ -265,7 +322,7 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
     }
 
     private void flattenSupportResistanceIndicators(TickDocument tickDocument, DynamicFlattenedIndicators flattenedIndicators, 
-                                                  DynamicIndicatorConfig.IndicatorDefinition config) {
+                                                   DynamicIndicatorConfig.IndicatorDefinition config) {
         try {
             for (String timeframe : config.getTimeframes()) {
                 CandleTimeFrameEnum timeFrameEnum = getTimeFrameEnum(timeframe);
@@ -277,39 +334,117 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                 Double currentPrice = tickDocument.getLastTradedPrice();
                 if (currentPrice == null) continue;
                 
-                // Calculate support and resistance levels
+                String comparison = config.getComparison();
+                
+                // Calculate support and resistance levels using simple high/low method
                 double recentHigh = calculateRecentHigh(barSeries, 20);
                 double recentLow = calculateRecentLow(barSeries, 20);
                 
-                // Store numeric values
-                String highKey = String.format("resistance_%s_level", timeframe);
-                String lowKey = String.format("support_%s_level", timeframe);
-                String priceKey = String.format("price_%s_current", timeframe);
-                
-                flattenedIndicators.setNumericIndicator(highKey, recentHigh);
-                flattenedIndicators.setNumericIndicator(lowKey, recentLow);
-                flattenedIndicators.setNumericIndicator(priceKey, currentPrice);
-                
-                // Only create indicators based on the configuration
-                if (config.getComparison() != null) {
-                    switch (config.getComparison().toUpperCase()) {
-                        case "GT":
-                            // GT means price above resistance
-                            String aboveResistanceKey = String.format("price_%s_above_resistance", timeframe);
-                            flattenedIndicators.setBooleanIndicator(aboveResistanceKey, currentPrice > recentHigh * 0.99);
-                            break;
-                        case "LT":
-                            // LT means price below support
-                            String belowSupportKey = String.format("price_%s_below_support", timeframe);
-                            flattenedIndicators.setBooleanIndicator(belowSupportKey, currentPrice < recentLow * 1.01);
-                            break;
-                        default:
-                            log.warn("Unknown support/resistance comparison type: {}", config.getComparison());
-                    }
+                if ("GT".equals(comparison)) {
+                    // Price above resistance
+                    String aboveResistanceKey = String.format("price_%s_above_resistance", timeframe);
+                    boolean aboveResistance = currentPrice > recentHigh * 0.99;
+                    flattenedIndicators.setBooleanIndicator(aboveResistanceKey, aboveResistance);
+                } else if ("LT".equals(comparison)) {
+                    // Price below support
+                    String belowSupportKey = String.format("price_%s_below_support", timeframe);
+                    boolean belowSupport = currentPrice < recentLow * 1.01;
+                    flattenedIndicators.setBooleanIndicator(belowSupportKey, belowSupport);
+                } else {
+                    log.warn("Unknown support/resistance comparison type: {}", comparison);
                 }
             }
         } catch (Exception e) {
             log.error("Error flattening support/resistance indicators", e);
+        }
+    }
+    
+    private void flattenCandlestickIndicators(TickDocument tickDocument, DynamicFlattenedIndicators flattenedIndicators, 
+                                             DynamicIndicatorConfig.IndicatorDefinition config) {
+        try {
+            for (String timeframe : config.getTimeframes()) {
+                CandleTimeFrameEnum timeFrameEnum = getTimeFrameEnum(timeframe);
+                if (timeFrameEnum == null) continue;
+                
+                BarSeries barSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tickDocument.getInstrumentToken()), timeFrameEnum);
+                if (barSeries == null || barSeries.getBarCount() < 3) continue;
+                
+                String pattern = (String) config.getParameters().get("pattern");
+                Integer barsRequired = (Integer) config.getParameters().get("barsRequired");
+                
+                if (pattern == null || barsRequired == null) {
+                    log.warn("Missing pattern or barsRequired for candlestick indicator");
+                    continue;
+                }
+                
+                boolean patternDetected = false;
+                int currentIndex = barSeries.getBarCount() - 1;
+                
+                switch (pattern.toUpperCase()) {
+                    case "BULLISH_ENGULFING":
+                        if (barsRequired == 2 && currentIndex >= 1) {
+                            patternDetected = CandlestickPattern.isBullishEngulfing(
+                                barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BEARISH_ENGULFING":
+                        if (barsRequired == 2 && currentIndex >= 1) {
+                            patternDetected = CandlestickPattern.isBearishEngulfing(
+                                barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BULLISH_MORNING_STAR":
+                        if (barsRequired == 3 && currentIndex >= 2) {
+                            patternDetected = CandlestickPattern.isBullishMorningStar(
+                                barSeries.getBar(currentIndex - 2), barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BEARISH_EVENING_STAR":
+                        if (barsRequired == 3 && currentIndex >= 2) {
+                            patternDetected = CandlestickPattern.isBearishEveningStar(
+                                barSeries.getBar(currentIndex - 2), barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "HAMMER":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isHammer(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "SHOOTING_STAR":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isShootingStar(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BULLISH_MARUBOZU":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isBullishMarubozu(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BEARISH_MARUBOZU":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isBearishMarubozu(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "LONG_LOWER_SHADOW":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isLongLowerShadow(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "LONG_UPPER_SHADOW":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isLongUpperShadow(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    default:
+                        log.warn("Unknown candlestick pattern: {}", pattern);
+                        continue;
+                }
+                
+                String patternKey = String.format("%s_%s", pattern.toLowerCase(), timeframe);
+                flattenedIndicators.setBooleanIndicator(patternKey, patternDetected);
+            }
+        } catch (Exception e) {
+            log.error("Error flattening candlestick indicators", e);
         }
     }
 

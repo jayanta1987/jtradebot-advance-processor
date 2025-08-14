@@ -5,6 +5,8 @@ import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.manager.EmaCrossTrackingManager;
 import com.jtradebot.processor.service.TickMonitoringService;
+import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.model.FlattenedIndicators;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.repository.document.TickDocument;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
@@ -26,6 +28,12 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.indicator.MultiEmaIndicator;
+import com.jtradebot.processor.indicator.RsiIndicator;
+import com.jtradebot.processor.model.EmaInfo;
+import org.ta4j.core.BarSeries;
+import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +45,8 @@ public class TickProcessService {
     private final TickEventTracker tickEventTracker;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final EmaCrossTrackingManager emaCrossTrackingManager;
+    private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
+    private final BacktestDataCollectorService backtestDataCollectorService;
     
     private final ExitStrategyService exitStrategyService;
     private final JtradeOrderRepository jtradeOrderRepository;
@@ -86,20 +96,10 @@ public class TickProcessService {
             tickEventTracker.setLastTickEventTimestamp(instrumentToken, System.currentTimeMillis());
             tickDataManager.add(instrumentToken, tick);
             
-            // Process strategy only for index ticks (to avoid duplicate processing)
-            // But ensure we have both index and future data available
+            // Process strategy for index ticks only - future data will be fetched from map when needed
             if (instrumentToken.equals(niftyToken)) {
-                // Check if we have recent future data (within last 5 seconds)
-                Tick recentFutureTick = tickDataManager.getLastTick(niftyFutureToken);
-                if (recentFutureTick != null && 
-                    Math.abs(tick.getTickTimestamp().getTime() - recentFutureTick.getTickTimestamp().getTime()) < 5000) {
-                    
-                    // Process with ScalpingVolumeSurge strategy if enabled
-                    if (enableScalpingVolumeSurge) {
-                        processWithScalpingVolumeSurgeStrategy(tick, recentFutureTick);
-                    }
-                } else {
-                    log.debug("No recent future data available for index tick processing");
+                if (enableScalpingVolumeSurge) {
+                    processWithScalpingVolumeSurgeStrategy(tick);
                 }
             }
         }
@@ -117,33 +117,19 @@ public class TickProcessService {
     
     /**
      * Process tick using ScalpingVolumeSurge strategy
-     * Now properly handles both index and future data
+     * Future data will be fetched from map when needed
      */
-    private void processWithScalpingVolumeSurgeStrategy(Tick indexTick, Tick futureTick) {
+    private void processWithScalpingVolumeSurgeStrategy(Tick indexTick) {
         try {
-            // Get Nifty token for filtering index vs future ticks
-            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            // Get future tick from map for volume calculations
             String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
+            Tick futureTick = tickDataManager.getLastTick(niftyFutureToken);
             
-            // Validate we have the correct tick types
-            boolean isIndexTick = String.valueOf(indexTick.getInstrumentToken()).equals(niftyToken);
-            boolean isFutureTick = String.valueOf(futureTick.getInstrumentToken()).equals(niftyFutureToken);
+            // 🔥 REAL ENTRY LOGIC - This is what actually matters for trading
+            logRealEntryLogic(indexTick);
             
-            if (!isIndexTick || !isFutureTick) {
-                log.error("Invalid tick combination - Index: {}, Future: {}", 
-                        String.valueOf(indexTick.getInstrumentToken()), String.valueOf(futureTick.getInstrumentToken()));
-                return;
-            }
-            
-            log.debug("Processing combined tick data - Index: {} @ {}, Future: {} @ {}, Future Vol: {}", 
-                    indexTick.getLastTradedPrice(), indexTick.getTickTimestamp(),
-                    futureTick.getLastTradedPrice(), futureTick.getTickTimestamp(),
-                    futureTick.getVolumeTradedToday());
-            
-            // Enhanced monitoring and logging (for monitoring purposes only)
-            // Convert Tick to TickDocument for dynamic indicator analysis
-            TickDocument tickDocument = convertTickToDocument(indexTick);
-            tickMonitoringService.monitorTickWithScoreAndIndicators(indexTick, tickDocument);
+            // 📊 Collect backtest data
+            backtestDataCollectorService.collectTickData(indexTick);
             
             // Check and process exits for existing orders
             checkAndProcessExits(indexTick);
@@ -158,6 +144,175 @@ public class TickProcessService {
             log.error("Error processing tick with SCALPING_FUTURE_VOLUME_SURGE strategy for index instrument: {}", indexTick.getInstrumentToken(), e);
         }
     }
+    
+    /**
+     * Log the REAL entry logic from ScalpingVolumeSurgeService - CONCISE ONE-LINER
+     */
+    private void logRealEntryLogic(Tick indexTick) {
+        try {
+            // Get the REAL indicators - future data will be fetched from map when needed
+            StrategyScore strategyScore = scalpingVolumeSurgeService.calculateStrategyScore(indexTick);
+            
+            // Get flattened indicators - future data will be fetched from map when needed
+            FlattenedIndicators realIndicators = scalpingVolumeSurgeService.getFlattenedIndicators(indexTick);
+            
+            // Check REAL entry conditions using the enhanced strategy score
+            boolean shouldCall = strategyScore.getShouldMakeCallEntry() != null ? strategyScore.getShouldMakeCallEntry() : false;
+            boolean shouldPut = strategyScore.getShouldMakePutEntry() != null ? strategyScore.getShouldMakePutEntry() : false;
+            
+            // Get essential indicator data with actual values
+            String emaStatus = getDetailedEmaStatus(realIndicators, indexTick);
+            String rsiStatus = getDetailedRsiStatus(realIndicators, indexTick);
+            String volumeStatus = getVolumeStatus(realIndicators);
+            String entrySignal = getEntrySignal(shouldCall, shouldPut);
+            
+            // CONCISE ONE-LINER LOG
+            log.info("📊 {} | 💰 {} | 📈 {} | 📉 {} | 📊 {} | 🎯 {}", 
+                indexTick.getTickTimestamp(), 
+                indexTick.getLastTradedPrice(), 
+                emaStatus, 
+                rsiStatus, 
+                volumeStatus, 
+                entrySignal);
+            
+        } catch (Exception e) {
+            log.error("Error logging real entry logic: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * Helper method to get detailed EMA status with actual values
+     */
+    private String getDetailedEmaStatus(FlattenedIndicators indicators, Tick indexTick) {
+        if (indicators == null) return "EMA:---";
+        
+        try {
+            // Get BarSeries for different timeframes
+            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), ONE_MIN);
+            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIVE_MIN);
+            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIFTEEN_MIN);
+            
+            // Calculate EMA values using MultiEmaIndicator
+            MultiEmaIndicator multiEmaIndicator = new MultiEmaIndicator();
+            
+            String ema1min = "---";
+            String ema5min = "---";
+            String ema15min = "---";
+            
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
+                EmaInfo emaInfo = multiEmaIndicator.calculateEmaValues(oneMinSeries, ONE_MIN);
+                if (emaInfo != null) {
+                    double ema9 = emaInfo.getEma9() != null ? emaInfo.getEma9() : 0.0;
+                    double ema20 = emaInfo.getEma20() != null ? emaInfo.getEma20() : 0.0;
+                    ema1min = String.format("%.1f/%.1f", ema9, ema20);
+                }
+            }
+            
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
+                EmaInfo emaInfo = multiEmaIndicator.calculateEmaValues(fiveMinSeries, FIVE_MIN);
+                if (emaInfo != null) {
+                    double ema9 = emaInfo.getEma9() != null ? emaInfo.getEma9() : 0.0;
+                    double ema20 = emaInfo.getEma20() != null ? emaInfo.getEma20() : 0.0;
+                    ema5min = String.format("%.1f/%.1f", ema9, ema20);
+                }
+            }
+            
+            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 20) {
+                EmaInfo emaInfo = multiEmaIndicator.calculateEmaValues(fifteenMinSeries, FIFTEEN_MIN);
+                if (emaInfo != null) {
+                    double ema9 = emaInfo.getEma9() != null ? emaInfo.getEma9() : 0.0;
+                    double ema20 = emaInfo.getEma20() != null ? emaInfo.getEma20() : 0.0;
+                    ema15min = String.format("%.1f/%.1f", ema9, ema20);
+                }
+            }
+            
+            return String.format("EMA:%s|%s|%s", ema1min, ema5min, ema15min);
+            
+        } catch (Exception e) {
+            log.debug("Error getting detailed EMA status: {}", e.getMessage());
+            return "EMA:---";
+        }
+    }
+    
+    /**
+     * Helper method to get detailed RSI status with actual values
+     */
+    private String getDetailedRsiStatus(FlattenedIndicators indicators, Tick indexTick) {
+        if (indicators == null) return "RSI:---";
+        
+        try {
+            // Get BarSeries for different timeframes
+            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), ONE_MIN);
+            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIVE_MIN);
+            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIFTEEN_MIN);
+            
+            // Calculate RSI values using RsiIndicator
+            RsiIndicator rsiIndicator = new RsiIndicator();
+            
+            String rsi1min = "---";
+            String rsi5min = "---";
+            String rsi15min = "---";
+            
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 14) {
+                Double rsiValue = rsiIndicator.getRsiValue(oneMinSeries, 14);
+                if (rsiValue != null) {
+                    rsi1min = String.format("%.1f", rsiValue);
+                }
+            }
+            
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 14) {
+                Double rsiValue = rsiIndicator.getRsiValue(fiveMinSeries, 14);
+                if (rsiValue != null) {
+                    rsi5min = String.format("%.1f", rsiValue);
+                }
+            }
+            
+            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 14) {
+                Double rsiValue = rsiIndicator.getRsiValue(fifteenMinSeries, 14);
+                if (rsiValue != null) {
+                    rsi15min = String.format("%.1f", rsiValue);
+                }
+            }
+            
+            return String.format("RSI:%s|%s|%s", rsi1min, rsi5min, rsi15min);
+            
+        } catch (Exception e) {
+            log.debug("Error getting detailed RSI status: {}", e.getMessage());
+            return "RSI:---";
+        }
+    }
+    
+    /**
+     * Helper method to get Volume status in concise format
+     */
+    private String getVolumeStatus(FlattenedIndicators indicators) {
+        if (indicators == null) return "VOL:---";
+        
+        int surgeCount = 0;
+        // Check for volume surge conditions
+        if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) surgeCount++;
+        if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) surgeCount++;
+        if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) surgeCount++;
+        
+        String multiplier = "";
+        if (indicators.getVolume_surge_multiplier() != null) {
+            multiplier = String.format("(%.1fx)", indicators.getVolume_surge_multiplier());
+        }
+        
+        return String.format("VOL:%d/3%s", surgeCount, multiplier);
+    }
+    
+    /**
+     * Helper method to get entry signal in concise format
+     */
+    private String getEntrySignal(boolean shouldCall, boolean shouldPut) {
+        if (shouldCall && shouldPut) return "CALL+PUT";
+        if (shouldCall) return "CALL";
+        if (shouldPut) return "PUT";
+        return "NONE";
+    }
+    
+
 
     private void initializeOnFirstTick(Tick tick) {
         if (tickDataManager.isNotInitialized(String.valueOf(tick.getInstrumentToken()))) {

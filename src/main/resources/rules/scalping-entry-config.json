@@ -7,26 +7,26 @@
     "strategyType": "CALL",
     "entryConditions": {
       "mandatoryConditions": [
-        "ema_1min_crossover",
         "ema_5min_crossover", 
-        "volume_1min_surge",
         "volume_5min_surge",
-        "rsi_1min_gt_56",
         "rsi_5min_gt_56",
-        "price_1min_gt_vwap",
         "price_5min_gt_vwap"
       ],
       "optionalConditions": [
+        "ema_1min_crossover",
         "ema_15min_crossover",
+        "volume_1min_surge",
         "volume_15min_surge",
+        "rsi_1min_gt_56",
         "rsi_15min_gt_56",
+        "price_1min_gt_vwap",
         "price_15min_gt_vwap",
         "price_1min_above_resistance",
         "price_5min_above_resistance"
       ],
-      "minMandatoryCount": 6,
-      "minOptionalCount": 3,
-      "minConfidenceScore": 0.75,
+      "minMandatoryCount": 3,
+      "minOptionalCount": 2,
+      "minConfidenceScore": 0.6,
       "requireAllTimeframes": false,
       "requireVolumeConfirmation": true,
       "requirePriceActionConfirmation": true
@@ -45,11 +45,11 @@
       "breakEvenTrigger": 0.4
     },
     "entryQuality": {
-      "minVolumeSurge": 2.5,
+      "minVolumeSurge": 1.5,
       "minRsiStrength": 60.0,
       "minEmaAlignment": 0.8,
       "minPriceMomentum": 0.5,
-      "minSignalStrength": 0.7,
+      "minSignalStrength": 0.5,
       "requireTrendAlignment": true,
       "requireSupportResistance": false,
       "requireVwapAlignment": true
@@ -71,26 +71,26 @@
     "strategyType": "PUT",
     "entryConditions": {
       "mandatoryConditions": [
-        "ema_1min_crossdown",
         "ema_5min_crossdown",
-        "volume_1min_surge", 
-        "volume_5min_surge",
-        "rsi_1min_lt_44",
+        "volume_5min_surge", 
         "rsi_5min_lt_44",
-        "price_1min_lt_vwap",
         "price_5min_lt_vwap"
       ],
       "optionalConditions": [
+        "ema_1min_crossdown",
         "ema_15min_crossdown",
+        "volume_1min_surge",
         "volume_15min_surge",
+        "rsi_1min_lt_44",
         "rsi_15min_lt_44",
+        "price_1min_lt_vwap",
         "price_15min_lt_vwap",
         "price_1min_below_support",
         "price_5min_below_support"
       ],
-      "minMandatoryCount": 6,
-      "minOptionalCount": 3,
-      "minConfidenceScore": 0.75,
+      "minMandatoryCount": 3,
+      "minOptionalCount": 2,
+      "minConfidenceScore": 0.6,
       "requireAllTimeframes": false,
       "requireVolumeConfirmation": true,
       "requirePriceActionConfirmation": true
@@ -109,11 +109,11 @@
       "breakEvenTrigger": 0.4
     },
     "entryQuality": {
-      "minVolumeSurge": 2.5,
+      "minVolumeSurge": 1.5,
       "minRsiStrength": 40.0,
       "minEmaAlignment": 0.8,
       "minPriceMomentum": 0.5,
-      "minSignalStrength": 0.7,
+      "minSignalStrength": 0.5,
       "requireTrendAlignment": true,
       "requireSupportResistance": false,
       "requireVwapAlignment": true
