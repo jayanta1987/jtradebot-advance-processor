@@ -28,6 +28,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 import com.jtradebot.processor.model.StrategyScore;
 import com.jtradebot.processor.model.EntryQuality;
 import com.jtradebot.processor.indicator.MultiEmaIndicator;
@@ -602,6 +603,9 @@ public class TickProcessService {
             
             double currentIndexPrice = niftyTick.getLastTradedPrice(); // Use Nifty index price, not future price
             
+            // Capture all conditions that led to this order entry
+            List<String> entryConditions = captureEntryConditions(tick, orderType);
+            
             // Calculate option entry price (1% of index price as premium)
             Double optionEntryPrice = optionPricingService.calculateEntryPrice(currentIndexPrice);
             if (optionEntryPrice == null) {
@@ -652,6 +656,9 @@ public class TickProcessService {
             );
             
             if (order != null) {
+                // Store the entry conditions in the order
+                order.setEntryConditions(entryConditions);
+                
                 // Add to active trades cache for P&L tracking
                 addActiveTrade(instrumentToken, order);
                 
@@ -758,15 +765,18 @@ public class TickProcessService {
             if (callQuality.getQualityScore() > putQuality.getQualityScore()) {
                 dominantTrend = "CALL";
                 dominantQuality = callQuality.getQualityScore();
-                conditionList = String.format("Quality:%.1f/10", callQuality.getQualityScore());
+                conditionList = String.format("Quality:%.1f/10 | Conditions: %s", 
+                    callQuality.getQualityScore(), getConditionCounts(indicators, "CALL"));
             } else if (putQuality.getQualityScore() > callQuality.getQualityScore()) {
                 dominantTrend = "PUT";
                 dominantQuality = putQuality.getQualityScore();
-                conditionList = String.format("Quality:%.1f/10", putQuality.getQualityScore());
+                conditionList = String.format("Quality:%.1f/10 | Conditions: %s", 
+                    putQuality.getQualityScore(), getConditionCounts(indicators, "PUT"));
             } else {
                 dominantTrend = "NEUTRAL";
                 dominantQuality = Math.max(callQuality.getQualityScore(), putQuality.getQualityScore());
-                conditionList = String.format("Quality:%.1f/10", dominantQuality);
+                conditionList = String.format("Quality:%.1f/10 | Conditions: %s", 
+                    dominantQuality, getConditionCounts(indicators, "NEUTRAL"));
             }
             
             return String.format("🎯 %s (%.1f/10): %s", dominantTrend, dominantQuality, conditionList);
@@ -774,6 +784,370 @@ public class TickProcessService {
         } catch (Exception e) {
             return "🎯 ERROR";
         }
+    }
+    
+    /**
+     * Count mandatory and optional conditions matched for the given strategy
+     */
+    private String getConditionCounts(FlattenedIndicators indicators, String strategy) {
+        try {
+            int mandatoryCount = 0;
+            int optionalCount = 0;
+            
+            if ("CALL".equals(strategy)) {
+                // Count mandatory conditions for CALL
+                if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) mandatoryCount++;
+                if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) mandatoryCount++;
+                if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) mandatoryCount++;
+                
+                // Count optional conditions for CALL
+                if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) optionalCount++;
+                if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) optionalCount++;
+                if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) optionalCount++;
+                if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) optionalCount++;
+                if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) optionalCount++;
+                if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) optionalCount++;
+                if (indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) optionalCount++;
+                if (indicators.getPrice_gt_vwap_1min() != null && indicators.getPrice_gt_vwap_1min()) optionalCount++;
+                if (indicators.getPrice_gt_vwap_15min() != null && indicators.getPrice_gt_vwap_15min()) optionalCount++;
+                if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) optionalCount++;
+                if (indicators.getBullish_engulfing_5min() != null && indicators.getBullish_engulfing_5min()) optionalCount++;
+                if (indicators.getBullish_engulfing_1min() != null && indicators.getBullish_engulfing_1min()) optionalCount++;
+                if (indicators.getBullish_morning_star_5min() != null && indicators.getBullish_morning_star_5min()) optionalCount++;
+                if (indicators.getBullish_morning_star_1min() != null && indicators.getBullish_morning_star_1min()) optionalCount++;
+                if (indicators.getHammer_5min() != null && indicators.getHammer_5min()) optionalCount++;
+                if (indicators.getHammer_1min() != null && indicators.getHammer_1min()) optionalCount++;
+                if (indicators.getInverted_hammer_5min() != null && indicators.getInverted_hammer_5min()) optionalCount++;
+                if (indicators.getInverted_hammer_1min() != null && indicators.getInverted_hammer_1min()) optionalCount++;
+                if (indicators.getBullish_harami_5min() != null && indicators.getBullish_harami_5min()) optionalCount++;
+                if (indicators.getBullish_harami_1min() != null && indicators.getBullish_harami_1min()) optionalCount++;
+                if (indicators.getBullish_marubozu_5min() != null && indicators.getBullish_marubozu_5min()) optionalCount++;
+                if (indicators.getBullish_marubozu_1min() != null && indicators.getBullish_marubozu_1min()) optionalCount++;
+                if (indicators.getLong_lower_shadow_5min() != null && indicators.getLong_lower_shadow_5min()) optionalCount++;
+                if (indicators.getLong_lower_shadow_1min() != null && indicators.getLong_lower_shadow_1min()) optionalCount++;
+                if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) optionalCount++;
+                if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) optionalCount++;
+                
+            } else if ("PUT".equals(strategy)) {
+                // Count mandatory conditions for PUT
+                if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) mandatoryCount++;
+                if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) mandatoryCount++;
+                if (indicators.getPrice_lt_vwap_5min() != null && indicators.getPrice_lt_vwap_5min()) mandatoryCount++;
+                
+                // Count optional conditions for PUT
+                if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) optionalCount++;
+                if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) optionalCount++;
+                if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) optionalCount++;
+                if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) optionalCount++;
+                if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) optionalCount++;
+                if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) optionalCount++;
+                if (indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) optionalCount++;
+                if (indicators.getPrice_lt_vwap_1min() != null && indicators.getPrice_lt_vwap_1min()) optionalCount++;
+                if (indicators.getPrice_lt_vwap_15min() != null && indicators.getPrice_lt_vwap_15min()) optionalCount++;
+                if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) optionalCount++;
+                if (indicators.getBearish_engulfing_5min() != null && indicators.getBearish_engulfing_5min()) optionalCount++;
+                if (indicators.getBearish_engulfing_1min() != null && indicators.getBearish_engulfing_1min()) optionalCount++;
+                if (indicators.getBearish_evening_star_5min() != null && indicators.getBearish_evening_star_5min()) optionalCount++;
+                if (indicators.getBearish_evening_star_1min() != null && indicators.getBearish_evening_star_1min()) optionalCount++;
+                if (indicators.getShooting_star_5min() != null && indicators.getShooting_star_5min()) optionalCount++;
+                if (indicators.getShooting_star_1min() != null && indicators.getShooting_star_1min()) optionalCount++;
+                if (indicators.getHanging_man_5min() != null && indicators.getHanging_man_5min()) optionalCount++;
+                if (indicators.getHanging_man_1min() != null && indicators.getHanging_man_1min()) optionalCount++;
+                if (indicators.getBearish_harami_5min() != null && indicators.getBearish_harami_5min()) optionalCount++;
+                if (indicators.getBearish_harami_1min() != null && indicators.getBearish_harami_1min()) optionalCount++;
+                if (indicators.getBearish_marubozu_5min() != null && indicators.getBearish_marubozu_5min()) optionalCount++;
+                if (indicators.getBearish_marubozu_1min() != null && indicators.getBearish_marubozu_1min()) optionalCount++;
+                if (indicators.getLong_upper_shadow_5min() != null && indicators.getLong_upper_shadow_5min()) optionalCount++;
+                if (indicators.getLong_upper_shadow_1min() != null && indicators.getLong_upper_shadow_1min()) optionalCount++;
+                if (indicators.getShort_body_5min() != null && indicators.getShort_body_5min()) optionalCount++;
+                if (indicators.getShort_body_1min() != null && indicators.getShort_body_1min()) optionalCount++;
+            }
+            
+            return String.format("M:%d/%d O:%d/%d", mandatoryCount, 3, optionalCount, 23);
+            
+        } catch (Exception e) {
+            return "M:?/? O:?/?";
+        }
+    }
+    
+    /**
+     * Capture all conditions that led to the order entry
+     */
+    private List<String> captureEntryConditions(Tick tick, String orderType) {
+        List<String> conditions = new ArrayList<>();
+        
+        try {
+            // Get flattened indicators
+            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
+            
+            if (indicators == null) {
+                conditions.add("ERROR: No indicators available");
+                return conditions;
+            }
+            
+            // Add quality scores
+            if ("CALL_BUY".equals(orderType)) {
+                EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
+                conditions.add(String.format("Quality Score: %.1f/10", callQuality.getQualityScore()));
+                conditions.add(String.format("EMA Score: %.1f/10", callQuality.getEmaScore()));
+                conditions.add(String.format("RSI Score: %.1f/10", callQuality.getRsiScore()));
+                conditions.add(String.format("Volume Score: %.1f/10", callQuality.getVolumeScore()));
+                conditions.add(String.format("Price Action Score: %.1f/10", callQuality.getPriceActionScore()));
+                conditions.add(String.format("Futuresignal Score: %.1f/10", callQuality.getFuturesignalScore()));
+                conditions.add(String.format("Momentum Score: %.1f/10", callQuality.getMomentumScore()));
+                conditions.add(String.format("Candlestick Score: %.1f/10", callQuality.getCandlestickScore()));
+            } else if ("PUT_BUY".equals(orderType)) {
+                EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
+                conditions.add(String.format("Quality Score: %.1f/10", putQuality.getQualityScore()));
+                conditions.add(String.format("EMA Score: %.1f/10", putQuality.getEmaScore()));
+                conditions.add(String.format("RSI Score: %.1f/10", putQuality.getRsiScore()));
+                conditions.add(String.format("Volume Score: %.1f/10", putQuality.getVolumeScore()));
+                conditions.add(String.format("Price Action Score: %.1f/10", putQuality.getPriceActionScore()));
+                conditions.add(String.format("Futuresignal Score: %.1f/10", putQuality.getFuturesignalScore()));
+                conditions.add(String.format("Momentum Score: %.1f/10", putQuality.getMomentumScore()));
+                conditions.add(String.format("Candlestick Score: %.1f/10", putQuality.getCandlestickScore()));
+            }
+            
+            // Add mandatory conditions
+            conditions.add("--- MANDATORY CONDITIONS ---");
+            if ("CALL_BUY".equals(orderType)) {
+                if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) {
+                    conditions.add("✓ volume_5min_surge");
+                } else {
+                    conditions.add("✗ volume_5min_surge");
+                }
+                if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) {
+                    conditions.add("✓ rsi_5min_gt_56");
+                } else {
+                    conditions.add("✗ rsi_5min_gt_56");
+                }
+                if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) {
+                    conditions.add("✓ price_5min_gt_vwap");
+                } else {
+                    conditions.add("✗ price_5min_gt_vwap");
+                }
+            } else if ("PUT_BUY".equals(orderType)) {
+                if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) {
+                    conditions.add("✓ volume_5min_surge");
+                } else {
+                    conditions.add("✗ volume_5min_surge");
+                }
+                if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) {
+                    conditions.add("✓ rsi_5min_lt_44");
+                } else {
+                    conditions.add("✗ rsi_5min_lt_44");
+                }
+                if (indicators.getPrice_lt_vwap_5min() != null && indicators.getPrice_lt_vwap_5min()) {
+                    conditions.add("✓ price_5min_lt_vwap");
+                } else {
+                    conditions.add("✗ price_5min_lt_vwap");
+                }
+            }
+            
+            // Add optional conditions
+            conditions.add("--- OPTIONAL CONDITIONS ---");
+            if ("CALL_BUY".equals(orderType)) {
+                // EMA conditions
+                if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) {
+                    conditions.add("✓ ema9_5min_gt_ema21_5min");
+                }
+                if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) {
+                    conditions.add("✓ ema9_1min_gt_ema21_1min");
+                }
+                if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) {
+                    conditions.add("✓ ema9_15min_gt_ema21_15min");
+                }
+                
+                // Volume conditions
+                if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) {
+                    conditions.add("✓ volume_1min_surge");
+                }
+                if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) {
+                    conditions.add("✓ volume_15min_surge");
+                }
+                
+                // RSI conditions
+                if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) {
+                    conditions.add("✓ rsi_1min_gt_56");
+                }
+                if (indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) {
+                    conditions.add("✓ rsi_15min_gt_56");
+                }
+                
+                // Price action conditions
+                if (indicators.getPrice_gt_vwap_1min() != null && indicators.getPrice_gt_vwap_1min()) {
+                    conditions.add("✓ price_gt_vwap_1min");
+                }
+                if (indicators.getPrice_gt_vwap_15min() != null && indicators.getPrice_gt_vwap_15min()) {
+                    conditions.add("✓ price_gt_vwap_15min");
+                }
+                if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) {
+                    conditions.add("✓ price_above_resistance");
+                }
+                
+                // Candlestick patterns
+                if (indicators.getBullish_engulfing_5min() != null && indicators.getBullish_engulfing_5min()) {
+                    conditions.add("✓ bullish_engulfing_5min");
+                }
+                if (indicators.getBullish_engulfing_1min() != null && indicators.getBullish_engulfing_1min()) {
+                    conditions.add("✓ bullish_engulfing_1min");
+                }
+                if (indicators.getBullish_morning_star_5min() != null && indicators.getBullish_morning_star_5min()) {
+                    conditions.add("✓ bullish_morning_star_5min");
+                }
+                if (indicators.getBullish_morning_star_1min() != null && indicators.getBullish_morning_star_1min()) {
+                    conditions.add("✓ bullish_morning_star_1min");
+                }
+                if (indicators.getHammer_5min() != null && indicators.getHammer_5min()) {
+                    conditions.add("✓ hammer_5min");
+                }
+                if (indicators.getHammer_1min() != null && indicators.getHammer_1min()) {
+                    conditions.add("✓ hammer_1min");
+                }
+                if (indicators.getInverted_hammer_5min() != null && indicators.getInverted_hammer_5min()) {
+                    conditions.add("✓ inverted_hammer_5min");
+                }
+                if (indicators.getInverted_hammer_1min() != null && indicators.getInverted_hammer_1min()) {
+                    conditions.add("✓ inverted_hammer_1min");
+                }
+                if (indicators.getBullish_harami_5min() != null && indicators.getBullish_harami_5min()) {
+                    conditions.add("✓ bullish_harami_5min");
+                }
+                if (indicators.getBullish_harami_1min() != null && indicators.getBullish_harami_1min()) {
+                    conditions.add("✓ bullish_harami_1min");
+                }
+                if (indicators.getBullish_marubozu_5min() != null && indicators.getBullish_marubozu_5min()) {
+                    conditions.add("✓ bullish_marubozu_5min");
+                }
+                if (indicators.getBullish_marubozu_1min() != null && indicators.getBullish_marubozu_1min()) {
+                    conditions.add("✓ bullish_marubozu_1min");
+                }
+                if (indicators.getLong_lower_shadow_5min() != null && indicators.getLong_lower_shadow_5min()) {
+                    conditions.add("✓ long_lower_shadow_5min");
+                }
+                if (indicators.getLong_lower_shadow_1min() != null && indicators.getLong_lower_shadow_1min()) {
+                    conditions.add("✓ long_lower_shadow_1min");
+                }
+                if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) {
+                    conditions.add("✓ long_body_5min");
+                }
+                if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) {
+                    conditions.add("✓ long_body_1min");
+                }
+                
+            } else if ("PUT_BUY".equals(orderType)) {
+                // EMA conditions (bearish)
+                if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) {
+                    conditions.add("✓ ema9_5min_lt_ema21_5min (bearish)");
+                }
+                if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) {
+                    conditions.add("✓ ema9_1min_lt_ema21_1min (bearish)");
+                }
+                if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) {
+                    conditions.add("✓ ema9_15min_lt_ema21_15min (bearish)");
+                }
+                
+                // Volume conditions
+                if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) {
+                    conditions.add("✓ volume_1min_surge");
+                }
+                if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) {
+                    conditions.add("✓ volume_15min_surge");
+                }
+                
+                // RSI conditions
+                if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) {
+                    conditions.add("✓ rsi_1min_lt_44");
+                }
+                if (indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) {
+                    conditions.add("✓ rsi_15min_lt_44");
+                }
+                
+                // Price action conditions
+                if (indicators.getPrice_lt_vwap_1min() != null && indicators.getPrice_lt_vwap_1min()) {
+                    conditions.add("✓ price_lt_vwap_1min");
+                }
+                if (indicators.getPrice_lt_vwap_15min() != null && indicators.getPrice_lt_vwap_15min()) {
+                    conditions.add("✓ price_lt_vwap_15min");
+                }
+                if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) {
+                    conditions.add("✓ price_below_support");
+                }
+                
+                // Candlestick patterns
+                if (indicators.getBearish_engulfing_5min() != null && indicators.getBearish_engulfing_5min()) {
+                    conditions.add("✓ bearish_engulfing_5min");
+                }
+                if (indicators.getBearish_engulfing_1min() != null && indicators.getBearish_engulfing_1min()) {
+                    conditions.add("✓ bearish_engulfing_1min");
+                }
+                if (indicators.getBearish_evening_star_5min() != null && indicators.getBearish_evening_star_5min()) {
+                    conditions.add("✓ bearish_evening_star_5min");
+                }
+                if (indicators.getBearish_evening_star_1min() != null && indicators.getBearish_evening_star_1min()) {
+                    conditions.add("✓ bearish_evening_star_1min");
+                }
+                if (indicators.getShooting_star_5min() != null && indicators.getShooting_star_5min()) {
+                    conditions.add("✓ shooting_star_5min");
+                }
+                if (indicators.getShooting_star_1min() != null && indicators.getShooting_star_1min()) {
+                    conditions.add("✓ shooting_star_1min");
+                }
+                if (indicators.getHanging_man_5min() != null && indicators.getHanging_man_5min()) {
+                    conditions.add("✓ hanging_man_5min");
+                }
+                if (indicators.getHanging_man_1min() != null && indicators.getHanging_man_1min()) {
+                    conditions.add("✓ hanging_man_1min");
+                }
+                if (indicators.getBearish_harami_5min() != null && indicators.getBearish_harami_5min()) {
+                    conditions.add("✓ bearish_harami_5min");
+                }
+                if (indicators.getBearish_harami_1min() != null && indicators.getBearish_harami_1min()) {
+                    conditions.add("✓ bearish_harami_1min");
+                }
+                if (indicators.getBearish_marubozu_5min() != null && indicators.getBearish_marubozu_5min()) {
+                    conditions.add("✓ bearish_marubozu_5min");
+                }
+                if (indicators.getBearish_marubozu_1min() != null && indicators.getBearish_marubozu_1min()) {
+                    conditions.add("✓ bearish_marubozu_1min");
+                }
+                if (indicators.getLong_upper_shadow_5min() != null && indicators.getLong_upper_shadow_5min()) {
+                    conditions.add("✓ long_upper_shadow_5min");
+                }
+                if (indicators.getLong_upper_shadow_1min() != null && indicators.getLong_upper_shadow_1min()) {
+                    conditions.add("✓ long_upper_shadow_1min");
+                }
+                if (indicators.getShort_body_5min() != null && indicators.getShort_body_5min()) {
+                    conditions.add("✓ short_body_5min");
+                }
+                if (indicators.getShort_body_1min() != null && indicators.getShort_body_1min()) {
+                    conditions.add("✓ short_body_1min");
+                }
+            }
+            
+            // Add futuresignal information
+            if (indicators.getFuturesignals() != null) {
+                conditions.add("--- FUTURESIGNALS ---");
+                if (indicators.getFuturesignals().getAllTimeframesBullish()) {
+                    conditions.add("✓ All timeframes bullish");
+                } else if (indicators.getFuturesignals().getAllTimeframesBearish()) {
+                    conditions.add("✓ All timeframes bearish");
+                } else {
+                    conditions.add("Mixed futuresignals");
+                }
+            }
+            
+            // Add volume surge multiplier if available
+            if (indicators.getVolume_surge_multiplier() != null) {
+                conditions.add(String.format("Volume Surge Multiplier: %.2fx", indicators.getVolume_surge_multiplier()));
+            }
+            
+        } catch (Exception e) {
+            conditions.add("ERROR: Failed to capture conditions - " + e.getMessage());
+            log.error("Error capturing entry conditions: {}", e.getMessage());
+        }
+        
+        return conditions;
     }
     
     

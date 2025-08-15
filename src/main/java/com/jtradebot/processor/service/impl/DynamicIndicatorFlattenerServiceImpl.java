@@ -393,6 +393,30 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                                 barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
                         }
                         break;
+                    case "BULLISH_HARAMI":
+                        if (barsRequired == 2 && currentIndex >= 1) {
+                            patternDetected = CandlestickPattern.isBullishHarami(
+                                barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BEARISH_HARAMI":
+                        if (barsRequired == 2 && currentIndex >= 1) {
+                            patternDetected = CandlestickPattern.isBearishHarami(
+                                barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BULLISH_DOJI_STAR":
+                        if (barsRequired == 2 && currentIndex >= 1) {
+                            patternDetected = CandlestickPattern.isBullishDojiStar(
+                                barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "BEARISH_DOJI_STAR":
+                        if (barsRequired == 2 && currentIndex >= 1) {
+                            patternDetected = CandlestickPattern.isBearishDojiStar(
+                                barSeries.getBar(currentIndex - 1), barSeries.getBar(currentIndex));
+                        }
+                        break;
                     case "BULLISH_MORNING_STAR":
                         if (barsRequired == 3 && currentIndex >= 2) {
                             patternDetected = CandlestickPattern.isBullishMorningStar(
@@ -410,9 +434,34 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                             patternDetected = CandlestickPattern.isHammer(barSeries.getBar(currentIndex));
                         }
                         break;
+                    case "INVERTED_HAMMER":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isInvertedHammer(barSeries.getBar(currentIndex));
+                        }
+                        break;
                     case "SHOOTING_STAR":
                         if (barsRequired == 1) {
                             patternDetected = CandlestickPattern.isShootingStar(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "HANGING_MAN":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isHangingMan(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "DOJI":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isDoji(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "SPINNING_TOP":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isSpinningTop(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "MARUBOZU":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isMarubozu(barSeries.getBar(currentIndex));
                         }
                         break;
                     case "BULLISH_MARUBOZU":
@@ -423,6 +472,16 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                     case "BEARISH_MARUBOZU":
                         if (barsRequired == 1) {
                             patternDetected = CandlestickPattern.isBearishMarubozu(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "LONG_BODY":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isLongBody(barSeries.getBar(currentIndex));
+                        }
+                        break;
+                    case "SHORT_BODY":
+                        if (barsRequired == 1) {
+                            patternDetected = CandlestickPattern.isShortBody(barSeries.getBar(currentIndex));
                         }
                         break;
                     case "LONG_LOWER_SHADOW":

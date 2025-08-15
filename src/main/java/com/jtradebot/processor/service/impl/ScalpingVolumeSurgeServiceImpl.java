@@ -6,6 +6,7 @@ import com.jtradebot.processor.indicator.PriceVolumeSurgeIndicator;
 import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.indicator.VWAPIndicator;
+import com.jtradebot.processor.candleStick.CandlestickPattern;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.model.EmaIndicatorInfo;
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
+import org.ta4j.core.Bar;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
@@ -41,7 +43,10 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     
     private final TickDataManager tickDataManager;
     private final DynamicStrategyConfigService configService;
+    private final MultiEmaIndicator multiEmaIndicator;
     private final PriceVolumeSurgeIndicator priceVolumeSurgeIndicator;
+    private final VWAPIndicator vwapIndicator;
+    private final SupportResistanceIndicator supportResistanceIndicator;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final ScalpingEntryService scalpingEntryService;
     
@@ -242,6 +247,9 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             
             // Flatten price action indicators
             flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
+            
+            // Flatten candlestick pattern indicators
+            flattenCandlestickPatternIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
             
             // Calculate futuresignals
             indicators.setFuturesignals(calculateFuturesignals(indicators));
@@ -805,103 +813,216 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     
     private void flattenPriceActionIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, Tick tick) {
         try {
-            // Calculate VWAP using VWAPIndicator
-            VWAPIndicator vwapIndicator = new VWAPIndicator();
-            SupportResistanceIndicator srIndicator = new SupportResistanceIndicator();
-            
-            double currentPrice = tick.getLastTradedPrice();
-            
-            // 1-minute VWAP
-            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 1) {
-                try {
-                    double vwap1min = vwapIndicator.calculateVWAP(oneMinSeries);
-                    indicators.setPrice_gt_vwap_1min(currentPrice > vwap1min);
-                    indicators.setPrice_lt_vwap_1min(currentPrice < vwap1min);
-                } catch (Exception e) {
-                    indicators.setPrice_gt_vwap_1min(null);
-                    indicators.setPrice_lt_vwap_1min(null);
+            // VWAP indicators
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
+                Double vwap5min = vwapIndicator.calculateVWAP(fiveMinSeries);
+                if (vwap5min != null) {
+                    indicators.setPrice_gt_vwap_5min(tick.getLastTradedPrice() > vwap5min);
+                    indicators.setPrice_lt_vwap_5min(tick.getLastTradedPrice() < vwap5min);
                 }
-            } else {
-                indicators.setPrice_gt_vwap_1min(null);
-                indicators.setPrice_lt_vwap_1min(null);
             }
             
-            // 5-minute VWAP
-            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 1) {
-                try {
-                    double vwap5min = vwapIndicator.calculateVWAP(fiveMinSeries);
-                    indicators.setPrice_gt_vwap_5min(currentPrice > vwap5min);
-                    indicators.setPrice_lt_vwap_5min(currentPrice < vwap5min);
-                } catch (Exception e) {
-                    indicators.setPrice_gt_vwap_5min(null);
-                    indicators.setPrice_lt_vwap_5min(null);
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
+                Double vwap1min = vwapIndicator.calculateVWAP(oneMinSeries);
+                if (vwap1min != null) {
+                    indicators.setPrice_gt_vwap_1min(tick.getLastTradedPrice() > vwap1min);
+                    indicators.setPrice_lt_vwap_1min(tick.getLastTradedPrice() < vwap1min);
                 }
-            } else {
-                indicators.setPrice_gt_vwap_5min(null);
-                indicators.setPrice_lt_vwap_5min(null);
             }
             
-            // 15-minute VWAP
-            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 1) {
-                try {
-                    double vwap15min = vwapIndicator.calculateVWAP(fifteenMinSeries);
-                    indicators.setPrice_gt_vwap_15min(currentPrice > vwap15min);
-                    indicators.setPrice_lt_vwap_15min(currentPrice < vwap15min);
-                } catch (Exception e) {
-                    indicators.setPrice_gt_vwap_15min(null);
-                    indicators.setPrice_lt_vwap_15min(null);
+            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 20) {
+                Double vwap15min = vwapIndicator.calculateVWAP(fifteenMinSeries);
+                if (vwap15min != null) {
+                    indicators.setPrice_gt_vwap_15min(tick.getLastTradedPrice() > vwap15min);
+                    indicators.setPrice_lt_vwap_15min(tick.getLastTradedPrice() < vwap15min);
                 }
-            } else {
-                indicators.setPrice_gt_vwap_15min(null);
-                indicators.setPrice_lt_vwap_15min(null);
             }
             
-            // Support/Resistance levels with breakout detection
-            try {
-                // Create EMA indicator info for support/resistance calculation
-                MultiEmaIndicator emaIndicator = new MultiEmaIndicator();
-                EmaIndicatorInfo emaInfo = emaIndicator.createEmaInfoForTimeframes(fiveMinSeries, FIVE_MIN);
-                
-                // Calculate support and resistance levels
-                Set<Resistance> resistances = srIndicator.calculateResistances(FIVE_MIN, fiveMinSeries, currentPrice, emaInfo, new int[]{20, 50, 100});
-                Set<Support> supports = srIndicator.calculateSupports(FIVE_MIN, fiveMinSeries, currentPrice, emaInfo, new int[]{20, 50, 100});
-                
-                // Get nearest resistance and support levels
-                double nearestResistance = resistances.isEmpty() ? currentPrice * 1.02 : resistances.iterator().next().getResistanceValue();
-                double nearestSupport = supports.isEmpty() ? currentPrice * 0.98 : supports.iterator().next().getSupportValue();
-                
-                // Check if price is above resistance (breakout)
-                indicators.setPrice_above_resistance(currentPrice > nearestResistance);
-                
-                // Check if price is below support (breakdown)
-                indicators.setPrice_below_support(currentPrice < nearestSupport);
-                
-                // Add breakout strength calculation
-                double resistanceDistance = (currentPrice - nearestResistance) / nearestResistance * 100;
-                double supportDistance = (nearestSupport - currentPrice) / nearestSupport * 100;
-                
-                // Store breakout strength for enhanced scoring
-                if (indicators.getPrice_above_resistance()) {
-                    indicators.setBreakoutStrength(resistanceDistance);
-                } else if (indicators.getPrice_below_support()) {
-                    indicators.setBreakdownStrength(supportDistance);
+            // Support/Resistance indicators
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
+                // Calculate support and resistance using existing methods
+                try {
+                    // Create EMA indicator info for support/resistance calculation
+                    EmaIndicatorInfo emaInfo = multiEmaIndicator.createEmaInfoForTimeframes(fiveMinSeries, FIVE_MIN);
+                    
+                    // Calculate support and resistance levels
+                    Set<Resistance> resistances = supportResistanceIndicator.calculateResistances(FIVE_MIN, fiveMinSeries, tick.getLastTradedPrice(), emaInfo, new int[]{20, 50, 100});
+                    Set<Support> supports = supportResistanceIndicator.calculateSupports(FIVE_MIN, fiveMinSeries, tick.getLastTradedPrice(), emaInfo, new int[]{20, 50, 100});
+                    
+                    // Get nearest resistance and support levels
+                    double nearestResistance = resistances.isEmpty() ? tick.getLastTradedPrice() * 1.02 : resistances.iterator().next().getResistanceValue();
+                    double nearestSupport = supports.isEmpty() ? tick.getLastTradedPrice() * 0.98 : supports.iterator().next().getSupportValue();
+                    
+                    // Check if price is above resistance (breakout)
+                    indicators.setPrice_above_resistance(tick.getLastTradedPrice() > nearestResistance);
+                    
+                    // Check if price is below support (breakdown)
+                    indicators.setPrice_below_support(tick.getLastTradedPrice() < nearestSupport);
+                    
+                    // Add breakout strength calculation
+                    if (indicators.getPrice_above_resistance()) {
+                        indicators.setBreakoutStrength((tick.getLastTradedPrice() - nearestResistance) / nearestResistance * 100);
+                    } else if (indicators.getPrice_below_support()) {
+                        indicators.setBreakdownStrength((nearestSupport - tick.getLastTradedPrice()) / nearestSupport * 100);
+                    }
+                    
+                } catch (Exception e) {
+                    log.warn("Error calculating support/resistance levels", e);
+                    indicators.setPrice_above_resistance(false);
+                    indicators.setPrice_below_support(false);
                 }
-                
-            } catch (Exception e) {
-                indicators.setPrice_above_resistance(false);
-                indicators.setPrice_below_support(false);
             }
             
         } catch (Exception e) {
             log.error("Error flattening price action indicators", e);
-            indicators.setPrice_gt_vwap_1min(null);
-            indicators.setPrice_lt_vwap_1min(null);
-            indicators.setPrice_gt_vwap_5min(null);
-            indicators.setPrice_lt_vwap_5min(null);
-            indicators.setPrice_gt_vwap_15min(null);
-            indicators.setPrice_lt_vwap_15min(null);
-            indicators.setPrice_above_resistance(false);
-            indicators.setPrice_below_support(false);
+        }
+    }
+    
+    private void flattenCandlestickPatternIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries) {
+        try {
+            // Process 1-minute candlestick patterns
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 3) {
+                processCandlestickPatterns(indicators, oneMinSeries, "1min");
+            }
+            
+            // Process 3-minute candlestick patterns (using 5min as proxy since 3min not available)
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 3) {
+                processCandlestickPatterns(indicators, fiveMinSeries, "3min");
+            }
+            
+            // Process 5-minute candlestick patterns
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 3) {
+                processCandlestickPatterns(indicators, fiveMinSeries, "5min");
+            }
+            
+        } catch (Exception e) {
+            log.error("Error flattening candlestick pattern indicators", e);
+        }
+    }
+    
+    private void processCandlestickPatterns(FlattenedIndicators indicators, BarSeries barSeries, String timeframe) {
+        int currentIndex = barSeries.getBarCount() - 1;
+        
+        // Single candle patterns
+        if (currentIndex >= 0) {
+            Bar currentBar = barSeries.getBar(currentIndex);
+            
+            // Bullish patterns
+            setPatternIndicator(indicators, "hammer", timeframe, CandlestickPattern.isHammer(currentBar));
+            setPatternIndicator(indicators, "inverted_hammer", timeframe, CandlestickPattern.isInvertedHammer(currentBar));
+            setPatternIndicator(indicators, "bullish_marubozu", timeframe, CandlestickPattern.isBullishMarubozu(currentBar));
+            setPatternIndicator(indicators, "long_lower_shadow", timeframe, CandlestickPattern.isLongLowerShadow(currentBar));
+            
+            // Bearish patterns
+            setPatternIndicator(indicators, "shooting_star", timeframe, CandlestickPattern.isShootingStar(currentBar));
+            setPatternIndicator(indicators, "hanging_man", timeframe, CandlestickPattern.isHangingMan(currentBar));
+            setPatternIndicator(indicators, "bearish_marubozu", timeframe, CandlestickPattern.isBearishMarubozu(currentBar));
+            setPatternIndicator(indicators, "long_upper_shadow", timeframe, CandlestickPattern.isLongUpperShadow(currentBar));
+            
+            // Neutral patterns
+            setPatternIndicator(indicators, "doji", timeframe, CandlestickPattern.isDoji(currentBar));
+            setPatternIndicator(indicators, "spinning_top", timeframe, CandlestickPattern.isSpinningTop(currentBar));
+            setPatternIndicator(indicators, "marubozu", timeframe, CandlestickPattern.isMarubozu(currentBar));
+            setPatternIndicator(indicators, "long_body", timeframe, CandlestickPattern.isLongBody(currentBar));
+            setPatternIndicator(indicators, "short_body", timeframe, CandlestickPattern.isShortBody(currentBar));
+        }
+        
+        // Two candle patterns
+        if (currentIndex >= 1) {
+            Bar currentBar = barSeries.getBar(currentIndex);
+            Bar previousBar = barSeries.getBar(currentIndex - 1);
+            
+            // Bullish patterns
+            setPatternIndicator(indicators, "bullish_engulfing", timeframe, CandlestickPattern.isBullishEngulfing(previousBar, currentBar));
+            setPatternIndicator(indicators, "bullish_harami", timeframe, CandlestickPattern.isBullishHarami(previousBar, currentBar));
+            setPatternIndicator(indicators, "bullish_doji_star", timeframe, CandlestickPattern.isBullishDojiStar(previousBar, currentBar));
+            
+            // Bearish patterns
+            setPatternIndicator(indicators, "bearish_engulfing", timeframe, CandlestickPattern.isBearishEngulfing(previousBar, currentBar));
+            setPatternIndicator(indicators, "bearish_harami", timeframe, CandlestickPattern.isBearishHarami(previousBar, currentBar));
+            setPatternIndicator(indicators, "bearish_doji_star", timeframe, CandlestickPattern.isBearishDojiStar(previousBar, currentBar));
+        }
+        
+        // Three candle patterns
+        if (currentIndex >= 2) {
+            Bar firstBar = barSeries.getBar(currentIndex - 2);
+            Bar secondBar = barSeries.getBar(currentIndex - 1);
+            Bar thirdBar = barSeries.getBar(currentIndex);
+            
+            // Bullish patterns
+            setPatternIndicator(indicators, "bullish_morning_star", timeframe, CandlestickPattern.isBullishMorningStar(firstBar, secondBar, thirdBar));
+            
+            // Bearish patterns
+            setPatternIndicator(indicators, "bearish_evening_star", timeframe, CandlestickPattern.isBearishEveningStar(firstBar, secondBar, thirdBar));
+        }
+    }
+    
+    private void setPatternIndicator(FlattenedIndicators indicators, String patternName, String timeframe, boolean value) {
+        String fieldName = patternName + "_" + timeframe;
+        
+        switch (fieldName) {
+            // Bullish patterns
+            case "bullish_engulfing_1min": indicators.setBullish_engulfing_1min(value); break;
+            case "bullish_engulfing_3min": indicators.setBullish_engulfing_3min(value); break;
+            case "bullish_engulfing_5min": indicators.setBullish_engulfing_5min(value); break;
+            case "bullish_harami_1min": indicators.setBullish_harami_1min(value); break;
+            case "bullish_harami_3min": indicators.setBullish_harami_3min(value); break;
+            case "bullish_harami_5min": indicators.setBullish_harami_5min(value); break;
+            case "bullish_morning_star_1min": indicators.setBullish_morning_star_1min(value); break;
+            case "bullish_morning_star_3min": indicators.setBullish_morning_star_3min(value); break;
+            case "bullish_morning_star_5min": indicators.setBullish_morning_star_5min(value); break;
+            case "hammer_1min": indicators.setHammer_1min(value); break;
+            case "hammer_3min": indicators.setHammer_3min(value); break;
+            case "hammer_5min": indicators.setHammer_5min(value); break;
+            case "inverted_hammer_1min": indicators.setInverted_hammer_1min(value); break;
+            case "inverted_hammer_3min": indicators.setInverted_hammer_3min(value); break;
+            case "inverted_hammer_5min": indicators.setInverted_hammer_5min(value); break;
+            case "bullish_marubozu_1min": indicators.setBullish_marubozu_1min(value); break;
+            case "bullish_marubozu_3min": indicators.setBullish_marubozu_3min(value); break;
+            case "bullish_marubozu_5min": indicators.setBullish_marubozu_5min(value); break;
+            case "long_lower_shadow_1min": indicators.setLong_lower_shadow_1min(value); break;
+            case "long_lower_shadow_3min": indicators.setLong_lower_shadow_3min(value); break;
+            case "long_lower_shadow_5min": indicators.setLong_lower_shadow_5min(value); break;
+            
+            // Bearish patterns
+            case "bearish_engulfing_1min": indicators.setBearish_engulfing_1min(value); break;
+            case "bearish_engulfing_3min": indicators.setBearish_engulfing_3min(value); break;
+            case "bearish_engulfing_5min": indicators.setBearish_engulfing_5min(value); break;
+            case "bearish_harami_1min": indicators.setBearish_harami_1min(value); break;
+            case "bearish_harami_3min": indicators.setBearish_harami_3min(value); break;
+            case "bearish_harami_5min": indicators.setBearish_harami_5min(value); break;
+            case "bearish_evening_star_1min": indicators.setBearish_evening_star_1min(value); break;
+            case "bearish_evening_star_3min": indicators.setBearish_evening_star_3min(value); break;
+            case "bearish_evening_star_5min": indicators.setBearish_evening_star_5min(value); break;
+            case "shooting_star_1min": indicators.setShooting_star_1min(value); break;
+            case "shooting_star_3min": indicators.setShooting_star_3min(value); break;
+            case "shooting_star_5min": indicators.setShooting_star_5min(value); break;
+            case "hanging_man_1min": indicators.setHanging_man_1min(value); break;
+            case "hanging_man_3min": indicators.setHanging_man_3min(value); break;
+            case "hanging_man_5min": indicators.setHanging_man_5min(value); break;
+            case "bearish_marubozu_1min": indicators.setBearish_marubozu_1min(value); break;
+            case "bearish_marubozu_3min": indicators.setBearish_marubozu_3min(value); break;
+            case "bearish_marubozu_5min": indicators.setBearish_marubozu_5min(value); break;
+            case "long_upper_shadow_1min": indicators.setLong_upper_shadow_1min(value); break;
+            case "long_upper_shadow_3min": indicators.setLong_upper_shadow_3min(value); break;
+            case "long_upper_shadow_5min": indicators.setLong_upper_shadow_5min(value); break;
+            
+            // Neutral patterns
+            case "doji_1min": indicators.setDoji_1min(value); break;
+            case "doji_3min": indicators.setDoji_3min(value); break;
+            case "doji_5min": indicators.setDoji_5min(value); break;
+            case "spinning_top_1min": indicators.setSpinning_top_1min(value); break;
+            case "spinning_top_3min": indicators.setSpinning_top_3min(value); break;
+            case "spinning_top_5min": indicators.setSpinning_top_5min(value); break;
+            case "marubozu_1min": indicators.setMarubozu_1min(value); break;
+            case "marubozu_3min": indicators.setMarubozu_3min(value); break;
+            case "marubozu_5min": indicators.setMarubozu_5min(value); break;
+            case "long_body_1min": indicators.setLong_body_1min(value); break;
+            case "long_body_3min": indicators.setLong_body_3min(value); break;
+            case "long_body_5min": indicators.setLong_body_5min(value); break;
+            case "short_body_1min": indicators.setShort_body_1min(value); break;
+            case "short_body_3min": indicators.setShort_body_3min(value); break;
+            case "short_body_5min": indicators.setShort_body_5min(value); break;
         }
     }
     
@@ -1063,6 +1184,35 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         else if (bullishTimeframes == 1) momentumScore = 3.0;
         quality.setMomentumScore(momentumScore);
         
+        // Candlestick Pattern Quality Score (0-10)
+        double candlestickScore = 0.0;
+        
+        // High reliability bullish patterns (3 points each)
+        if (indicators.getBullish_engulfing_5min() != null && indicators.getBullish_engulfing_5min()) candlestickScore += 3.0;
+        if (indicators.getBullish_engulfing_1min() != null && indicators.getBullish_engulfing_1min()) candlestickScore += 3.0;
+        if (indicators.getBullish_morning_star_5min() != null && indicators.getBullish_morning_star_5min()) candlestickScore += 3.0;
+        if (indicators.getBullish_morning_star_1min() != null && indicators.getBullish_morning_star_1min()) candlestickScore += 3.0;
+        
+        // Medium reliability bullish patterns (2 points each)
+        if (indicators.getHammer_5min() != null && indicators.getHammer_5min()) candlestickScore += 2.0;
+        if (indicators.getHammer_1min() != null && indicators.getHammer_1min()) candlestickScore += 2.0;
+        if (indicators.getInverted_hammer_5min() != null && indicators.getInverted_hammer_5min()) candlestickScore += 2.0;
+        if (indicators.getInverted_hammer_1min() != null && indicators.getInverted_hammer_1min()) candlestickScore += 2.0;
+        if (indicators.getBullish_harami_5min() != null && indicators.getBullish_harami_5min()) candlestickScore += 2.0;
+        if (indicators.getBullish_harami_1min() != null && indicators.getBullish_harami_1min()) candlestickScore += 2.0;
+        if (indicators.getBullish_marubozu_5min() != null && indicators.getBullish_marubozu_5min()) candlestickScore += 2.0;
+        if (indicators.getBullish_marubozu_1min() != null && indicators.getBullish_marubozu_1min()) candlestickScore += 2.0;
+        
+        // Low reliability bullish patterns (1 point each)
+        if (indicators.getLong_lower_shadow_5min() != null && indicators.getLong_lower_shadow_5min()) candlestickScore += 1.0;
+        if (indicators.getLong_lower_shadow_1min() != null && indicators.getLong_lower_shadow_1min()) candlestickScore += 1.0;
+        if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickScore += 1.0;
+        if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickScore += 1.0;
+        
+        // Cap the score at 10
+        candlestickScore = Math.min(candlestickScore, 10.0);
+        quality.setCandlestickScore(candlestickScore);
+        
         // Calculate overall quality score
         quality.calculateQualityScore();
         
@@ -1126,6 +1276,35 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         else if (bearishTimeframes == 2) momentumScore = 7.0;
         else if (bearishTimeframes == 1) momentumScore = 3.0;
         quality.setMomentumScore(momentumScore);
+        
+        // Candlestick Pattern Quality Score (0-10)
+        double candlestickScore = 0.0;
+        
+        // High reliability bearish patterns (3 points each)
+        if (indicators.getBearish_engulfing_5min() != null && indicators.getBearish_engulfing_5min()) candlestickScore += 3.0;
+        if (indicators.getBearish_engulfing_1min() != null && indicators.getBearish_engulfing_1min()) candlestickScore += 3.0;
+        if (indicators.getBearish_evening_star_5min() != null && indicators.getBearish_evening_star_5min()) candlestickScore += 3.0;
+        if (indicators.getBearish_evening_star_1min() != null && indicators.getBearish_evening_star_1min()) candlestickScore += 3.0;
+        
+        // Medium reliability bearish patterns (2 points each)
+        if (indicators.getShooting_star_5min() != null && indicators.getShooting_star_5min()) candlestickScore += 2.0;
+        if (indicators.getShooting_star_1min() != null && indicators.getShooting_star_1min()) candlestickScore += 2.0;
+        if (indicators.getBearish_harami_5min() != null && indicators.getBearish_harami_5min()) candlestickScore += 2.0;
+        if (indicators.getBearish_harami_1min() != null && indicators.getBearish_harami_1min()) candlestickScore += 2.0;
+        if (indicators.getBearish_marubozu_5min() != null && indicators.getBearish_marubozu_5min()) candlestickScore += 2.0;
+        if (indicators.getBearish_marubozu_1min() != null && indicators.getBearish_marubozu_1min()) candlestickScore += 2.0;
+        if (indicators.getLong_upper_shadow_5min() != null && indicators.getLong_upper_shadow_5min()) candlestickScore += 2.0;
+        if (indicators.getLong_upper_shadow_1min() != null && indicators.getLong_upper_shadow_1min()) candlestickScore += 2.0;
+        
+        // Low reliability bearish patterns (1 point each)
+        if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickScore += 1.0;
+        if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickScore += 1.0;
+        if (indicators.getShort_body_5min() != null && indicators.getShort_body_5min()) candlestickScore += 1.0;
+        if (indicators.getShort_body_1min() != null && indicators.getShort_body_1min()) candlestickScore += 1.0;
+        
+        // Cap the score at 10
+        candlestickScore = Math.min(candlestickScore, 10.0);
+        quality.setCandlestickScore(candlestickScore);
         
         // Calculate overall quality score
         quality.calculateQualityScore();

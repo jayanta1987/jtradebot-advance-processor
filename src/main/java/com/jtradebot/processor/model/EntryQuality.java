@@ -25,6 +25,7 @@ public class EntryQuality {
     private Double priceActionScore;
     private Double futuresignalScore;
     private Double momentumScore;
+    private Double candlestickScore;
     
     // Overall quality score (0-10 scale)
     private Double qualityScore;
@@ -73,6 +74,10 @@ public class EntryQuality {
         }
         if (momentumScore != null) {
             totalScore += momentumScore;
+            componentCount++;
+        }
+        if (candlestickScore != null) {
+            totalScore += candlestickScore;
             componentCount++;
         }
         

@@ -27,8 +27,8 @@ public class CandlestickPattern {
 
         // Hammer: Small body, long lower shadow
         Num body = close.minus(open).abs();
-        Num lowerShadow = open.minus(low).max(close.minus(low));
-        Num upperShadow = high.minus(open).max(high.minus(close));
+        Num lowerShadow = open.min(close).minus(low);
+        Num upperShadow = high.minus(open.max(close));
 
         return body.isLessThan(lowerShadow.multipliedBy(DecimalNum.valueOf(0.5))) && upperShadow.isLessThan(body);
     }
@@ -41,8 +41,8 @@ public class CandlestickPattern {
 
         // Inverted Hammer: Small body, long upper shadow
         Num body = close.minus(open).abs();
-        Num lowerShadow = open.minus(low).max(close.minus(low));
-        Num upperShadow = high.minus(open).max(high.minus(close));
+        Num lowerShadow = open.min(close).minus(low);
+        Num upperShadow = high.minus(open.max(close));
 
         return body.isLessThan(upperShadow.multipliedBy(DecimalNum.valueOf(0.5))) && lowerShadow.isLessThan(body);
     }
@@ -55,8 +55,8 @@ public class CandlestickPattern {
 
         // Shooting Star: Small body, long upper shadow
         Num body = close.minus(open).abs();
-        Num lowerShadow = open.minus(low).max(close.minus(low));
-        Num upperShadow = high.minus(open).max(high.minus(close));
+        Num lowerShadow = open.min(close).minus(low);
+        Num upperShadow = high.minus(open.max(close));
 
         return body.isLessThan(upperShadow.multipliedBy(DecimalNum.valueOf(0.5))) && lowerShadow.isLessThan(body);
     }
@@ -69,8 +69,8 @@ public class CandlestickPattern {
 
         // Hanging Man: Small body, long lower shadow
         Num body = close.minus(open).abs();
-        Num lowerShadow = open.minus(low).max(close.minus(low));
-        Num upperShadow = high.minus(open).max(high.minus(close));
+        Num lowerShadow = open.min(close).minus(low);
+        Num upperShadow = high.minus(open.max(close));
 
         return body.isLessThan(lowerShadow.multipliedBy(DecimalNum.valueOf(0.5))) && upperShadow.isLessThan(body);
     }

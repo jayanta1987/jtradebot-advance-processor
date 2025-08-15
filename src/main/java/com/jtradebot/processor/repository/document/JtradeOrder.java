@@ -60,6 +60,9 @@ public class JtradeOrder {
     private Double totalReleasedProfit;
     private List<String> milestoneHistory;
     
+    // Entry Conditions - Store all conditions that were matched when order was created
+    private List<String> entryConditions;
+    
     // Helper methods
     public boolean isActive() {
         return "ACTIVE".equals(status);

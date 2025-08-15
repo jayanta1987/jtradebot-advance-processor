@@ -380,6 +380,523 @@
         "barsRequired": 1
       },
       "description": "Long upper shadow on 5min"
+    },
+    
+    "bullish_harami_5min": {
+      "name": "Bullish Harami 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BULLISH_HARAMI",
+        "barsRequired": 2
+      },
+      "description": "Bullish harami pattern on 5min"
+    },
+    
+    "bullish_harami_3min": {
+      "name": "Bullish Harami 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BULLISH_HARAMI",
+        "barsRequired": 2
+      },
+      "description": "Bullish harami pattern on 3min"
+    },
+    
+    "bullish_harami_1min": {
+      "name": "Bullish Harami 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BULLISH_HARAMI",
+        "barsRequired": 2
+      },
+      "description": "Bullish harami pattern on 1min"
+    },
+    
+    "bullish_doji_star_5min": {
+      "name": "Bullish Doji Star 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BULLISH_DOJI_STAR",
+        "barsRequired": 2
+      },
+      "description": "Bullish doji star pattern on 5min"
+    },
+    
+    "bullish_doji_star_3min": {
+      "name": "Bullish Doji Star 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BULLISH_DOJI_STAR",
+        "barsRequired": 2
+      },
+      "description": "Bullish doji star pattern on 3min"
+    },
+    
+    "bullish_doji_star_1min": {
+      "name": "Bullish Doji Star 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BULLISH_DOJI_STAR",
+        "barsRequired": 2
+      },
+      "description": "Bullish doji star pattern on 1min"
+    },
+    
+    "inverted_hammer_5min": {
+      "name": "Inverted Hammer 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "INVERTED_HAMMER",
+        "barsRequired": 1
+      },
+      "description": "Inverted hammer pattern on 5min"
+    },
+    
+    "inverted_hammer_3min": {
+      "name": "Inverted Hammer 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "INVERTED_HAMMER",
+        "barsRequired": 1
+      },
+      "description": "Inverted hammer pattern on 3min"
+    },
+    
+    "inverted_hammer_1min": {
+      "name": "Inverted Hammer 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "INVERTED_HAMMER",
+        "barsRequired": 1
+      },
+      "description": "Inverted hammer pattern on 1min"
+    },
+    
+    "doji_5min": {
+      "name": "Doji 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "DOJI",
+        "barsRequired": 1
+      },
+      "description": "Doji pattern on 5min"
+    },
+    
+    "doji_3min": {
+      "name": "Doji 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "DOJI",
+        "barsRequired": 1
+      },
+      "description": "Doji pattern on 3min"
+    },
+    
+    "doji_1min": {
+      "name": "Doji 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "DOJI",
+        "barsRequired": 1
+      },
+      "description": "Doji pattern on 1min"
+    },
+    
+    "spinning_top_5min": {
+      "name": "Spinning Top 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "SPINNING_TOP",
+        "barsRequired": 1
+      },
+      "description": "Spinning top pattern on 5min"
+    },
+    
+    "spinning_top_3min": {
+      "name": "Spinning Top 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "SPINNING_TOP",
+        "barsRequired": 1
+      },
+      "description": "Spinning top pattern on 3min"
+    },
+    
+    "spinning_top_1min": {
+      "name": "Spinning Top 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "SPINNING_TOP",
+        "barsRequired": 1
+      },
+      "description": "Spinning top pattern on 1min"
+    },
+    
+    "long_body_5min": {
+      "name": "Long Body 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "LONG_BODY",
+        "barsRequired": 1
+      },
+      "description": "Long body pattern on 5min"
+    },
+    
+    "long_body_3min": {
+      "name": "Long Body 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "LONG_BODY",
+        "barsRequired": 1
+      },
+      "description": "Long body pattern on 3min"
+    },
+    
+    "long_body_1min": {
+      "name": "Long Body 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "LONG_BODY",
+        "barsRequired": 1
+      },
+      "description": "Long body pattern on 1min"
+    },
+    
+    "short_body_5min": {
+      "name": "Short Body 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "SHORT_BODY",
+        "barsRequired": 1
+      },
+      "description": "Short body pattern on 5min"
+    },
+    
+    "short_body_3min": {
+      "name": "Short Body 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "SHORT_BODY",
+        "barsRequired": 1
+      },
+      "description": "Short body pattern on 3min"
+    },
+    
+    "short_body_1min": {
+      "name": "Short Body 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "SHORT_BODY",
+        "barsRequired": 1
+      },
+      "description": "Short body pattern on 1min"
+    },
+    
+    "marubozu_5min": {
+      "name": "Marubozu 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Marubozu pattern on 5min"
+    },
+    
+    "marubozu_3min": {
+      "name": "Marubozu 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Marubozu pattern on 3min"
+    },
+    
+    "marubozu_1min": {
+      "name": "Marubozu 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Marubozu pattern on 1min"
+    },
+    
+    "bearish_harami_5min": {
+      "name": "Bearish Harami 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BEARISH_HARAMI",
+        "barsRequired": 2
+      },
+      "description": "Bearish harami pattern on 5min"
+    },
+    
+    "bearish_harami_3min": {
+      "name": "Bearish Harami 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BEARISH_HARAMI",
+        "barsRequired": 2
+      },
+      "description": "Bearish harami pattern on 3min"
+    },
+    
+    "bearish_harami_1min": {
+      "name": "Bearish Harami 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BEARISH_HARAMI",
+        "barsRequired": 2
+      },
+      "description": "Bearish harami pattern on 1min"
+    },
+    
+    "bearish_doji_star_5min": {
+      "name": "Bearish Doji Star 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "BEARISH_DOJI_STAR",
+        "barsRequired": 2
+      },
+      "description": "Bearish doji star pattern on 5min"
+    },
+    
+    "bearish_doji_star_3min": {
+      "name": "Bearish Doji Star 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BEARISH_DOJI_STAR",
+        "barsRequired": 2
+      },
+      "description": "Bearish doji star pattern on 3min"
+    },
+    
+    "bearish_doji_star_1min": {
+      "name": "Bearish Doji Star 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BEARISH_DOJI_STAR",
+        "barsRequired": 2
+      },
+      "description": "Bearish doji star pattern on 1min"
+    },
+    
+    "hanging_man_5min": {
+      "name": "Hanging Man 5min",
+      "type": "CANDLESTICK",
+      "timeframes": ["5min"],
+      "parameters": {
+        "pattern": "HANGING_MAN",
+        "barsRequired": 1
+      },
+      "description": "Hanging man pattern on 5min"
+    },
+    
+    "hanging_man_3min": {
+      "name": "Hanging Man 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "HANGING_MAN",
+        "barsRequired": 1
+      },
+      "description": "Hanging man pattern on 3min"
+    },
+    
+    "hanging_man_1min": {
+      "name": "Hanging Man 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "HANGING_MAN",
+        "barsRequired": 1
+      },
+      "description": "Hanging man pattern on 1min"
+    },
+    
+    "bullish_engulfing_1min": {
+      "name": "Bullish Engulfing 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BULLISH_ENGULFING",
+        "barsRequired": 2
+      },
+      "description": "Bullish engulfing pattern on 1min"
+    },
+    
+    "bullish_morning_star_1min": {
+      "name": "Bullish Morning Star 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BULLISH_MORNING_STAR",
+        "barsRequired": 3
+      },
+      "description": "Bullish morning star pattern on 1min"
+    },
+    
+    "hammer_1min": {
+      "name": "Hammer 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "HAMMER",
+        "barsRequired": 1
+      },
+      "description": "Hammer pattern on 1min"
+    },
+    
+    "bullish_marubozu_1min": {
+      "name": "Bullish Marubozu 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BULLISH_MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Bullish marubozu pattern on 1min"
+    },
+    
+    "long_lower_shadow_1min": {
+      "name": "Long Lower Shadow 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "LONG_LOWER_SHADOW",
+        "barsRequired": 1
+      },
+      "description": "Long lower shadow on 1min"
+    },
+    
+    "bearish_engulfing_1min": {
+      "name": "Bearish Engulfing 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BEARISH_ENGULFING",
+        "barsRequired": 2
+      },
+      "description": "Bearish engulfing pattern on 1min"
+    },
+    
+    "bearish_evening_star_1min": {
+      "name": "Bearish Evening Star 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BEARISH_EVENING_STAR",
+        "barsRequired": 3
+      },
+      "description": "Bearish evening star pattern on 1min"
+    },
+    
+    "shooting_star_1min": {
+      "name": "Shooting Star 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "SHOOTING_STAR",
+        "barsRequired": 1
+      },
+      "description": "Shooting star pattern on 1min"
+    },
+    
+    "bearish_marubozu_1min": {
+      "name": "Bearish Marubozu 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "BEARISH_MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Bearish marubozu pattern on 1min"
+    },
+    
+    "long_upper_shadow_1min": {
+      "name": "Long Upper Shadow 1min",
+      "type": "CANDLESTICK",
+      "timeframes": ["1min"],
+      "parameters": {
+        "pattern": "LONG_UPPER_SHADOW",
+        "barsRequired": 1
+      },
+      "description": "Long upper shadow on 1min"
+    },
+    
+    "long_lower_shadow_3min": {
+      "name": "Long Lower Shadow 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "LONG_LOWER_SHADOW",
+        "barsRequired": 1
+      },
+      "description": "Long lower shadow on 3min"
+    },
+    
+    "long_upper_shadow_3min": {
+      "name": "Long Upper Shadow 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "LONG_UPPER_SHADOW",
+        "barsRequired": 1
+      },
+      "description": "Long upper shadow on 3min"
+    },
+    
+    "bullish_marubozu_3min": {
+      "name": "Bullish Marubozu 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BULLISH_MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Bullish marubozu pattern on 3min"
+    },
+    
+    "bearish_marubozu_3min": {
+      "name": "Bearish Marubozu 3min",
+      "type": "CANDLESTICK",
+      "timeframes": ["3min"],
+      "parameters": {
+        "pattern": "BEARISH_MARUBOZU",
+        "barsRequired": 1
+      },
+      "description": "Bearish marubozu pattern on 3min"
     }
   },
   
