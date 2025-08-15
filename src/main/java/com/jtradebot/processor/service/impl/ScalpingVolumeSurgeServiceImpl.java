@@ -145,37 +145,26 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // 🔥 NATURAL APPROACH: Intelligent signal validation without forced cooldowns
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Enhanced CALL entry logic with NATURAL momentum and futuresignal requirements
+            // Enhanced CALL entry logic with unified profitable trade filter
             EntryQuality entryQuality = evaluateCallEntryQuality(indicators, tick);
             
-            // NATURAL ENTRY VALIDATION for scalping - require strong momentum and futuresignals
-            boolean hasStrongMomentum = validateStrongMomentum(indicators);
-            boolean hasStrongFuturesignals = validateStrongFuturesignals(indicators);
-            boolean hasStrongVolumeSurge = validateStrongVolumeSurge(indicators);
-            
-            // Check if entry quality meets minimum threshold AND has strong momentum/futuresignals
-            boolean shouldEntry = entryQuality.getQualityScore() >= callRule.getMinSignalStrength() &&
-                                hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
-            
-            // Apply profitable trade filter if enabled
-            boolean originalFilterPassed = shouldEntry;
+            // Apply unified profitable trade filter
+            boolean shouldEntry = false;
             String filterRejectionReason = null;
             
-            if (shouldEntry && profitableTradeFilterService.isFilterEnabled()) {
+            if (profitableTradeFilterService.isFilterEnabled()) {
                 var filterResult = profitableTradeFilterService.evaluateCallEntry(indicators, entryQuality, tick);
                 shouldEntry = filterResult.getIsProfitableEntry();
                 filterRejectionReason = filterResult.getRejectionReason();
+            } else {
+                // Fallback to basic quality check if filter is disabled
+                shouldEntry = entryQuality.getQualityScore() >= callRule.getMinSignalStrength();
             }
             
-            // Combined logging for entry decision
+            // Log entry decision
             if (entryQuality.getQualityScore() >= callRule.getMinSignalStrength() && !shouldEntry) {
-                if (originalFilterPassed && filterRejectionReason != null) {
-                    log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 | Profitable Filter: ✗ | Reason: {}", 
-                        entryQuality.getQualityScore(), filterRejectionReason);
-                } else {
-                    log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 | Original Filter: ✗ | Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
-                        entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
-                }
+                log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 | Reason: {}", 
+                    entryQuality.getQualityScore(), filterRejectionReason != null ? filterRejectionReason : "Filter disabled");
             }
             
             // 🔥 NATURAL: Update signal tracking for learning (no forced cooldowns)
@@ -206,37 +195,26 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // 🔥 NATURAL APPROACH: Intelligent signal validation without forced cooldowns
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Enhanced PUT entry logic with NATURAL momentum and futuresignal requirements
+            // Enhanced PUT entry logic with unified profitable trade filter
             EntryQuality entryQuality = evaluatePutEntryQuality(indicators, tick);
             
-            // NATURAL ENTRY VALIDATION for scalping - require strong momentum and futuresignals
-            boolean hasStrongMomentum = validateStrongMomentumForPut(indicators);
-            boolean hasStrongFuturesignals = validateStrongFuturesignalsForPut(indicators);
-            boolean hasStrongVolumeSurge = validateStrongVolumeSurgeForPut(indicators);
-            
-            // Check if entry quality meets minimum threshold AND has strong momentum/futuresignals
-            boolean shouldEntry = entryQuality.getQualityScore() >= putRule.getMinSignalStrength() &&
-                                hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
-            
-            // Apply profitable trade filter if enabled
-            boolean originalFilterPassed = shouldEntry;
+            // Apply unified profitable trade filter
+            boolean shouldEntry = false;
             String filterRejectionReason = null;
             
-            if (shouldEntry && profitableTradeFilterService.isFilterEnabled()) {
+            if (profitableTradeFilterService.isFilterEnabled()) {
                 var filterResult = profitableTradeFilterService.evaluatePutEntry(indicators, entryQuality, tick);
                 shouldEntry = filterResult.getIsProfitableEntry();
                 filterRejectionReason = filterResult.getRejectionReason();
+            } else {
+                // Fallback to basic quality check if filter is disabled
+                shouldEntry = entryQuality.getQualityScore() >= putRule.getMinSignalStrength();
             }
             
-            // Combined logging for entry decision
+            // Log entry decision
             if (entryQuality.getQualityScore() >= putRule.getMinSignalStrength() && !shouldEntry) {
-                if (originalFilterPassed && filterRejectionReason != null) {
-                    log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 | Profitable Filter: ✗ | Reason: {}", 
-                        entryQuality.getQualityScore(), filterRejectionReason);
-                } else {
-                    log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 | Original Filter: ✗ | Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
-                        entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
-                }
+                log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 | Reason: {}", 
+                    entryQuality.getQualityScore(), filterRejectionReason != null ? filterRejectionReason : "Filter disabled");
             }
             
             // 🔥 NATURAL: Update signal tracking for learning (no forced cooldowns)
@@ -1426,109 +1404,9 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         }
     }
     
-    /**
-     * Validate strong momentum for CALL entry (scalping perspective)
-     * Uses configuration to determine which timeframes to check
-     */
-    private boolean validateStrongMomentum(FlattenedIndicators indicators) {
-        // Require at least 2 timeframes showing bullish EMA crossover
-        int bullishTimeframes = 0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) bullishTimeframes++;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) bullishTimeframes++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) bullishTimeframes++;
-        
-        // Require strong RSI momentum based on configuration
-        int strongRsiTimeframes = 0;
-        if (configService.isCallCheck1Min() && indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) strongRsiTimeframes++;
-        if (configService.isCallCheck5Min() && indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) strongRsiTimeframes++;
-        if (configService.isCallCheck15Min() && indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) strongRsiTimeframes++;
-        
-        // Use configuration for requirements
-        return bullishTimeframes >= 2 && strongRsiTimeframes >= 1;
-    }
+
     
-    /**
-     * Validate strong futuresignals for CALL entry (scalping perspective)
-     * Requires all timeframes to show bullish futuresignals
-     */
-    private boolean validateStrongFuturesignals(FlattenedIndicators indicators) {
-        if (indicators.getFuturesignals() == null) {
-            return false;
-        }
-        
-        try {
-            // Load futuresignals configuration
-            ScalpingEntryLogic entryLogic = scalpingEntryService.loadEntryLogic("rules/scalping-entry-config.json");
-            ScalpingEntryLogic.FuturesignalsConfig config = entryLogic.getFuturesignalsConfig();
-            
-            if (config == null || config.getCallStrategy() == null) {
-                // Fallback to default behavior if config not found
-                return indicators.getFuturesignals().getAllTimeframesBullish();
-            }
-            
-            // Count bullish timeframes based on enabled timeframes
-            int bullishTimeframes = 0;
-            int totalTimeframes = 0;
-            
-            if (config.getEnabledTimeframes().contains("1min")) {
-                totalTimeframes++;
-                if (indicators.getFuturesignals().getOneMinBullishSurge() != null && 
-                    indicators.getFuturesignals().getOneMinBullishSurge()) {
-                    bullishTimeframes++;
-                }
-            }
-            
-            if (config.getEnabledTimeframes().contains("5min")) {
-                totalTimeframes++;
-                if (indicators.getFuturesignals().getFiveMinBullishSurge() != null && 
-                    indicators.getFuturesignals().getFiveMinBullishSurge()) {
-                    bullishTimeframes++;
-                }
-            }
-            
-            // Check if 15min is enabled (should be false based on your requirement)
-            if (config.getEnabledTimeframes().contains("15min")) {
-                totalTimeframes++;
-                if (indicators.getFuturesignals().getFifteenMinBullishSurge() != null && 
-                    indicators.getFuturesignals().getFifteenMinBullishSurge()) {
-                    bullishTimeframes++;
-                }
-            }
-            
-            // Determine if validation passes
-            boolean isValid;
-            if (config.getCallStrategy().isRequireAllTimeframes()) {
-                isValid = bullishTimeframes == totalTimeframes;
-            } else {
-                isValid = bullishTimeframes >= config.getCallStrategy().getMinBullishTimeframes();
-            }
-            
-            // Dynamic debug logging - only show enabled timeframes
-            if (!isValid) {
-                String timeframeLog = buildFuturesignalsDebugLog(indicators, config.getEnabledTimeframes(), "CALL");
-                log.debug("🔍 CALL FUTURESIGNALS DEBUG - {} | Bullish: {}/{} | Required: {} | Valid: {}", 
-                    timeframeLog,
-                    bullishTimeframes, totalTimeframes,
-                    config.getCallStrategy().getMinBullishTimeframes(),
-                    isValid);
-            } else {
-                // Also log when validation passes to see what's happening
-                String timeframeLog = buildFuturesignalsDebugLog(indicators, config.getEnabledTimeframes(), "CALL");
-                log.debug("✅ CALL FUTURESIGNALS PASSED - {} | Bullish: {}/{} | Required: {} | Valid: {}", 
-                    timeframeLog,
-                    bullishTimeframes, totalTimeframes,
-                    config.getCallStrategy().getMinBullishTimeframes(),
-                    isValid);
-            }
-            
-            return isValid;
-            
-        } catch (Exception e) {
-            log.error("Error validating CALL futuresignals", e);
-            // Fallback to default behavior
-            return indicators.getFuturesignals().getAllTimeframesBullish();
-        }
-    }
+
     
     /**
      * Validate strong volume surge for CALL entry (scalping perspective)
