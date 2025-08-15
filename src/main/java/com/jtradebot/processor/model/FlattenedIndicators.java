@@ -125,6 +125,14 @@ public class FlattenedIndicators {
     private Boolean short_body_3min;
     private Boolean short_body_5min;
     
+    // Candle Color indicators (for directional confirmation)
+    private Boolean green_candle_1min;
+    private Boolean green_candle_3min;
+    private Boolean green_candle_5min;
+    private Boolean red_candle_1min;
+    private Boolean red_candle_3min;
+    private Boolean red_candle_5min;
+    
     // Futuresignals for each timeframe
     private FuturesignalData futuresignals;
     

@@ -3,135 +3,7 @@
   "version": "1.0",
   "description": "Comprehensive scalping entry logic for CALL and PUT strategies with proper risk management",
   
-  "callStrategy": {
-    "strategyType": "CALL",
-    "entryConditions": {
-      "mandatoryConditions": [
-        "volume_5min_surge",
-        "rsi_5min_gt_56",
-        "price_5min_gt_vwap"
-      ],
-      "optionalConditions": [
-        "ema_5min_crossover",
-        "ema_1min_crossover",
-        "ema_15min_crossover",
-        "volume_1min_surge",
-        "volume_15min_surge",
-        "rsi_1min_gt_56",
-        "rsi_15min_gt_56",
-        "price_1min_gt_vwap",
-        "price_15min_gt_vwap",
-        "price_1min_above_resistance",
-        "price_5min_above_resistance",
-        "bullish_engulfing_5min",
-        "bullish_engulfing_1min",
-        "bullish_morning_star_5min",
-        "bullish_morning_star_1min",
-        "hammer_5min",
-        "hammer_1min",
-        "inverted_hammer_5min",
-        "inverted_hammer_1min",
-        "bullish_harami_5min",
-        "bullish_harami_1min",
-        "bullish_marubozu_5min",
-        "bullish_marubozu_1min",
-        "long_lower_shadow_5min",
-        "long_lower_shadow_1min",
-        "long_body_5min",
-        "long_body_1min"
-      ],
-      "minMandatoryCount": 3,
-      "minOptionalCount": 5,
-      "minConfidenceScore": 0.6
-    },
-    "riskManagement": {
-      "maxRiskPerTrade": 1.0,
-      "stopLossPercentage": 0.3,
-      "stopLossPoints": 3.0,
-      "targetPercentage": 0.8,
-      "targetPoints": 8.0,
-      "maxHoldingTimeMinutes": 3,
-      "useTrailingStop": true,
-      "trailingStopPercentage": 0.2,
-      "useBreakEven": true,
-      "breakEvenTrigger": 0.4
-    },
-    "entryQuality": {
-      "minVolumeSurge": 2.0,
-      "minRsiStrength": 56.0,
-      "minSignalStrength": 7.0
-    },
-    "marketConditions": {
-      "maxSpreadPercentage": 0.1,
-      "minLiquidityThreshold": 1000000,
-      "avoidTimeSlots": ["09:15-09:30", "15:15-15:30"]
-    }
-  },
-  
-  "putStrategy": {
-    "strategyType": "PUT",
-    "entryConditions": {
-      "mandatoryConditions": [
-        "volume_5min_surge", 
-        "rsi_5min_lt_44",
-        "price_5min_lt_vwap"
-      ],
-      "optionalConditions": [
-        "ema_5min_crossdown",
-        "ema_1min_crossdown",
-        "ema_15min_crossdown",
-        "volume_1min_surge",
-        "volume_15min_surge",
-        "rsi_1min_lt_44",
-        "rsi_15min_lt_44",
-        "price_1min_lt_vwap",
-        "price_15min_lt_vwap",
-        "price_1min_below_support",
-        "price_5min_below_support",
-        "bearish_engulfing_5min",
-        "bearish_engulfing_1min",
-        "bearish_evening_star_5min",
-        "bearish_evening_star_1min",
-        "shooting_star_5min",
-        "shooting_star_1min",
-        "hanging_man_5min",
-        "hanging_man_1min",
-        "bearish_harami_5min",
-        "bearish_harami_1min",
-        "bearish_marubozu_5min",
-        "bearish_marubozu_1min",
-        "long_upper_shadow_5min",
-        "long_upper_shadow_1min",
-        "short_body_5min",
-        "short_body_1min"
-      ],
-      "minMandatoryCount": 3,
-      "minOptionalCount": 5,
-      "minConfidenceScore": 0.6
-    },
-    "riskManagement": {
-      "maxRiskPerTrade": 1.0,
-      "stopLossPercentage": 0.3,
-      "stopLossPoints": 3.0,
-      "targetPercentage": 0.8,
-      "targetPoints": 8.0,
-      "maxHoldingTimeMinutes": 3,
-      "useTrailingStop": true,
-      "trailingStopPercentage": 0.2,
-      "useBreakEven": true,
-      "breakEvenTrigger": 0.4
-    },
-    "entryQuality": {
-      "minVolumeSurge": 2.0,
-      "minRsiStrength": 44.0,
-      "minSignalStrength": 7.0
-    },
-    "marketConditions": {
-      "maxSpreadPercentage": 0.1,
-      "minLiquidityThreshold": 1000000,
-      "avoidTimeSlots": ["09:15-09:30", "15:15-15:30"]
-    }
-  },
+
   
   "futuresignalsConfig": {
     "enabledTimeframes": ["1min", "5min"],
@@ -144,6 +16,159 @@
       "minBearishTimeframes": 2,
       "requireAllTimeframes": false,
       "description": "PUT entry requires at least 2 out of 2 timeframes to be bearish"
+    }
+  },
+  
+  "profitableTradeFilter": {
+    "enabled": true,
+    "description": "Balanced filter with 4 categories - each category must meet minimum count requirements",
+    
+    "callStrategy": {
+      "enabled": true,
+      "minQualityScore": 7.5,
+      "minCandlestickScore": 4.0,
+      "volumeSurgeMultiplier": {
+        "min": 15.1,
+        "max": 16.0
+      },
+      "riskManagement": {
+        "maxRiskPerTrade": 1.0,
+        "stopLossPercentage": 0.3,
+        "stopLossPoints": 10.0,
+        "targetPercentage": 0.8,
+        "targetPoints": 20.0,
+        "maxHoldingTimeMinutes": 3,
+        "useTrailingStop": true,
+        "trailingStopPercentage": 0.2,
+        "useBreakEven": true,
+        "breakEvenTrigger": 0.4
+      },
+      "categories": {
+        "ema": {
+          "conditions": [
+            "ema9_5min_gt_ema21_5min",
+            "ema9_1min_gt_ema21_1min",
+            "ema9_15min_gt_ema21_15min"
+          ],
+          "minCount": 2
+        },
+        "futureAndVolume": {
+          "conditions": [
+            "volume_5min_surge",
+            "volume_1min_surge",
+            "volume_15min_surge",
+            "price_gt_vwap_5min",
+            "price_gt_vwap_1min",
+            "price_gt_vwap_15min",
+            "price_above_resistance"
+          ],
+          "minCount": 4
+        },
+        "candlestick": {
+          "conditions": [
+            "green_candle_5min",
+            "green_candle_1min",
+            "long_body_5min",
+            "long_body_1min",
+            "bullish_engulfing_5min",
+            "bullish_engulfing_1min",
+            "bullish_morning_star_5min",
+            "bullish_morning_star_1min",
+            "hammer_5min",
+            "hammer_1min"
+          ],
+          "minCount": 3
+        },
+        "momentum": {
+          "conditions": [
+            "rsi_5min_gt_56",
+            "rsi_1min_gt_56",
+            "rsi_15min_gt_56"
+          ],
+          "minCount": 2
+        }
+      }
+    },
+    
+    "putStrategy": {
+      "enabled": true,
+      "minQualityScore": 7.5,
+      "minCandlestickScore": 4.0,
+      "volumeSurgeMultiplier": {
+        "min": 15.1,
+        "max": 16.0
+      },
+      "riskManagement": {
+        "maxRiskPerTrade": 1.0,
+        "stopLossPercentage": 0.3,
+        "stopLossPoints": 10.0,
+        "targetPercentage": 0.8,
+        "targetPoints": 20.0,
+        "maxHoldingTimeMinutes": 3,
+        "useTrailingStop": true,
+        "trailingStopPercentage": 0.2,
+        "useBreakEven": true,
+        "breakEvenTrigger": 0.4
+      },
+      "categories": {
+        "ema": {
+          "conditions": [
+            "ema9_5min_lt_ema21_5min",
+            "ema9_1min_lt_ema21_1min",
+            "ema9_15min_lt_ema21_15min"
+          ],
+          "minCount": 2
+        },
+        "futureAndVolume": {
+          "conditions": [
+            "volume_5min_surge",
+            "volume_1min_surge",
+            "volume_15min_surge",
+            "price_lt_vwap_5min",
+            "price_lt_vwap_1min",
+            "price_lt_vwap_15min",
+            "price_below_support"
+          ],
+          "minCount": 4
+        },
+        "candlestick": {
+          "conditions": [
+            "red_candle_5min",
+            "red_candle_1min",
+            "long_body_5min",
+            "long_body_1min",
+            "bearish_engulfing_5min",
+            "bearish_engulfing_1min",
+            "bearish_evening_star_5min",
+            "bearish_evening_star_1min",
+            "shooting_star_5min",
+            "shooting_star_1min"
+          ],
+          "minCount": 3
+        },
+        "momentum": {
+          "conditions": [
+            "rsi_5min_lt_44",
+            "rsi_1min_lt_44",
+            "rsi_15min_lt_44"
+          ],
+          "minCount": 2
+        }
+      }
+    },
+    
+    "logging": {
+      "enabled": true,
+      "logFilteredEntries": true,
+      "logRejectionReasons": true
+    },
+    
+    "weights": {
+      "emaCrossoverWeight": 0.25,
+      "rsiConditionWeight": 0.20,
+      "volumeSurgeWeight": 0.25,
+      "priceActionWeight": 0.15,
+      "futuresignalsWeight": 0.15
     }
   }
 }

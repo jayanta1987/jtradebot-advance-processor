@@ -63,6 +63,19 @@ public class JtradeOrder {
     // Entry Conditions - Store all conditions that were matched when order was created
     private List<String> entryConditions;
     
+    // Profitable Trade Filter Information
+    private Boolean profitableTradeFilterEnabled;
+    private Boolean profitableTradeFilterPassed;
+    private String profitableTradeFilterRejectionReason;
+    private Double profitableTradeFilterQualityScore;
+    private Double profitableTradeFilterCandlestickScore;
+    private Double profitableTradeFilterVolumeSurgeMultiplier;
+    private Integer profitableTradeFilterOptionalConditionsCount;
+    private List<String> profitableTradeFilterPassedRequiredConditions;
+    private List<String> profitableTradeFilterFailedRequiredConditions;
+    private List<String> profitableTradeFilterPassedOptionalConditions;
+    private List<String> profitableTradeFilterFailedOptionalConditions;
+    
     // Helper methods
     public boolean isActive() {
         return "ACTIVE".equals(status);

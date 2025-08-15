@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.DynamicIndicatorConfig;
 import com.jtradebot.processor.model.ScalpingEntryConfig;
+import com.jtradebot.processor.model.ProfitableTradeFilterConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class DynamicStrategyConfigService {
     
     private DynamicIndicatorConfig dynamicIndicatorConfig;
     private ScalpingEntryConfig scalpingEntryConfig;
+    private ProfitableTradeFilterConfig profitableTradeFilterConfig;
     private JsonNode legacyConfig; // For backward compatibility during transition
     
     @PostConstruct
@@ -32,7 +34,21 @@ public class DynamicStrategyConfigService {
             dynamicIndicatorConfig = mapper.readValue(indicatorResource.getInputStream(), DynamicIndicatorConfig.class);
             
             ClassPathResource entryResource = new ClassPathResource("rules/scalping-entry-config.json");
-            scalpingEntryConfig = mapper.readValue(entryResource.getInputStream(), ScalpingEntryConfig.class);
+            JsonNode rootNode = mapper.readTree(entryResource.getInputStream());
+            
+            // Load scalping entry config
+            scalpingEntryConfig = mapper.treeToValue(rootNode, ScalpingEntryConfig.class);
+            
+            // Load profitable trade filter configuration
+            if (rootNode.has("profitableTradeFilter")) {
+                profitableTradeFilterConfig = mapper.treeToValue(rootNode.get("profitableTradeFilter"), ProfitableTradeFilterConfig.class);
+            } else {
+                // Create default config if section doesn't exist
+                profitableTradeFilterConfig = ProfitableTradeFilterConfig.builder()
+                        .enabled(false)
+                        .description("Default config - filtering disabled")
+                        .build();
+            }
             
             // Legacy config is no longer needed since we've migrated to new system
             legacyConfig = null;
@@ -53,6 +69,10 @@ public class DynamicStrategyConfigService {
         return scalpingEntryConfig;
     }
     
+    public ProfitableTradeFilterConfig getProfitableTradeFilterConfig() {
+        return profitableTradeFilterConfig;
+    }
+    
     // Legacy Compatibility Methods (mapped to new config)
     public String getCallRuleName() {
         return "SCALPING_FUTURE_VOLUME_SURGE_BULLISH";
@@ -67,35 +87,35 @@ public class DynamicStrategyConfigService {
     }
     
     public double getCallRsiThreshold() {
-        return scalpingEntryConfig.getCallStrategy().getEntryQuality().getMinRsiStrength();
+        return 56.0; // Default value from new config
     }
     
     public double getCallVolumeSurgeMultiplier() {
-        return scalpingEntryConfig.getCallStrategy().getEntryQuality().getMinVolumeSurge();
+        return profitableTradeFilterConfig.getCallStrategy().getVolumeSurgeMultiplier().getMin();
     }
     
     public double getCallSignalStrength() {
-        return scalpingEntryConfig.getCallStrategy().getEntryQuality().getMinSignalStrength();
+        return profitableTradeFilterConfig.getCallStrategy().getMinQualityScore();
     }
     
     public double getCallStopLossPercentage() {
-        return scalpingEntryConfig.getCallStrategy().getRiskManagement().getStopLossPercentage();
+        return profitableTradeFilterConfig.getCallStrategy().getRiskManagement().getStopLossPercentage();
     }
     
     public double getCallTargetPercentage() {
-        return scalpingEntryConfig.getCallStrategy().getRiskManagement().getTargetPercentage();
+        return profitableTradeFilterConfig.getCallStrategy().getRiskManagement().getTargetPercentage();
     }
     
     public double getCallStopLossPoints() {
-        return scalpingEntryConfig.getCallStrategy().getRiskManagement().getStopLossPoints();
+        return profitableTradeFilterConfig.getCallStrategy().getRiskManagement().getStopLossPoints();
     }
     
     public double getCallTargetPoints() {
-        return scalpingEntryConfig.getCallStrategy().getRiskManagement().getTargetPoints();
+        return profitableTradeFilterConfig.getCallStrategy().getRiskManagement().getTargetPoints();
     }
     
     public int getCallMaxHoldingTimeMinutes() {
-        return scalpingEntryConfig.getCallStrategy().getRiskManagement().getMaxHoldingTimeMinutes();
+        return profitableTradeFilterConfig.getCallStrategy().getRiskManagement().getMaxHoldingTimeMinutes();
     }
     
     public double getCallMilestonePoints() {
@@ -103,11 +123,11 @@ public class DynamicStrategyConfigService {
     }
     
     public double getCallMaxStopLossPoints() {
-        return scalpingEntryConfig.getCallStrategy().getRiskManagement().getStopLossPoints();
+        return profitableTradeFilterConfig.getCallStrategy().getRiskManagement().getStopLossPoints();
     }
     
     public boolean isCallTrailingStopLoss() {
-        return scalpingEntryConfig.getCallStrategy().getRiskManagement().isUseTrailingStop();
+        return profitableTradeFilterConfig.getCallStrategy().getRiskManagement().getUseTrailingStop();
     }
     
     public boolean isCallCheck1Min() {
@@ -136,35 +156,35 @@ public class DynamicStrategyConfigService {
     }
     
     public double getPutRsiThreshold() {
-        return scalpingEntryConfig.getPutStrategy().getEntryQuality().getMinRsiStrength();
+        return 44.0; // Default value from new config
     }
     
     public double getPutVolumeSurgeMultiplier() {
-        return scalpingEntryConfig.getPutStrategy().getEntryQuality().getMinVolumeSurge();
+        return profitableTradeFilterConfig.getPutStrategy().getVolumeSurgeMultiplier().getMin();
     }
     
     public double getPutSignalStrength() {
-        return scalpingEntryConfig.getPutStrategy().getEntryQuality().getMinSignalStrength();
+        return profitableTradeFilterConfig.getPutStrategy().getMinQualityScore();
     }
     
     public double getPutStopLossPercentage() {
-        return scalpingEntryConfig.getPutStrategy().getRiskManagement().getStopLossPercentage();
+        return profitableTradeFilterConfig.getPutStrategy().getRiskManagement().getStopLossPercentage();
     }
     
     public double getPutTargetPercentage() {
-        return scalpingEntryConfig.getPutStrategy().getRiskManagement().getTargetPercentage();
+        return profitableTradeFilterConfig.getPutStrategy().getRiskManagement().getTargetPercentage();
     }
     
     public double getPutTargetPoints() {
-        return scalpingEntryConfig.getPutStrategy().getRiskManagement().getTargetPoints();
+        return profitableTradeFilterConfig.getPutStrategy().getRiskManagement().getTargetPoints();
     }
     
     public double getPutStopLossPoints() {
-        return scalpingEntryConfig.getPutStrategy().getRiskManagement().getStopLossPoints();
+        return profitableTradeFilterConfig.getPutStrategy().getRiskManagement().getStopLossPoints();
     }
     
     public int getPutMaxHoldingTimeMinutes() {
-        return scalpingEntryConfig.getPutStrategy().getRiskManagement().getMaxHoldingTimeMinutes();
+        return profitableTradeFilterConfig.getPutStrategy().getRiskManagement().getMaxHoldingTimeMinutes();
     }
     
     public double getPutMilestonePoints() {
@@ -353,17 +373,17 @@ public class DynamicStrategyConfigService {
         config.put("description", getStrategyDescription());
         config.put("timeframes", getFuturesignalTimeframes());
         config.put("dynamicIndicatorConfig", dynamicIndicatorConfig);
-        config.put("scalpingEntryConfig", scalpingEntryConfig);
+        config.put("profitableTradeFilterConfig", profitableTradeFilterConfig);
         return config;
     }
     
     // Additional legacy compatibility methods
     public boolean isCallRequireAllTimeframesBullish() {
-        return scalpingEntryConfig.getCallStrategy().getEntryConditions().isRequireAllTimeframes();
+        return false; // Not used in new category-based system
     }
     
     public boolean isCallRequireVolumeSurge() {
-        return scalpingEntryConfig.getCallStrategy().getEntryConditions().isRequireVolumeConfirmation();
+        return true; // Always required in new system
     }
     
     public boolean isCallRequireEmaCrossover() {
@@ -375,19 +395,19 @@ public class DynamicStrategyConfigService {
     }
     
     public boolean isCallRequirePriceAboveVwap() {
-        return scalpingEntryConfig.getCallStrategy().getEntryConditions().isRequirePriceActionConfirmation();
+        return true; // Always required in new system
     }
     
     public boolean isCallRequirePriceAboveResistance() {
-        return scalpingEntryConfig.getCallStrategy().getEntryQuality().isRequireSupportResistance();
+        return true; // Always required in new system
     }
     
     public boolean isPutRequireAllTimeframesBearish() {
-        return scalpingEntryConfig.getPutStrategy().getEntryConditions().isRequireAllTimeframes();
+        return false; // Not used in new category-based system
     }
     
     public boolean isPutRequireVolumeSurge() {
-        return scalpingEntryConfig.getPutStrategy().getEntryConditions().isRequireVolumeConfirmation();
+        return true; // Always required in new system
     }
     
     public boolean isPutRequireEmaCrossover() {
@@ -399,31 +419,31 @@ public class DynamicStrategyConfigService {
     }
     
     public boolean isPutRequirePriceBelowVwap() {
-        return scalpingEntryConfig.getPutStrategy().getEntryConditions().isRequirePriceActionConfirmation();
+        return true; // Always required in new system
     }
     
     public boolean isPutRequirePriceBelowSupport() {
-        return scalpingEntryConfig.getPutStrategy().getEntryQuality().isRequireSupportResistance();
+        return true; // Always required in new system
     }
     
     // Weight methods for backward compatibility
     public double getEmaCrossoverWeight() {
-        return 0.25; // Default weight for EMA crossover
+        return profitableTradeFilterConfig.getWeights().getEmaCrossoverWeight();
     }
     
     public double getRsiConditionWeight() {
-        return 0.20; // Default weight for RSI conditions
+        return profitableTradeFilterConfig.getWeights().getRsiConditionWeight();
     }
     
     public double getVolumeSurgeWeight() {
-        return 0.25; // Default weight for volume surge
+        return profitableTradeFilterConfig.getWeights().getVolumeSurgeWeight();
     }
     
     public double getPriceActionWeight() {
-        return 0.15; // Default weight for price action
+        return profitableTradeFilterConfig.getWeights().getPriceActionWeight();
     }
     
     public double getFuturesignalsWeight() {
-        return 0.15; // Default weight for futures signals
+        return profitableTradeFilterConfig.getWeights().getFuturesignalsWeight();
     }
 }

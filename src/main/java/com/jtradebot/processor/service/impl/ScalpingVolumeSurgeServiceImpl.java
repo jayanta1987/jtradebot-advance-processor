@@ -23,6 +23,7 @@ import com.jtradebot.processor.model.StrategyScore;
 import com.jtradebot.processor.service.ScalpingEntryService;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.service.ProfitableTradeFilterService;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     private final SupportResistanceIndicator supportResistanceIndicator;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final ScalpingEntryService scalpingEntryService;
+    private final ProfitableTradeFilterService profitableTradeFilterService;
     
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
@@ -155,10 +157,25 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean shouldEntry = entryQuality.getQualityScore() >= callRule.getMinSignalStrength() &&
                                 hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
             
-            // Debug logging to see which condition is failing
+            // Apply profitable trade filter if enabled
+            boolean originalFilterPassed = shouldEntry;
+            String filterRejectionReason = null;
+            
+            if (shouldEntry && profitableTradeFilterService.isFilterEnabled()) {
+                var filterResult = profitableTradeFilterService.evaluateCallEntry(indicators, entryQuality, tick);
+                shouldEntry = filterResult.getIsProfitableEntry();
+                filterRejectionReason = filterResult.getRejectionReason();
+            }
+            
+            // Combined logging for entry decision
             if (entryQuality.getQualityScore() >= callRule.getMinSignalStrength() && !shouldEntry) {
-                log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 (✓), Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
-                    entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
+                if (originalFilterPassed && filterRejectionReason != null) {
+                    log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 | Profitable Filter: ✗ | Reason: {}", 
+                        entryQuality.getQualityScore(), filterRejectionReason);
+                } else {
+                    log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 | Original Filter: ✗ | Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
+                        entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
+                }
             }
             
             // 🔥 NATURAL: Update signal tracking for learning (no forced cooldowns)
@@ -201,10 +218,25 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean shouldEntry = entryQuality.getQualityScore() >= putRule.getMinSignalStrength() &&
                                 hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
             
-            // Debug logging to see which condition is failing
+            // Apply profitable trade filter if enabled
+            boolean originalFilterPassed = shouldEntry;
+            String filterRejectionReason = null;
+            
+            if (shouldEntry && profitableTradeFilterService.isFilterEnabled()) {
+                var filterResult = profitableTradeFilterService.evaluatePutEntry(indicators, entryQuality, tick);
+                shouldEntry = filterResult.getIsProfitableEntry();
+                filterRejectionReason = filterResult.getRejectionReason();
+            }
+            
+            // Combined logging for entry decision
             if (entryQuality.getQualityScore() >= putRule.getMinSignalStrength() && !shouldEntry) {
-                log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 (✓), Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
-                    entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
+                if (originalFilterPassed && filterRejectionReason != null) {
+                    log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 | Profitable Filter: ✗ | Reason: {}", 
+                        entryQuality.getQualityScore(), filterRejectionReason);
+                } else {
+                    log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 | Original Filter: ✗ | Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
+                        entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
+                }
             }
             
             // 🔥 NATURAL: Update signal tracking for learning (no forced cooldowns)
@@ -925,6 +957,10 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             setPatternIndicator(indicators, "marubozu", timeframe, CandlestickPattern.isMarubozu(currentBar));
             setPatternIndicator(indicators, "long_body", timeframe, CandlestickPattern.isLongBody(currentBar));
             setPatternIndicator(indicators, "short_body", timeframe, CandlestickPattern.isShortBody(currentBar));
+            
+            // Candle color patterns (for directional confirmation)
+            setPatternIndicator(indicators, "green_candle", timeframe, CandlestickPattern.isGreenCandle(currentBar));
+            setPatternIndicator(indicators, "red_candle", timeframe, CandlestickPattern.isRedCandle(currentBar));
         }
         
         // Two candle patterns
@@ -1023,6 +1059,14 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             case "short_body_1min": indicators.setShort_body_1min(value); break;
             case "short_body_3min": indicators.setShort_body_3min(value); break;
             case "short_body_5min": indicators.setShort_body_5min(value); break;
+            
+            // Candle color patterns
+            case "green_candle_1min": indicators.setGreen_candle_1min(value); break;
+            case "green_candle_3min": indicators.setGreen_candle_3min(value); break;
+            case "green_candle_5min": indicators.setGreen_candle_5min(value); break;
+            case "red_candle_1min": indicators.setRed_candle_1min(value); break;
+            case "red_candle_3min": indicators.setRed_candle_3min(value); break;
+            case "red_candle_5min": indicators.setRed_candle_5min(value); break;
         }
     }
     
