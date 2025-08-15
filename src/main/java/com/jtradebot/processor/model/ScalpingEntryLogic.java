@@ -19,6 +19,7 @@ public class ScalpingEntryLogic {
     private RiskManagement riskManagement;
     private EntryQuality entryQuality;
     private MarketConditions marketConditions;
+    private FuturesignalsConfig futuresignalsConfig;
     
     @Data
     @Builder
@@ -82,5 +83,35 @@ public class ScalpingEntryLogic {
         private List<String> avoidTimeSlots; // Time slots to avoid
         private boolean requireLiquidity; // Require sufficient liquidity
         private double minLiquidityThreshold; // Minimum liquidity threshold
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FuturesignalsConfig {
+        private List<String> enabledTimeframes; // Timeframes to use for futuresignals validation
+        private CallStrategy callStrategy;
+        private PutStrategy putStrategy;
+        
+        @Data
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class CallStrategy {
+            private int minBullishTimeframes; // Minimum bullish timeframes required
+            private boolean requireAllTimeframes; // Require all timeframes to be bullish
+            private String description; // Description of the requirement
+        }
+        
+        @Data
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class PutStrategy {
+            private int minBearishTimeframes; // Minimum bearish timeframes required
+            private boolean requireAllTimeframes; // Require all timeframes to be bearish
+            private String description; // Description of the requirement
+        }
     }
 }

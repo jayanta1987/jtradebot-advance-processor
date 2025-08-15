@@ -31,18 +31,9 @@ public class OptionPricingServiceImpl implements OptionPricingService {
             return null;
         }
         
-        Double stopLossPrice;
-        
-        if (orderType == OrderTypeEnum.CALL_BUY) {
-            // For CALL: Stop loss is below entry price
-            stopLossPrice = entryPrice * (1 - stopLossPercentage / 100.0);
-        } else if (orderType == OrderTypeEnum.PUT_BUY) {
-            // For PUT: Stop loss is above entry price
-            stopLossPrice = entryPrice * (1 + stopLossPercentage / 100.0);
-        } else {
-            log.warn("Unsupported order type for stop loss calculation: {}", orderType);
-            return null;
-        }
+        // For both CALL and PUT orders, stop loss is below entry price
+        // When option price goes down, it's a loss for both CALL and PUT
+        Double stopLossPrice = entryPrice * (1 - stopLossPercentage / 100.0);
         
         // Ensure stop loss doesn't go below 0
         stopLossPrice = Math.max(stopLossPrice, 0.0);
@@ -60,18 +51,9 @@ public class OptionPricingServiceImpl implements OptionPricingService {
             return null;
         }
         
-        Double targetPrice;
-        
-        if (orderType == OrderTypeEnum.CALL_BUY) {
-            // For CALL: Target is above entry price
-            targetPrice = entryPrice * (1 + targetPercentage / 100.0);
-        } else if (orderType == OrderTypeEnum.PUT_BUY) {
-            // For PUT: Target is below entry price
-            targetPrice = entryPrice * (1 - targetPercentage / 100.0);
-        } else {
-            log.warn("Unsupported order type for target calculation: {}", orderType);
-            return null;
-        }
+        // For both CALL and PUT orders, target is above entry price
+        // When option price goes up, it's profitable for both CALL and PUT
+        Double targetPrice = entryPrice * (1 + targetPercentage / 100.0);
         
         // Ensure target doesn't go below 0
         targetPrice = Math.max(targetPrice, 0.0);
@@ -122,18 +104,9 @@ public class OptionPricingServiceImpl implements OptionPricingService {
             return 0.0;
         }
         
-        Double profitLoss;
-        
-        if (orderType == OrderTypeEnum.CALL_BUY) {
-            // For CALL: Profit when exit price > entry price
-            profitLoss = exitPrice - entryPrice;
-        } else if (orderType == OrderTypeEnum.PUT_BUY) {
-            // For PUT: Profit when exit price < entry price
-            profitLoss = entryPrice - exitPrice;
-        } else {
-            log.warn("Unsupported order type for profit/loss calculation: {}", orderType);
-            return 0.0;
-        }
+        // For both CALL and PUT orders, profit is always exitPrice - entryPrice
+        // The option price (premium) determines profit/loss, not the underlying index
+        Double profitLoss = exitPrice - entryPrice;
         
         log.debug("Calculated profit/loss: {} (Entry: {}, Exit: {}, Type: {})", 
                 profitLoss, entryPrice, exitPrice, orderType);

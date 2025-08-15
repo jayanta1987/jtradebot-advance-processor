@@ -7,12 +7,12 @@
     "strategyType": "CALL",
     "entryConditions": {
       "mandatoryConditions": [
-        "ema_5min_crossover", 
         "volume_5min_surge",
         "rsi_5min_gt_56",
         "price_5min_gt_vwap"
       ],
       "optionalConditions": [
+        "ema_5min_crossover",
         "ema_1min_crossover",
         "ema_15min_crossover",
         "volume_1min_surge",
@@ -25,45 +25,32 @@
         "price_5min_above_resistance"
       ],
       "minMandatoryCount": 3,
-      "minOptionalCount": 2,
+      "minOptionalCount": 3,
       "minConfidenceScore": 0.6,
-      "requireAllTimeframes": false,
       "requireVolumeConfirmation": true,
       "requirePriceActionConfirmation": true
     },
     "riskManagement": {
       "maxRiskPerTrade": 1.0,
-      "positionSize": 2.0,
       "stopLossPercentage": 0.3,
       "stopLossPoints": 3.0,
       "targetPercentage": 0.8,
       "targetPoints": 8.0,
-      "maxHoldingTimeMinutes": 15,
+      "maxHoldingTimeMinutes": 3,
       "useTrailingStop": true,
       "trailingStopPercentage": 0.2,
       "useBreakEven": true,
       "breakEvenTrigger": 0.4
     },
     "entryQuality": {
-      "minVolumeSurge": 1.5,
-      "minRsiStrength": 60.0,
-      "minEmaAlignment": 0.8,
-      "minPriceMomentum": 0.5,
-      "minSignalStrength": 6.0,
-      "requireTrendAlignment": true,
-      "requireSupportResistance": false,
-      "requireVwapAlignment": true
+      "minVolumeSurge": 2.0,
+      "minRsiStrength": 56.0,
+      "minSignalStrength": 7.0
     },
     "marketConditions": {
-      "marketSession": "MID",
-      "minVolatility": 0.5,
-      "maxVolatility": 3.0,
-      "avoidHighSpread": true,
       "maxSpreadPercentage": 0.1,
-      "avoidNewsTime": true,
-      "avoidTimeSlots": ["09:15-09:30", "15:15-15:30"],
-      "requireLiquidity": true,
-      "minLiquidityThreshold": 1000000
+      "minLiquidityThreshold": 1000000,
+      "avoidTimeSlots": ["09:15-09:30", "15:15-15:30"]
     }
   },
   
@@ -71,12 +58,12 @@
     "strategyType": "PUT",
     "entryConditions": {
       "mandatoryConditions": [
-        "ema_5min_crossdown",
         "volume_5min_surge", 
         "rsi_5min_lt_44",
         "price_5min_lt_vwap"
       ],
       "optionalConditions": [
+        "ema_5min_crossdown",
         "ema_1min_crossdown",
         "ema_15min_crossdown",
         "volume_1min_surge",
@@ -89,99 +76,46 @@
         "price_5min_below_support"
       ],
       "minMandatoryCount": 3,
-      "minOptionalCount": 2,
+      "minOptionalCount": 3,
       "minConfidenceScore": 0.6,
-      "requireAllTimeframes": false,
       "requireVolumeConfirmation": true,
       "requirePriceActionConfirmation": true
     },
     "riskManagement": {
       "maxRiskPerTrade": 1.0,
-      "positionSize": 2.0,
       "stopLossPercentage": 0.3,
       "stopLossPoints": 3.0,
       "targetPercentage": 0.8,
       "targetPoints": 8.0,
-      "maxHoldingTimeMinutes": 15,
+      "maxHoldingTimeMinutes": 3,
       "useTrailingStop": true,
       "trailingStopPercentage": 0.2,
       "useBreakEven": true,
       "breakEvenTrigger": 0.4
     },
     "entryQuality": {
-      "minVolumeSurge": 1.5,
-      "minRsiStrength": 40.0,
-      "minEmaAlignment": 0.8,
-      "minPriceMomentum": 0.5,
-      "minSignalStrength": 7.0,
-      "requireTrendAlignment": true,
-      "requireSupportResistance": false,
-      "requireVwapAlignment": true
+      "minVolumeSurge": 2.0,
+      "minRsiStrength": 44.0,
+      "minSignalStrength": 7.0
     },
     "marketConditions": {
-      "marketSession": "MID",
-      "minVolatility": 0.5,
-      "maxVolatility": 3.0,
-      "avoidHighSpread": true,
       "maxSpreadPercentage": 0.1,
-      "avoidNewsTime": true,
-      "avoidTimeSlots": ["09:15-09:30", "15:15-15:30"],
-      "requireLiquidity": true,
-      "minLiquidityThreshold": 1000000
+      "minLiquidityThreshold": 1000000,
+      "avoidTimeSlots": ["09:15-09:30", "15:15-15:30"]
     }
   },
   
-  "commonSettings": {
-    "accountBalance": 100000,
-    "lotSize": 50,
-    "tickSize": 0.05,
-    "maxOpenPositions": 3,
-    "minTimeBetweenTrades": 5,
-    "maxDailyLoss": 5.0,
-    "maxDailyTrades": 20,
-    "enablePositionSizing": true,
-    "enableRiskManagement": true,
-    "enableMarketConditionValidation": true
-  },
-  
-  "qualityGrades": {
-    "A": {
-      "minScore": 0.9,
-      "description": "Excellent entry conditions - High probability trade"
+  "futuresignalsConfig": {
+    "enabledTimeframes": ["1min", "5min"],
+    "callStrategy": {
+      "minBullishTimeframes": 2,
+      "requireAllTimeframes": false,
+      "description": "CALL entry requires at least 2 out of 2 timeframes to be bullish"
     },
-    "B": {
-      "minScore": 0.8,
-      "description": "Good entry conditions - Above average probability"
-    },
-    "C": {
-      "minScore": 0.7,
-      "description": "Average entry conditions - Moderate probability"
-    },
-    "D": {
-      "minScore": 0.6,
-      "description": "Below average conditions - Lower probability"
-    },
-    "F": {
-      "minScore": 0.0,
-      "description": "Poor conditions - Avoid entry"
-    }
-  },
-  
-  "marketSessions": {
-    "OPENING": {
-      "startTime": "09:15",
-      "endTime": "10:00",
-      "description": "Market opening session - High volatility"
-    },
-    "MID": {
-      "startTime": "10:00",
-      "endTime": "15:00",
-      "description": "Mid session - Normal trading conditions"
-    },
-    "CLOSING": {
-      "startTime": "15:00",
-      "endTime": "15:30",
-      "description": "Market closing session - High volatility"
+    "putStrategy": {
+      "minBearishTimeframes": 2,
+      "requireAllTimeframes": false,
+      "description": "PUT entry requires at least 2 out of 2 timeframes to be bearish"
     }
   }
 }

@@ -170,15 +170,12 @@ public class TickProcessService {
             // Calculate entry proximity
             String entryProximity = getEntryProximity(realIndicators, indexTick);
             
-            // ENHANCED LOG WITH ENTRY PROXIMITY
-            log.info("📊 {} | 💰 {} | 📈 {} | 📉 {} | 📊 {} | 🎯 {} | 🎯 {}", 
+            // SIMPLIFIED LOG: Show only trend and entry conditions
+            String trendInfo = getTrendAndConditionsInfo(strategyScore, realIndicators, indexTick);
+            log.info("📊 {} | 💰 {} | {}", 
                 indexTick.getTickTimestamp(), 
                 indexTick.getLastTradedPrice(), 
-                emaStatus, 
-                rsiStatus, 
-                volumeStatus, 
-                entrySignal,
-                entryProximity);
+                trendInfo);
             
             // Log actual entry signals and execute orders (only when signals are generated)
             if (shouldCall) {
@@ -626,15 +623,10 @@ public class TickProcessService {
             // Calculate stop loss and target prices directly (point-based, not percentage-based)
             Double stopLossPrice, targetPrice;
             
-            if ("CALL_BUY".equals(orderType)) {
-                // CALL: Stop loss below entry, target above entry
-                stopLossPrice = optionEntryPrice - stopLossPoints;
-                targetPrice = optionEntryPrice + targetPoints;
-            } else {
-                // PUT: Stop loss above entry, target below entry
-                stopLossPrice = optionEntryPrice + stopLossPoints;
-                targetPrice = optionEntryPrice - targetPoints;
-            }
+            // For both CALL and PUT orders, profit is based on option price movement
+            // When option price goes up = profit, when it goes down = loss
+            stopLossPrice = optionEntryPrice - stopLossPoints;  // Stop loss below entry for both
+            targetPrice = optionEntryPrice + targetPoints;      // Target above entry for both
             
             // Ensure prices don't go below 0
             stopLossPrice = Math.max(stopLossPrice, 0.0);
@@ -670,7 +662,7 @@ public class TickProcessService {
                         orderType, order.getTradingSymbol(), optionEntryPrice);
                 log.info("📊 ORDER DETAILS - ID: {}, Status: {}, StopLoss: {}, Target: {}", 
                         order.getId(), order.getStatus(), order.getStopLossPrice(), order.getTargetPrice());
-                log.info("🎯 OPTION PRICE LEVELS - Entry: {}, StopLoss: {} (-{} points), Target: {} (+{} points)", 
+                log.info("🎯 OPTION PRICE LEVELS - Entry: {}, StopLoss: {} (-{} points), Target: {} (+{} points) - Same logic for CALL/PUT", 
                         optionEntryPrice, stopLossPrice, stopLossPoints,
                         targetPrice, targetPoints);
                 log.info("📊 INDEX LEVELS - Entry Index: {}, Option Premium: {} (1% of index)", 
@@ -746,6 +738,41 @@ public class TickProcessService {
             
         } catch (Exception e) {
             log.error("Error checking and processing exits for tick: {}", tick.getInstrumentToken(), e);
+        }
+    }
+    
+    /**
+     * Get trend and entry conditions info for simplified logging - aligned with actual entry logic
+     */
+    private String getTrendAndConditionsInfo(StrategyScore strategyScore, FlattenedIndicators indicators, Tick tick) {
+        try {
+            // Get the actual entry quality scores to align with entry logic
+            EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
+            EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
+            
+            // Determine dominant trend based on quality scores
+            String dominantTrend;
+            double dominantQuality;
+            String conditionList;
+            
+            if (callQuality.getQualityScore() > putQuality.getQualityScore()) {
+                dominantTrend = "CALL";
+                dominantQuality = callQuality.getQualityScore();
+                conditionList = String.format("Quality:%.1f/10", callQuality.getQualityScore());
+            } else if (putQuality.getQualityScore() > callQuality.getQualityScore()) {
+                dominantTrend = "PUT";
+                dominantQuality = putQuality.getQualityScore();
+                conditionList = String.format("Quality:%.1f/10", putQuality.getQualityScore());
+            } else {
+                dominantTrend = "NEUTRAL";
+                dominantQuality = Math.max(callQuality.getQualityScore(), putQuality.getQualityScore());
+                conditionList = String.format("Quality:%.1f/10", dominantQuality);
+            }
+            
+            return String.format("🎯 %s (%.1f/10): %s", dominantTrend, dominantQuality, conditionList);
+            
+        } catch (Exception e) {
+            return "🎯 ERROR";
         }
     }
     

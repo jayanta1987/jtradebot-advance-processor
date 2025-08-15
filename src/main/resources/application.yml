@@ -53,7 +53,7 @@ jtradebot:
   
   # Backtest Data Collection Configuration
   backtest-data:
-    enabled: true  # Enable/disable automatic data collection
+    enabled: false  # Enable/disable automatic data collection
     batch-size: 100  # Number of data points to collect before writing to file
     batch-interval-ms: 5000  # Maximum time to wait before writing batch (5 seconds)
     output-directory: "./backtest-data"  # Directory to store data files

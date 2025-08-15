@@ -345,30 +345,18 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             log.debug("Exit Check - Order: {}, Current LTP: {}, Stop Loss: {}, Target: {}, Entry: {}", 
                     order.getId(), currentLTP, order.getStopLossPrice(), order.getTargetPrice(), order.getEntryPrice());
             
-            // Check stop loss
-            if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
-                if (currentLTP <= order.getStopLossPrice()) {
-                    log.info("🛑 CALL Stop Loss Hit - Current: {}, Stop Loss: {}", currentLTP, order.getStopLossPrice());
-                    return true;
-                }
-            } else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
-                if (currentLTP >= order.getStopLossPrice()) {
-                    log.info("🛑 PUT Stop Loss Hit - Current: {}, Stop Loss: {}", currentLTP, order.getStopLossPrice());
-                    return true;
-                }
+            // For both CALL and PUT orders, stop loss is hit when current price <= stop loss price
+            // When option price goes down, it's a loss for both CALL and PUT
+            if (currentLTP <= order.getStopLossPrice()) {
+                log.info("🛑 Stop Loss Hit - Current: {}, Stop Loss: {}", currentLTP, order.getStopLossPrice());
+                return true;
             }
             
-            // Check target
-            if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
-                if (currentLTP >= order.getTargetPrice()) {
-                    log.info("🎯 CALL Target Hit - Current: {}, Target: {}", currentLTP, order.getTargetPrice());
-                    return true;
-                }
-            } else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
-                if (currentLTP <= order.getTargetPrice()) {
-                    log.info("🎯 PUT Target Hit - Current: {}, Target: {}", currentLTP, order.getTargetPrice());
-                    return true;
-                }
+            // For both CALL and PUT orders, target is hit when current price >= target price
+            // When option price goes up, it's profitable for both CALL and PUT
+            if (currentLTP >= order.getTargetPrice()) {
+                log.info("🎯 Target Hit - Current: {}, Target: {}", currentLTP, order.getTargetPrice());
+                return true;
             }
         }
         
@@ -417,26 +405,16 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
     
     private ExitReasonEnum determineExitReason(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
         if (order.getStopLossPrice() != null && order.getTargetPrice() != null) {
-            // Check if it's a stop loss exit
-            if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
-                if (currentLTP <= order.getStopLossPrice()) {
-                    return ExitReasonEnum.STOPLOSS_HIT;
-                }
-            } else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
-                if (currentLTP >= order.getStopLossPrice()) {
-                    return ExitReasonEnum.STOPLOSS_HIT;
-                }
+            // For both CALL and PUT orders, stop loss is hit when current price <= stop loss price
+            // When option price goes down, it's a loss for both CALL and PUT
+            if (currentLTP <= order.getStopLossPrice()) {
+                return ExitReasonEnum.STOPLOSS_HIT;
             }
             
-            // Check if it's a target exit
-            if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
-                if (currentLTP >= order.getTargetPrice()) {
-                    return ExitReasonEnum.TARGET_HIT;
-                }
-            } else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
-                if (currentLTP <= order.getTargetPrice()) {
-                    return ExitReasonEnum.TARGET_HIT;
-                }
+            // For both CALL and PUT orders, target is hit when current price >= target price
+            // When option price goes up, it's profitable for both CALL and PUT
+            if (currentLTP >= order.getTargetPrice()) {
+                return ExitReasonEnum.TARGET_HIT;
             }
         }
         

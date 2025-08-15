@@ -15,9 +15,11 @@ import com.jtradebot.processor.model.Support;
 import java.util.Set;
 import com.jtradebot.processor.model.FlattenedIndicators;
 import com.jtradebot.processor.model.FuturesignalData;
+import com.jtradebot.processor.model.ScalpingEntryLogic;
 import com.jtradebot.processor.model.ScalpingVolumeSurgeCallRule;
 import com.jtradebot.processor.model.ScalpingVolumeSurgePutRule;
 import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.service.ScalpingEntryService;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
 import com.zerodhatech.models.Tick;
@@ -28,6 +30,10 @@ import org.ta4j.core.BarSeries;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -37,10 +43,36 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     private final DynamicStrategyConfigService configService;
     private final PriceVolumeSurgeIndicator priceVolumeSurgeIndicator;
     private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final ScalpingEntryService scalpingEntryService;
     
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
     private ScalpingVolumeSurgePutRule putRule;
+    
+    // 🔥 NEW: Volume surge cooldown mechanism to prevent persistent signals
+    private final Map<String, Long> lastVolumeSurgeTime = new ConcurrentHashMap<>();
+    private final Map<String, Double> lastVolumeSurgeMultiplier = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> volumeSurgeCooldown = new ConcurrentHashMap<>();
+    
+    // 🔥 NEW: Natural momentum tracking (no forced cooldowns)
+    private final Map<String, Double> lastPriceLevel = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastPriceCheckTime = new ConcurrentHashMap<>();
+    private final Map<String, Double> priceMomentum = new ConcurrentHashMap<>();
+    
+    // 🔥 NEW: Entry signal cooldown to prevent multiple entries in short time
+    private final Map<String, Long> lastEntrySignalTime = new ConcurrentHashMap<>();
+    private static final long ENTRY_COOLDOWN_MS = 30000; // 30 seconds between entry signals
+    
+    // 🔥 NEW: Volume surge quality tracking (natural approach)
+    private final Map<String, Integer> consecutiveVolumeSurges = new ConcurrentHashMap<>();
+    private final Map<String, Double> averageVolumeMultiplier = new ConcurrentHashMap<>();
+    
+    // 🔥 NEW: Signal quality tracking (natural approach)
+    private final Map<String, Integer> successfulSignals = new ConcurrentHashMap<>();
+    private final Map<String, Integer> failedSignals = new ConcurrentHashMap<>();
+    private final Map<String, Double> signalSuccessRate = new ConcurrentHashMap<>();
+    
+
     
     // Initialize rules from configuration
     private void initializeRules() {
@@ -101,12 +133,15 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 initializeRules();
             }
             
+            String instrumentToken = String.valueOf(tick.getInstrumentToken());
+            
+            // 🔥 NATURAL APPROACH: Intelligent signal validation without forced cooldowns
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Enhanced CALL entry logic with STRICT momentum and futuresignal requirements
+            // Enhanced CALL entry logic with NATURAL momentum and futuresignal requirements
             EntryQuality entryQuality = evaluateCallEntryQuality(indicators, tick);
             
-            // STRICT ENTRY VALIDATION for scalping - require strong momentum and futuresignals
+            // NATURAL ENTRY VALIDATION for scalping - require strong momentum and futuresignals
             boolean hasStrongMomentum = validateStrongMomentum(indicators);
             boolean hasStrongFuturesignals = validateStrongFuturesignals(indicators);
             boolean hasStrongVolumeSurge = validateStrongVolumeSurge(indicators);
@@ -115,9 +150,16 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean shouldEntry = entryQuality.getQualityScore() >= callRule.getMinSignalStrength() &&
                                 hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
             
-            // Log entry signal with quality details (only for actual entry decisions, not for score calculation)
+            // Debug logging to see which condition is failing
+            if (entryQuality.getQualityScore() >= callRule.getMinSignalStrength() && !shouldEntry) {
+                log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 (✓), Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
+                    entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
+            }
+            
+            // 🔥 NATURAL: Update signal tracking for learning (no forced cooldowns)
             if (shouldEntry) {
-                log.debug("🚀 CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
+                updateSignalTrackingNatural(instrumentToken, true); // Track successful signal
+                log.debug("🚀 NATURAL CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
                     tick.getInstrumentToken(), tick.getLastTradedPrice(), entryQuality.getQualityScore(), tick.getTickTimestamp());
             }
             
@@ -137,12 +179,15 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 initializeRules();
             }
             
+            String instrumentToken = String.valueOf(tick.getInstrumentToken());
+            
+            // 🔥 NATURAL APPROACH: Intelligent signal validation without forced cooldowns
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Enhanced PUT entry logic with STRICT momentum and futuresignal requirements
+            // Enhanced PUT entry logic with NATURAL momentum and futuresignal requirements
             EntryQuality entryQuality = evaluatePutEntryQuality(indicators, tick);
             
-            // STRICT ENTRY VALIDATION for scalping - require strong momentum and futuresignals
+            // NATURAL ENTRY VALIDATION for scalping - require strong momentum and futuresignals
             boolean hasStrongMomentum = validateStrongMomentumForPut(indicators);
             boolean hasStrongFuturesignals = validateStrongFuturesignalsForPut(indicators);
             boolean hasStrongVolumeSurge = validateStrongVolumeSurgeForPut(indicators);
@@ -151,13 +196,16 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean shouldEntry = entryQuality.getQualityScore() >= putRule.getMinSignalStrength() &&
                                 hasStrongMomentum && hasStrongFuturesignals && hasStrongVolumeSurge;
             
-            // DEBUG: Log the actual quality score being used for entry decision
-            log.debug("🔍 PUT ENTRY EVALUATION - Quality Score: {}/10, Min Required: {}, Strong Momentum: {}, Strong Futuresignals: {}, Strong Volume: {}, Should Entry: {}", 
-                entryQuality.getQualityScore(), putRule.getMinSignalStrength(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge, shouldEntry);
+            // Debug logging to see which condition is failing
+            if (entryQuality.getQualityScore() >= putRule.getMinSignalStrength() && !shouldEntry) {
+                log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 (✓), Momentum: {}, Futuresignals: {}, VolumeSurge: {}", 
+                    entryQuality.getQualityScore(), hasStrongMomentum, hasStrongFuturesignals, hasStrongVolumeSurge);
+            }
             
-            // Log entry signal with quality details (only for actual entry decisions, not for score calculation)
+            // 🔥 NATURAL: Update signal tracking for learning (no forced cooldowns)
             if (shouldEntry) {
-                log.debug("📉 PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
+                updateSignalTrackingNatural(instrumentToken, true); // Track successful signal
+                log.debug("📉 NATURAL PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
                     tick.getInstrumentToken(), tick.getLastTradedPrice(), entryQuality.getQualityScore(), tick.getTickTimestamp());
             }
             
@@ -1185,28 +1233,261 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             return false;
         }
         
-        // STRICT: Require ALL timeframes to be bullish for scalping
-        return indicators.getFuturesignals().getAllTimeframesBullish();
+        try {
+            // Load futuresignals configuration
+            ScalpingEntryLogic entryLogic = scalpingEntryService.loadEntryLogic("rules/scalping-entry-config.json");
+            ScalpingEntryLogic.FuturesignalsConfig config = entryLogic.getFuturesignalsConfig();
+            
+            if (config == null || config.getCallStrategy() == null) {
+                // Fallback to default behavior if config not found
+                return indicators.getFuturesignals().getAllTimeframesBullish();
+            }
+            
+            // Count bullish timeframes based on enabled timeframes
+            int bullishTimeframes = 0;
+            int totalTimeframes = 0;
+            
+            if (config.getEnabledTimeframes().contains("1min")) {
+                totalTimeframes++;
+                if (indicators.getFuturesignals().getOneMinBullishSurge() != null && 
+                    indicators.getFuturesignals().getOneMinBullishSurge()) {
+                    bullishTimeframes++;
+                }
+            }
+            
+            if (config.getEnabledTimeframes().contains("5min")) {
+                totalTimeframes++;
+                if (indicators.getFuturesignals().getFiveMinBullishSurge() != null && 
+                    indicators.getFuturesignals().getFiveMinBullishSurge()) {
+                    bullishTimeframes++;
+                }
+            }
+            
+            // Check if 15min is enabled (should be false based on your requirement)
+            if (config.getEnabledTimeframes().contains("15min")) {
+                totalTimeframes++;
+                if (indicators.getFuturesignals().getFifteenMinBullishSurge() != null && 
+                    indicators.getFuturesignals().getFifteenMinBullishSurge()) {
+                    bullishTimeframes++;
+                }
+            }
+            
+            // Determine if validation passes
+            boolean isValid;
+            if (config.getCallStrategy().isRequireAllTimeframes()) {
+                isValid = bullishTimeframes == totalTimeframes;
+            } else {
+                isValid = bullishTimeframes >= config.getCallStrategy().getMinBullishTimeframes();
+            }
+            
+            // Dynamic debug logging - only show enabled timeframes
+            if (!isValid) {
+                String timeframeLog = buildFuturesignalsDebugLog(indicators, config.getEnabledTimeframes(), "CALL");
+                log.debug("🔍 CALL FUTURESIGNALS DEBUG - {} | Bullish: {}/{} | Required: {} | Valid: {}", 
+                    timeframeLog,
+                    bullishTimeframes, totalTimeframes,
+                    config.getCallStrategy().getMinBullishTimeframes(),
+                    isValid);
+            } else {
+                // Also log when validation passes to see what's happening
+                String timeframeLog = buildFuturesignalsDebugLog(indicators, config.getEnabledTimeframes(), "CALL");
+                log.debug("✅ CALL FUTURESIGNALS PASSED - {} | Bullish: {}/{} | Required: {} | Valid: {}", 
+                    timeframeLog,
+                    bullishTimeframes, totalTimeframes,
+                    config.getCallStrategy().getMinBullishTimeframes(),
+                    isValid);
+            }
+            
+            return isValid;
+            
+        } catch (Exception e) {
+            log.error("Error validating CALL futuresignals", e);
+            // Fallback to default behavior
+            return indicators.getFuturesignals().getAllTimeframesBullish();
+        }
     }
     
     /**
      * Validate strong volume surge for CALL entry (scalping perspective)
-     * Requires significant volume surge across timeframes
+     * Uses natural, intelligent validation instead of forced cooldowns
      */
     private boolean validateStrongVolumeSurge(FlattenedIndicators indicators) {
-        // Require volume surge in at least 1 timeframe (relaxed from 2)
+        // 🔥 NATURAL APPROACH: Intelligent validation without forced cooldowns
+        String instrumentToken = indicators.getInstrumentToken();
+        long currentTime = System.currentTimeMillis();
+        
+        // Require volume surge in at least 1 timeframe
         int volumeSurgeTimeframes = 0;
         if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) volumeSurgeTimeframes++;
         
-        // Require moderate volume multiplier (at least 1.5x, relaxed from 3.0x)
+        // Require strong volume multiplier (at least 2.5x for quality)
         boolean hasStrongVolumeMultiplier = indicators.getVolume_surge_multiplier() != null && 
-                                           indicators.getVolume_surge_multiplier() >= 1.5;
+                                           indicators.getVolume_surge_multiplier() >= 2.5;
         
-        // RELAXED: Need volume surge in at least 1 timeframe AND moderate multiplier
-        return volumeSurgeTimeframes >= 1 && hasStrongVolumeMultiplier;
+        // 🔥 NATURAL: Enhanced volume surge validation with intelligent quality checks
+        boolean hasVolumeSurge = volumeSurgeTimeframes >= 1 && hasStrongVolumeMultiplier;
+        
+        if (hasVolumeSurge) {
+            // Check if this is a high-quality volume surge (natural validation)
+            boolean isHighQualitySurge = validateVolumeSurgeQualityNatural(instrumentToken, indicators, currentTime);
+            
+            // Check if volume surge is accompanied by price momentum (natural validation)
+            boolean hasPriceMomentum = validatePriceMomentum(instrumentToken, indicators);
+            
+            // Check if market conditions support this signal (natural validation)
+            boolean hasSupportiveMarketConditions = validateMarketConditionsNatural(instrumentToken, indicators);
+            
+            // Update volume surge tracking for learning
+            updateVolumeSurgeTrackingNatural(instrumentToken, indicators, currentTime);
+            
+            // Only return true if all natural validations pass
+            boolean isValidSurge = isHighQualitySurge && hasPriceMomentum && hasSupportiveMarketConditions;
+            
+            // Volume surge validation complete
+            
+            return isValidSurge;
+        }
+        
+        return false;
     }
+    
+    /**
+     * 🔥 SIMPLIFIED: Basic volume surge validation (removed complex quality checks)
+     */
+    private boolean validateVolumeSurgeQualityNatural(String instrumentToken, FlattenedIndicators indicators, long currentTime) {
+        Double currentMultiplier = indicators.getVolume_surge_multiplier();
+        if (currentMultiplier == null) {
+            return false;
+        }
+        
+        // 🔥 SIMPLIFIED: Just check if it's a strong volume surge
+        boolean isStrongVolumeSurge = currentMultiplier >= 2.0; // Any surge above 2x is considered strong
+        
+        return isStrongVolumeSurge;
+    }
+    
+    /**
+     * 🔥 NEW: Natural market conditions validation
+     */
+    private boolean validateMarketConditionsNatural(String instrumentToken, FlattenedIndicators indicators) {
+        // Check if multiple timeframes are aligned (natural market condition)
+        int alignedTimeframes = 0;
+        
+        // Check EMA alignment across timeframes
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) alignedTimeframes++;
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) alignedTimeframes++;
+        if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) alignedTimeframes++;
+        
+        // Check RSI alignment across timeframes
+        int rsiAlignedTimeframes = 0;
+        if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) rsiAlignedTimeframes++;
+        if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) rsiAlignedTimeframes++;
+        if (indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) rsiAlignedTimeframes++;
+        
+        // Natural market condition: At least 2 timeframes aligned
+        boolean hasTimeframeAlignment = alignedTimeframes >= 2;
+        boolean hasRsiAlignment = rsiAlignedTimeframes >= 2;
+        
+        // Check for price action confirmation
+        boolean hasPriceActionConfirmation = indicators.getPrice_gt_vwap_5min() != null && 
+                                           indicators.getPrice_gt_vwap_5min();
+        
+        // Natural market conditions require alignment and confirmation
+        return hasTimeframeAlignment && (hasRsiAlignment || hasPriceActionConfirmation);
+    }
+    
+    /**
+     * 🔥 NEW: Natural volume surge tracking (for learning and adaptation)
+     */
+    private void updateVolumeSurgeTrackingNatural(String instrumentToken, FlattenedIndicators indicators, long currentTime) {
+        // Update tracking for natural learning (no forced cooldowns)
+        lastVolumeSurgeTime.put(instrumentToken, currentTime);
+        
+        log.debug("Natural volume surge tracking updated - Instrument: {}, Time: {}, Multiplier: {}", 
+                instrumentToken, currentTime, indicators.getVolume_surge_multiplier());
+    }
+    
+    // REMOVED: Forced cooldown mechanism - replaced with natural validation
+    
+    /**
+     * 🔥 NEW: Validate volume surge quality to prevent low-quality signals
+     */
+    private boolean validateVolumeSurgeQuality(String instrumentToken, FlattenedIndicators indicators, long currentTime) {
+        Double currentMultiplier = indicators.getVolume_surge_multiplier();
+        if (currentMultiplier == null) {
+            return false;
+        }
+        
+        // Get previous surge data
+        Double lastMultiplier = lastVolumeSurgeMultiplier.get(instrumentToken);
+        Integer consecutiveSurges = consecutiveVolumeSurges.get(instrumentToken);
+        Double avgMultiplier = averageVolumeMultiplier.get(instrumentToken);
+        
+        // Initialize if first time
+        if (lastMultiplier == null) {
+            lastMultiplier = 0.0;
+            consecutiveSurges = 0;
+            avgMultiplier = currentMultiplier;
+        }
+        
+        // Check if this is a significant improvement over last surge
+        boolean isSignificantImprovement = currentMultiplier > lastMultiplier * 1.2; // 20% improvement
+        
+        // Check if multiplier is above average
+        boolean isAboveAverage = currentMultiplier > avgMultiplier * 1.1; // 10% above average
+        
+        // Check if we're not getting too many consecutive surges (avoid persistent signals)
+        boolean isNotExcessive = consecutiveSurges < 3; // Max 3 consecutive surges
+        
+        // High quality surge requires significant improvement and above average multiplier
+        boolean isHighQuality = isSignificantImprovement && isAboveAverage && isNotExcessive;
+        
+        // Update tracking
+        if (isHighQuality) {
+            consecutiveSurges++;
+            avgMultiplier = (avgMultiplier * 0.7) + (currentMultiplier * 0.3); // Weighted average
+        } else {
+            consecutiveSurges = 0; // Reset if not high quality
+        }
+        
+        lastVolumeSurgeMultiplier.put(instrumentToken, currentMultiplier);
+        consecutiveVolumeSurges.put(instrumentToken, consecutiveSurges);
+        averageVolumeMultiplier.put(instrumentToken, avgMultiplier);
+        
+        return isHighQuality;
+    }
+    
+    /**
+     * 🔥 NEW: Validate price momentum to ensure volume surge is accompanied by price movement
+     */
+    private boolean validatePriceMomentum(String instrumentToken, FlattenedIndicators indicators) {
+        // Get current price from indicators (we'll need to pass tick data for this)
+        // For now, we'll use EMA crossover as a proxy for momentum
+        
+        // Check EMA momentum (price above EMAs indicates upward momentum)
+        int bullishEmaCount = 0;
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) bullishEmaCount++;
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) bullishEmaCount++;
+        if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) bullishEmaCount++;
+        
+        // Check RSI momentum (RSI above 56 indicates bullish momentum)
+        int bullishRsiCount = 0;
+        if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) bullishRsiCount++;
+        if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) bullishRsiCount++;
+        if (indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) bullishRsiCount++;
+        
+        // Require at least 2 bullish EMAs and 1 bullish RSI for momentum
+        boolean hasEmaMomentum = bullishEmaCount >= 2;
+        boolean hasRsiMomentum = bullishRsiCount >= 1;
+        
+        return hasEmaMomentum && hasRsiMomentum;
+    }
+    
+    // REMOVED: Old volume surge tracking - replaced with natural tracking
+    
+    // REMOVED: Forced entry signal cooldown - replaced with natural validation
     
     /**
      * Validate strong momentum for PUT entry (scalping perspective)
@@ -1238,32 +1519,267 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             return false;
         }
         
-        // RELAXED: Require at least 2 out of 3 timeframes to be bearish for scalping
-        int bearishTimeframes = 0;
-        if (indicators.getFuturesignals().getOneMinBearishSurge() != null && indicators.getFuturesignals().getOneMinBearishSurge()) bearishTimeframes++;
-        if (indicators.getFuturesignals().getFiveMinBearishSurge() != null && indicators.getFuturesignals().getFiveMinBearishSurge()) bearishTimeframes++;
-        if (indicators.getFuturesignals().getFifteenMinBearishSurge() != null && indicators.getFuturesignals().getFifteenMinBearishSurge()) bearishTimeframes++;
-        
-        return bearishTimeframes >= 2; // At least 2 out of 3 timeframes bearish
+        try {
+            // Load futuresignals configuration
+            ScalpingEntryLogic entryLogic = scalpingEntryService.loadEntryLogic("rules/scalping-entry-config.json");
+            ScalpingEntryLogic.FuturesignalsConfig config = entryLogic.getFuturesignalsConfig();
+            
+            if (config == null || config.getPutStrategy() == null) {
+                // Fallback to default behavior if config not found
+                int bearishTimeframes = 0;
+                if (indicators.getFuturesignals().getOneMinBearishSurge() != null && indicators.getFuturesignals().getOneMinBearishSurge()) bearishTimeframes++;
+                if (indicators.getFuturesignals().getFiveMinBearishSurge() != null && indicators.getFuturesignals().getFiveMinBearishSurge()) bearishTimeframes++;
+                if (indicators.getFuturesignals().getFifteenMinBearishSurge() != null && indicators.getFuturesignals().getFifteenMinBearishSurge()) bearishTimeframes++;
+                return bearishTimeframes >= 2;
+            }
+            
+            // Count bearish timeframes based on enabled timeframes
+            int bearishTimeframes = 0;
+            int totalTimeframes = 0;
+            
+            if (config.getEnabledTimeframes().contains("1min")) {
+                totalTimeframes++;
+                if (indicators.getFuturesignals().getOneMinBearishSurge() != null && 
+                    indicators.getFuturesignals().getOneMinBearishSurge()) {
+                    bearishTimeframes++;
+                }
+            }
+            
+            if (config.getEnabledTimeframes().contains("5min")) {
+                totalTimeframes++;
+                if (indicators.getFuturesignals().getFiveMinBearishSurge() != null && 
+                    indicators.getFuturesignals().getFiveMinBearishSurge()) {
+                    bearishTimeframes++;
+                }
+            }
+            
+            // Check if 15min is enabled (should be false based on your requirement)
+            if (config.getEnabledTimeframes().contains("15min")) {
+                totalTimeframes++;
+                if (indicators.getFuturesignals().getFifteenMinBearishSurge() != null && 
+                    indicators.getFuturesignals().getFifteenMinBearishSurge()) {
+                    bearishTimeframes++;
+                }
+            }
+            
+            // Determine if validation passes
+            boolean isValid;
+            if (config.getPutStrategy().isRequireAllTimeframes()) {
+                isValid = bearishTimeframes == totalTimeframes;
+            } else {
+                isValid = bearishTimeframes >= config.getPutStrategy().getMinBearishTimeframes();
+            }
+            
+            // Dynamic debug logging - only show enabled timeframes
+            if (!isValid) {
+                String timeframeLog = buildFuturesignalsDebugLog(indicators, config.getEnabledTimeframes(), "PUT");
+                log.debug("🔍 PUT FUTURESIGNALS DEBUG - {} | Bearish: {}/{} | Required: {} | Valid: {}", 
+                    timeframeLog,
+                    bearishTimeframes, totalTimeframes,
+                    config.getPutStrategy().getMinBearishTimeframes(),
+                    isValid);
+            } else {
+                // Also log when validation passes to see what's happening
+                String timeframeLog = buildFuturesignalsDebugLog(indicators, config.getEnabledTimeframes(), "PUT");
+                log.debug("✅ PUT FUTURESIGNALS PASSED - {} | Bearish: {}/{} | Required: {} | Valid: {}", 
+                    timeframeLog,
+                    bearishTimeframes, totalTimeframes,
+                    config.getPutStrategy().getMinBearishTimeframes(),
+                    isValid);
+            }
+            
+            return isValid;
+            
+        } catch (Exception e) {
+            log.error("Error validating PUT futuresignals", e);
+            // Fallback to default behavior
+            int bearishTimeframes = 0;
+            if (indicators.getFuturesignals().getOneMinBearishSurge() != null && indicators.getFuturesignals().getOneMinBearishSurge()) bearishTimeframes++;
+            if (indicators.getFuturesignals().getFiveMinBearishSurge() != null && indicators.getFuturesignals().getFiveMinBearishSurge()) bearishTimeframes++;
+            if (indicators.getFuturesignals().getFifteenMinBearishSurge() != null && indicators.getFuturesignals().getFifteenMinBearishSurge()) bearishTimeframes++;
+            return bearishTimeframes >= 2;
+        }
     }
     
     /**
      * Validate strong volume surge for PUT entry (scalping perspective)
-     * Requires significant volume surge across timeframes
+     * Uses natural, intelligent validation instead of forced cooldowns
      */
     private boolean validateStrongVolumeSurgeForPut(FlattenedIndicators indicators) {
-        // Require volume surge in at least 1 timeframe (relaxed from 2)
+        // 🔥 NATURAL APPROACH: Intelligent validation without forced cooldowns for PUT
+        String instrumentToken = indicators.getInstrumentToken();
+        long currentTime = System.currentTimeMillis();
+        
+        // Require volume surge in at least 1 timeframe
         int volumeSurgeTimeframes = 0;
         if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeSurgeTimeframes++;
         if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) volumeSurgeTimeframes++;
         
-        // Require moderate volume multiplier (at least 1.5x, relaxed from 3.0x)
+        // Require strong volume multiplier (at least 2.5x for quality)
         boolean hasStrongVolumeMultiplier = indicators.getVolume_surge_multiplier() != null && 
-                                           indicators.getVolume_surge_multiplier() >= 1.5;
+                                           indicators.getVolume_surge_multiplier() >= 2.5;
         
-        // RELAXED: Need volume surge in at least 1 timeframe AND moderate multiplier
-        return volumeSurgeTimeframes >= 1 && hasStrongVolumeMultiplier;
+        // 🔥 NATURAL: Enhanced volume surge validation with intelligent quality checks for PUT
+        boolean hasVolumeSurge = volumeSurgeTimeframes >= 1 && hasStrongVolumeMultiplier;
+        
+        if (hasVolumeSurge) {
+            // Check if this is a high-quality volume surge (natural validation)
+            boolean isHighQualitySurge = validateVolumeSurgeQualityNatural(instrumentToken, indicators, currentTime);
+            
+            // Check if volume surge is accompanied by bearish price momentum (natural validation)
+            boolean hasBearishMomentum = validateBearishPriceMomentum(instrumentToken, indicators);
+            
+            // Check if market conditions support this bearish signal (natural validation)
+            boolean hasSupportiveMarketConditions = validateBearishMarketConditionsNatural(instrumentToken, indicators);
+            
+            // Update volume surge tracking for learning
+            updateVolumeSurgeTrackingNatural(instrumentToken, indicators, currentTime);
+            
+            // Only return true if all natural validations pass
+            boolean isValidSurge = isHighQualitySurge && hasBearishMomentum && hasSupportiveMarketConditions;
+            
+            // Bearish volume surge validation complete
+            
+            return isValidSurge;
+        }
+        
+        return false;
     }
     
+    /**
+     * 🔥 NEW: Natural bearish market conditions validation
+     */
+    private boolean validateBearishMarketConditionsNatural(String instrumentToken, FlattenedIndicators indicators) {
+        // Check if multiple timeframes are aligned for bearish movement (natural market condition)
+        int bearishAlignedTimeframes = 0;
+        
+        // Check EMA alignment across timeframes (bearish)
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) bearishAlignedTimeframes++;
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) bearishAlignedTimeframes++;
+        if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) bearishAlignedTimeframes++;
+        
+        // Check RSI alignment across timeframes (bearish)
+        int bearishRsiAlignedTimeframes = 0;
+        if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) bearishRsiAlignedTimeframes++;
+        if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) bearishRsiAlignedTimeframes++;
+        if (indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) bearishRsiAlignedTimeframes++;
+        
+        // 🔥 TEMPORARY: Relaxed market conditions for testing
+        // Natural market condition: At least 1 timeframe aligned for bearish movement (relaxed from 2)
+        boolean hasBearishTimeframeAlignment = bearishAlignedTimeframes >= 1; // Relaxed from 2 to 1
+        boolean hasBearishRsiAlignment = bearishRsiAlignedTimeframes >= 1; // Relaxed from 2 to 1
+        
+        // Check for bearish price action confirmation
+        boolean hasBearishPriceActionConfirmation = indicators.getPrice_lt_vwap_5min() != null && 
+                                                  indicators.getPrice_lt_vwap_5min();
+        
+        // Natural bearish market conditions require alignment and confirmation (relaxed)
+        boolean hasMarketConditions = hasBearishTimeframeAlignment && (hasBearishRsiAlignment || hasBearishPriceActionConfirmation);
+        
+
+        
+        return hasMarketConditions;
+    }
+    
+    /**
+     *  NEW: Validate bearish price momentum for PUT entries
+     */
+    private boolean validateBearishPriceMomentum(String instrumentToken, FlattenedIndicators indicators) {
+        // Check EMA momentum (price below EMAs indicates downward momentum)
+        int bearishEmaCount = 0;
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) bearishEmaCount++;
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) bearishEmaCount++;
+        if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) bearishEmaCount++;
+        
+        // Check RSI momentum (RSI below 44 indicates bearish momentum)
+        int bearishRsiCount = 0;
+        if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) bearishRsiCount++;
+        if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) bearishRsiCount++;
+        if (indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) bearishRsiCount++;
+        
+        // 🔥 TEMPORARY: Relaxed momentum requirements for testing
+        // Require at least 1 bearish EMA and 1 bearish RSI for momentum (relaxed from 2+1)
+        boolean hasEmaMomentum = bearishEmaCount >= 1; // Relaxed from 2 to 1
+        boolean hasRsiMomentum = bearishRsiCount >= 1;
+        
+        boolean hasMomentum = hasEmaMomentum && hasRsiMomentum;
+        
+
+        
+        return hasMomentum;
+    }
+    
+    /**
+     * 🔥 NEW: Natural signal tracking for learning and adaptation
+     */
+    private void updateSignalTrackingNatural(String instrumentToken, boolean isSuccessful) {
+        // Track signal success/failure for natural learning
+        if (isSuccessful) {
+            Integer successful = successfulSignals.get(instrumentToken);
+            successful = (successful == null) ? 1 : successful + 1;
+            successfulSignals.put(instrumentToken, successful);
+        } else {
+            Integer failed = failedSignals.get(instrumentToken);
+            failed = (failed == null) ? 1 : failed + 1;
+            failedSignals.put(instrumentToken, failed);
+        }
+        
+        // Calculate success rate for natural adaptation
+        Integer totalSuccessful = successfulSignals.get(instrumentToken);
+        Integer totalFailed = failedSignals.get(instrumentToken);
+        
+        if (totalSuccessful != null && totalFailed != null) {
+            double successRate = (double) totalSuccessful / (totalSuccessful + totalFailed);
+            signalSuccessRate.put(instrumentToken, successRate);
+        }
+        
+        log.debug("Natural signal tracking updated - Instrument: {}, Success: {}, Failed: {}, Success Rate: {}", 
+                instrumentToken, totalSuccessful, totalFailed, signalSuccessRate.get(instrumentToken));
+    }
+    
+    /**
+     * Helper method to build dynamic futuresignals debug log
+     */
+    private String buildFuturesignalsDebugLog(FlattenedIndicators indicators, List<String> enabledTimeframes, String strategyType) {
+        StringBuilder timeframeLog = new StringBuilder();
+        
+        if (enabledTimeframes.contains("1min")) {
+            if ("CALL".equals(strategyType)) {
+                timeframeLog.append(String.format("1min:%s ", 
+                    indicators.getFuturesignals().getOneMinBullishSurge() != null ? 
+                    indicators.getFuturesignals().getOneMinBullishSurge() : "null"));
+            } else {
+                timeframeLog.append(String.format("1min:%s ", 
+                    indicators.getFuturesignals().getOneMinBearishSurge() != null ? 
+                    indicators.getFuturesignals().getOneMinBearishSurge() : "null"));
+            }
+        }
+        
+        if (enabledTimeframes.contains("5min")) {
+            if ("CALL".equals(strategyType)) {
+                timeframeLog.append(String.format("5min:%s ", 
+                    indicators.getFuturesignals().getFiveMinBullishSurge() != null ? 
+                    indicators.getFuturesignals().getFiveMinBullishSurge() : "null"));
+            } else {
+                timeframeLog.append(String.format("5min:%s ", 
+                    indicators.getFuturesignals().getFiveMinBearishSurge() != null ? 
+                    indicators.getFuturesignals().getFiveMinBearishSurge() : "null"));
+            }
+        }
+        
+        if (enabledTimeframes.contains("15min")) {
+            if ("CALL".equals(strategyType)) {
+                timeframeLog.append(String.format("15min:%s ", 
+                    indicators.getFuturesignals().getFifteenMinBullishSurge() != null ? 
+                    indicators.getFuturesignals().getFifteenMinBullishSurge() : "null"));
+            } else {
+                timeframeLog.append(String.format("15min:%s ", 
+                    indicators.getFuturesignals().getFifteenMinBearishSurge() != null ? 
+                    indicators.getFuturesignals().getFifteenMinBearishSurge() : "null"));
+            }
+        }
+        
+        return timeframeLog.toString().trim();
+    }
 }

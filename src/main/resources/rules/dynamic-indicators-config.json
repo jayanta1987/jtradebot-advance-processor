@@ -1,9 +1,9 @@
 {
   "strategy": "PROVEN_SCALPING_STRATEGY",
   "version": "3.0",
-  "description": "Proven scalping strategy with EMA5/EMA9/EMA34/EMA200, 1min/3min/5min/15min timeframes, and candle-EMA5 relationship",
+  "description": "Proven scalping strategy with EMA5/EMA9/EMA34/EMA200, 1min/3min/5min timeframes, and candle-EMA5 relationship",
   
-  "timeframes": ["1min", "3min", "5min", "15min"],
+  "timeframes": ["1min", "3min", "5min"],
   
   "indicators": {
     "ema200_trend_15min": {

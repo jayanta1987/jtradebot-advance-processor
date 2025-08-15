@@ -94,22 +94,18 @@ public class MilestoneSystem {
      * Calculate target price based on points and order type
      */
     private double calculateTargetPrice(double points) {
-        if (OrderTypeEnum.CALL_BUY.equals(orderType)) {
-            return entryPrice + points;
-        } else {
-            return entryPrice - points;
-        }
+        // For both CALL and PUT orders, target is always entryPrice + points
+        // When option price goes up, it's profitable for both CALL and PUT
+        return entryPrice + points;
     }
     
     /**
      * Calculate stop loss price based on points and order type
      */
     private double calculateStopLossPrice(double points) {
-        if (OrderTypeEnum.CALL_BUY.equals(orderType)) {
-            return entryPrice - points;
-        } else {
-            return entryPrice + points;
-        }
+        // For both CALL and PUT orders, stop loss is always entryPrice - points
+        // When option price goes down, it's a loss for both CALL and PUT
+        return entryPrice - points;
     }
     
     /**
@@ -180,11 +176,9 @@ public class MilestoneSystem {
             Milestone milestone = targetMilestones.get(i);
             
             boolean targetHit = false;
-            if (OrderTypeEnum.CALL_BUY.equals(orderType)) {
-                targetHit = currentPrice >= milestone.getTargetPrice();
-            } else {
-                targetHit = currentPrice <= milestone.getTargetPrice();
-            }
+            // For both CALL and PUT orders, target is hit when current price >= target price
+            // When option price goes up, it's profitable for both CALL and PUT
+            targetHit = currentPrice >= milestone.getTargetPrice();
             
             if (targetHit && !milestone.isTargetHit()) {
                 milestone.setTargetHit(true);
@@ -221,11 +215,9 @@ public class MilestoneSystem {
     private boolean isInitialStopLossHit(double currentPrice) {
         double initialStopLossPrice = calculateStopLossPrice(maxStopLossPoints);
         
-        if (OrderTypeEnum.CALL_BUY.equals(orderType)) {
-            return currentPrice <= initialStopLossPrice;
-        } else {
-            return currentPrice >= initialStopLossPrice;
-        }
+        // For both CALL and PUT orders, stop loss is hit when current price <= stop loss price
+        // When option price goes down, it's a loss for both CALL and PUT
+        return currentPrice <= initialStopLossPrice;
     }
     
     /**
@@ -236,11 +228,9 @@ public class MilestoneSystem {
         
         double maxStopLossPoints = this.maxStopLossPoints;
         
-        if (OrderTypeEnum.CALL_BUY.equals(orderType)) {
-            trailingStopLossPrice = currentPrice - maxStopLossPoints;
-        } else {
-            trailingStopLossPrice = currentPrice + maxStopLossPoints;
-        }
+        // For both CALL and PUT orders, trailing stop loss is current price - max stop loss points
+        // This protects profits when option price goes down
+        trailingStopLossPrice = currentPrice - maxStopLossPoints;
     }
     
     /**
@@ -249,22 +239,18 @@ public class MilestoneSystem {
     private boolean isTrailingStopLossHit(double currentPrice) {
         if (!trailingStopLoss) return false;
         
-        if (OrderTypeEnum.CALL_BUY.equals(orderType)) {
-            return currentPrice <= trailingStopLossPrice;
-        } else {
-            return currentPrice >= trailingStopLossPrice;
-        }
+        // For both CALL and PUT orders, trailing stop loss is hit when current price <= trailing stop loss price
+        // This protects profits when option price goes down
+        return currentPrice <= trailingStopLossPrice;
     }
     
     /**
      * Calculate current profit
      */
     private double calculateCurrentProfit(double currentPrice) {
-        if (OrderTypeEnum.CALL_BUY.equals(orderType)) {
-            return currentPrice - entryPrice;
-        } else {
-            return entryPrice - currentPrice;
-        }
+        // For both CALL and PUT orders, profit is always current price - entry price
+        // The option price (premium) determines profit/loss, not the underlying index
+        return currentPrice - entryPrice;
     }
     
     /**
