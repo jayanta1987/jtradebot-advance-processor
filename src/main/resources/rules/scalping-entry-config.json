@@ -3,6 +3,28 @@
   "version": "1.0",
   "description": "Comprehensive scalping entry logic for CALL and PUT strategies with proper risk management",
   
+  "tradingConfiguration": {
+    "accountBalance": 200000,
+    "quantitySettings": {
+      "minLotSize": 75,
+      "maxQuantityPerTrade": 750,
+      "description": "Quantity settings for options trading (Nifty lot size is 75)"
+    },
+    "investmentLimits": {
+      "maxInvestmentPercentage": 90,
+      "description": "Investment limits per trade"
+    },
+    "riskManagement": {
+      "maxRiskPerDayPercentage": 12.0,
+      "maxProfitPerDayPercentage": 30.0,
+      "description": "Risk management percentages"
+    },
+    "tradeSettings": {
+      "maxTradeHoldingTimeInSec": 150,
+      "description": "General trade settings and limits"
+    }
+  },
+
 
   
   "futuresignalsConfig": {

@@ -1,0 +1,156 @@
+{
+  "strategy": "SCORING_CONFIGURATION",
+  "version": "1.0",
+  "description": "Comprehensive scoring and threshold configuration for trading strategies",
+  
+  "scoringConfiguration": {
+    "confidenceScoring": {
+      "emaConfidence": 0.2,
+      "rsiConfidence": 0.2,
+      "volumeConfidence": 0.2,
+      "priceActionConfidence": 0.2,
+      "resistanceConfidence": 0.2,
+      "maxConfidence": 1.0,
+      "description": "Confidence scoring weights"
+    },
+    "emaScoring": {
+      "bullishScore": 1.5,
+      "bearishScore": -1.5,
+      "maxScore": 3.0,
+      "minScore": -3.0,
+      "description": "EMA crossover scoring"
+    },
+    "rsiScoring": {
+      "bullishScore": 1.5,
+      "bearishScore": -1.5,
+      "maxScore": 3.0,
+      "minScore": -3.0,
+      "description": "RSI condition scoring"
+    },
+    "volumeScoring": {
+      "volume5minPoints": 2.0,
+      "volume1minPoints": 1.0,
+      "volumeMultiplierThresholds": {
+        "veryHigh": {
+          "threshold": 3.0,
+          "bonus": 2.0
+        },
+        "high": {
+          "threshold": 2.0,
+          "bonus": 1.0
+        },
+        "standard": {
+          "threshold": 1.5,
+          "bonus": 0.5
+        }
+      },
+      "maxScore": 5.0,
+      "minScore": -5.0,
+      "description": "Volume surge scoring"
+    },
+    "priceActionScoring": {
+      "vwapBullishScore": 1.5,
+      "vwapBearishScore": -1.5,
+      "resistanceScore": 1.5,
+      "supportScore": -1.5,
+      "breakoutStrength": {
+        "strongBreakout": {
+          "threshold": 2.0,
+          "bonus": 2.0
+        },
+        "standardBreakout": {
+          "bonus": 1.0
+        }
+      },
+      "breakdownStrength": {
+        "strongBreakdown": {
+          "threshold": 2.0,
+          "bonus": 2.0
+        },
+        "standardBreakdown": {
+          "bonus": 1.0
+        }
+      },
+      "maxScore": 5.0,
+      "minScore": -5.0,
+      "description": "Price action scoring"
+    },
+    "futuresignalScoring": {
+      "bullishScore": 2.0,
+      "bearishScore": -2.0,
+      "maxScore": 2.0,
+      "minScore": -2.0,
+      "description": "Futuresignal scoring"
+    },
+    "momentumScoring": {
+      "weight": 0.15,
+      "perfectAlignmentBonus": 2.0,
+      "majorityAlignmentBonus": 1.0,
+      "rsiAlignmentBonus": 1.0,
+      "maxScore": 3.0,
+      "minScore": -3.0,
+      "description": "Momentum and trend alignment scoring"
+    },
+    "qualityScoring": {
+      "emaQuality": 5.0,
+      "rsiQuality": 5.0,
+      "volumeQuality": {
+        "volume5min": 5.0,
+        "volume1min": 3.0,
+        "volumeMultiplier": 2.0,
+        "volumeMultiplierThreshold": 3.0
+      },
+      "priceActionQuality": 5.0,
+      "futuresignalQuality": 10.0,
+      "momentumQuality": {
+        "perfectAlignment": 10.0,
+        "majorityAlignment": 7.0,
+        "singleAlignment": 3.0
+      },
+      "candlestickQuality": {
+        "highReliability": 3.0,
+        "mediumReliability": 2.0,
+        "lowReliability": 1.0,
+        "maxScore": 10.0
+      },
+      "minQualityThreshold": 0.7,
+      "description": "Entry quality scoring"
+    }
+  },
+
+  "thresholdConfiguration": {
+    "rsiThresholds": {
+      "callBullish": 56.0,
+      "putBearish": 44.0,
+      "overbought": 70.0,
+      "oversold": 30.0,
+      "tolerance": 0.1,
+      "description": "RSI thresholds for different conditions"
+    },
+    "volumeThresholds": {
+      "surgeMultiplier": 1.5,
+      "highVolumeMultiplier": 2.0,
+      "veryHighVolumeMultiplier": 3.0,
+      "description": "Volume surge thresholds"
+    },
+    "priceThresholds": {
+      "supportResistanceTolerance": 0.01,
+      "breakoutThreshold": 0.99,
+      "breakdownThreshold": 1.01,
+      "emaTouchTolerance": 0.001,
+      "description": "Price action thresholds"
+    },
+    "qualityThresholds": {
+      "minConfidenceScore": 0.7,
+      "minQualityScore": 0.7,
+      "minCandlestickScore": 4.0,
+      "description": "Quality thresholds"
+    }
+  },
+
+  "timingConfiguration": {
+    "entryCooldownMs": 30000,
+    "minDataBars": 20,
+    "description": "Timing and data requirements"
+  }
+}

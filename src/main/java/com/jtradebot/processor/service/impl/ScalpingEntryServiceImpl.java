@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.model.*;
 import com.jtradebot.processor.service.ScalpingEntryService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 public class ScalpingEntryServiceImpl implements ScalpingEntryService {
 
     private final ObjectMapper objectMapper;
+    private final TradingConfigurationService tradingConfigService;
 
     @Override
     public ScalpingEntryDecision evaluateCallEntry(DynamicFlattenedIndicators flattenedIndicators, 
@@ -81,7 +83,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             }
             
             // Calculate position size and risk levels
-            int positionSize = calculatePositionSize(100000, riskManagement.getMaxRiskPerTrade(), 
+            int positionSize = calculatePositionSize(tradingConfigService.getAccountBalance(), riskManagement.getMaxRiskPerTrade(), 
                                                    riskManagement.getStopLossPoints(), currentPrice);
             
             StopLossTargetLevels levels = calculateStopLossTarget(currentPrice, "CALL", 
@@ -174,7 +176,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             }
             
             // Calculate position size and risk levels
-            int positionSize = calculatePositionSize(100000, riskManagement.getMaxRiskPerTrade(), 
+            int positionSize = calculatePositionSize(tradingConfigService.getAccountBalance(), riskManagement.getMaxRiskPerTrade(), 
                                                    riskManagement.getStopLossPoints(), currentPrice);
             
             StopLossTargetLevels levels = calculateStopLossTarget(currentPrice, "PUT", 
@@ -215,16 +217,23 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         double riskPerShare = stopLossPoints;
         int positionSize = (int) (riskAmount / riskPerShare);
         
-        // Round down to nearest lot size (50 for Nifty)
-        positionSize = (positionSize / 50) * 50;
+        // Round down to nearest lot size from configuration
+        int lotSize = tradingConfigService.getMinLotSize();
+        positionSize = (positionSize / lotSize) * lotSize;
         
         // Ensure minimum position size
-        if (positionSize < 50) {
-            positionSize = 50;
+        if (positionSize < lotSize) {
+            positionSize = lotSize;
         }
         
-        log.debug("Position size calculation: balance={}, risk={}%, stopLoss={}, size={}", 
-                accountBalance, riskPerTrade, stopLossPoints, positionSize);
+        // Apply maximum quantity limit
+        int maxQuantity = tradingConfigService.getMaxQuantityPerTrade();
+        if (positionSize > maxQuantity) {
+            positionSize = maxQuantity;
+        }
+        
+        log.debug("Position size calculation: balance={}, risk={}%, stopLoss={}, size={}, maxQuantity={}", 
+                accountBalance, riskPerTrade, stopLossPoints, positionSize, maxQuantity);
         
         return positionSize;
     }

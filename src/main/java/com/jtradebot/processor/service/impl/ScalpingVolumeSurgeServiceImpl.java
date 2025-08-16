@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service.impl;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
+import com.jtradebot.processor.config.ScoringConfigurationService;
 import com.jtradebot.processor.indicator.MultiEmaIndicator;
 import com.jtradebot.processor.indicator.PriceVolumeSurgeIndicator;
 import com.jtradebot.processor.indicator.RsiIndicator;
@@ -51,6 +52,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final ScalpingEntryService scalpingEntryService;
     private final ProfitableTradeFilterService profitableTradeFilterService;
+    private final ScoringConfigurationService scoringConfigService;
     
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
@@ -68,7 +70,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     
     // 🔥 NEW: Entry signal cooldown to prevent multiple entries in short time
     private final Map<String, Long> lastEntrySignalTime = new ConcurrentHashMap<>();
-    private static final long ENTRY_COOLDOWN_MS = 30000; // 30 seconds between entry signals
+    // Entry cooldown will be loaded from configuration
     
     // 🔥 NEW: Volume surge quality tracking (natural approach)
     private final Map<String, Integer> consecutiveVolumeSurges = new ConcurrentHashMap<>();
@@ -303,14 +305,14 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             double confidence = 0.0;
             
-            // Calculate confidence based on how many conditions are met
-            if (indicators.getEma9_5min_gt_ema21_5min()) confidence += 0.2;
-            if (indicators.getRsi_5min_gt_70()) confidence += 0.2;
-            if (indicators.getVolume_5min_surge()) confidence += 0.2;
-            if (indicators.getPrice_gt_vwap_5min()) confidence += 0.2;
-            if (indicators.getPrice_above_resistance()) confidence += 0.2;
+            // Calculate confidence based on how many conditions are met - with null checks
+            if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) confidence += scoringConfigService.getEmaConfidence();
+            if (indicators.getRsi_5min_gt_70() != null && indicators.getRsi_5min_gt_70()) confidence += scoringConfigService.getRsiConfidence();
+            if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) confidence += scoringConfigService.getVolumeConfidence();
+            if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) confidence += scoringConfigService.getPriceActionConfidence();
+            if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) confidence += scoringConfigService.getResistanceConfidence();
             
-            return Math.min(confidence, 1.0);
+            return Math.min(confidence, scoringConfigService.getMaxConfidence());
             
         } catch (Exception e) {
             log.error("Error calculating strategy confidence for tick: {}", tick.getInstrumentToken(), e);
@@ -344,7 +346,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                                (volumeScore * configService.getVolumeSurgeWeight()) +
                                (priceActionScore * configService.getPriceActionWeight()) +
                                (futuresignalScore * configService.getFuturesignalsWeight()) +
-                               (momentumScore * 0.15); // Additional momentum weight
+                               (momentumScore * scoringConfigService.getMomentumWeight()); // Additional momentum weight
             
             // Check entry conditions
             boolean shouldMakeCallEntry = shouldMakeCallEntry(tick);
@@ -403,18 +405,18 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean needsHistoricalData = false;
             
             // Check if we have enough data for RSI calculations (14+ bars)
-            if (oneMinSeries == null || oneMinSeries.getBarCount() < 20) {
-                log.debug("Insufficient 1min data: {} bars (need 20+)", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
+            if (oneMinSeries == null || oneMinSeries.getBarCount() < scoringConfigService.getMinDataBars()) {
+                log.debug("Insufficient 1min data: {} bars (need {}+)", oneMinSeries != null ? oneMinSeries.getBarCount() : 0, scoringConfigService.getMinDataBars());
                 needsHistoricalData = true;
             }
             
-            if (fiveMinSeries == null || fiveMinSeries.getBarCount() < 20) {
-                log.debug("Insufficient 5min data: {} bars (need 20+)", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
+            if (fiveMinSeries == null || fiveMinSeries.getBarCount() < scoringConfigService.getMinDataBars()) {
+                log.debug("Insufficient 5min data: {} bars (need {}+)", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0, scoringConfigService.getMinDataBars());
                 needsHistoricalData = true;
             }
             
-            if (fifteenMinSeries == null || fifteenMinSeries.getBarCount() < 20) {
-                log.debug("Insufficient 15min data: {} bars (need 20+)", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
+            if (fifteenMinSeries == null || fifteenMinSeries.getBarCount() < scoringConfigService.getMinDataBars()) {
+                log.debug("Insufficient 15min data: {} bars (need {}+)", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0, scoringConfigService.getMinDataBars());
                 needsHistoricalData = true;
             }
             
@@ -437,15 +439,15 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     private double calculateEmaScore(FlattenedIndicators indicators) {
         double score = 0.0;
         
-        // Positive points for bullish EMA crossovers
-        if (indicators.getEma9_5min_gt_ema21_5min()) score += 1.5;
-        if (indicators.getEma9_1min_gt_ema21_1min()) score += 1.5;
+        // Positive points for bullish EMA crossovers (with null checks)
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) score += scoringConfigService.getEmaBullishScore();
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) score += scoringConfigService.getEmaBullishScore();
         
         // Negative points for bearish EMA crossovers (only if we have data)
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) score -= 1.5;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) score -= 1.5;
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) score += scoringConfigService.getEmaBearishScore();
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) score += scoringConfigService.getEmaBearishScore();
         
-        return Math.max(-3.0, Math.min(3.0, score));
+        return Math.max(scoringConfigService.getEmaMinScore(), Math.min(scoringConfigService.getEmaMaxScore(), score));
     }
     
     /**
@@ -454,15 +456,15 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     private double calculateRsiScore(FlattenedIndicators indicators) {
         double score = 0.0;
         
-        // Positive points for bullish RSI conditions (RSI > 56)
-        if (indicators.getRsi_5min_gt_56()) score += 1.5;
-        if (indicators.getRsi_1min_gt_56()) score += 1.5;
+        // Positive points for bullish RSI conditions (RSI > 56) - with null checks
+        if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) score += scoringConfigService.getRsiBullishScore();
+        if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) score += scoringConfigService.getRsiBullishScore();
         
-        // Negative points for bearish RSI conditions (RSI < 44)
-        if (indicators.getRsi_5min_lt_44()) score -= 1.5;
-        if (indicators.getRsi_1min_lt_44()) score -= 1.5;
+        // Negative points for bearish RSI conditions (RSI < 44) - with null checks
+        if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) score += scoringConfigService.getRsiBearishScore();
+        if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) score += scoringConfigService.getRsiBearishScore();
         
-        return Math.max(-3.0, Math.min(3.0, score));
+        return Math.max(scoringConfigService.getRsiMinScore(), Math.min(scoringConfigService.getRsiMaxScore(), score));
     }
     
     /**
@@ -498,17 +500,17 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             
             // Calculate volume points based on direction
             double volumePoints = 0.0;
-            if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumePoints += 2.0;
-            if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumePoints += 1.0;
+            if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumePoints += scoringConfigService.getVolume5minPoints();
+            if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumePoints += scoringConfigService.getVolume1minPoints();
             
             // Enhanced volume multiplier bonus (relaxed thresholds)
             if (indicators.getVolume_surge_multiplier() != null) {
-                if (indicators.getVolume_surge_multiplier() >= 3.0) {
-                    volumePoints += 2.0; // Very high volume (relaxed from 5.0)
-                } else if (indicators.getVolume_surge_multiplier() >= 2.0) {
-                    volumePoints += 1.0; // High volume (relaxed from 3.0)
-                } else if (indicators.getVolume_surge_multiplier() >= 1.5) {
-                    volumePoints += 0.5; // Standard volume surge (relaxed from 2.0)
+                if (indicators.getVolume_surge_multiplier() >= scoringConfigService.getVeryHighVolumeMultiplier()) {
+                    volumePoints += scoringConfigService.getScoringConfig().getVolumeScoring().getVolumeMultiplierThresholds().getVeryHigh().getBonus();
+                } else if (indicators.getVolume_surge_multiplier() >= scoringConfigService.getHighVolumeMultiplier()) {
+                    volumePoints += scoringConfigService.getScoringConfig().getVolumeScoring().getVolumeMultiplierThresholds().getHigh().getBonus();
+                } else if (indicators.getVolume_surge_multiplier() >= scoringConfigService.getSurgeMultiplier()) {
+                    volumePoints += scoringConfigService.getScoringConfig().getVolumeScoring().getVolumeMultiplierThresholds().getStandard().getBonus();
                 }
             }
             
@@ -523,7 +525,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             }
         }
         
-        return Math.max(-5.0, Math.min(5.0, score));
+        return Math.max(scoringConfigService.getVolumeMinScore(), Math.min(scoringConfigService.getVolumeMaxScore(), score));
     }
     
     /**
@@ -532,34 +534,34 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     private double calculatePriceActionScore(FlattenedIndicators indicators) {
         double score = 0.0;
         
-        // Base VWAP points
-        if (indicators.getPrice_gt_vwap_5min()) score += 1.5;
-        if (indicators.getPrice_lt_vwap_5min()) score -= 1.5;
+        // Base VWAP points - with null checks
+        if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) score += scoringConfigService.getVwapBullishScore();
+        if (indicators.getPrice_lt_vwap_5min() != null && indicators.getPrice_lt_vwap_5min()) score += scoringConfigService.getVwapBearishScore();
         
-        // Support/Resistance points
-        if (indicators.getPrice_above_resistance()) score += 1.5;
-        if (indicators.getPrice_below_support()) score -= 1.5;
+        // Support/Resistance points - with null checks
+        if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) score += scoringConfigService.getResistanceScore();
+        if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) score += scoringConfigService.getSupportScore();
         
         // Enhanced breakout strength points
         if (indicators.getBreakoutStrength() != null && indicators.getBreakoutStrength() > 0) {
             // Strong breakout: >2% above resistance
-            if (indicators.getBreakoutStrength() > 2.0) {
-                score += 2.0; // Additional points for strong breakout
+            if (indicators.getBreakoutStrength() > scoringConfigService.getScoringConfig().getPriceActionScoring().getBreakoutStrength().getStrongBreakout().getThreshold()) {
+                score += scoringConfigService.getScoringConfig().getPriceActionScoring().getBreakoutStrength().getStrongBreakout().getBonus();
             } else {
-                score += 1.0; // Standard breakout points
+                score += scoringConfigService.getScoringConfig().getPriceActionScoring().getBreakoutStrength().getStandardBreakout().getBonus();
             }
         }
         
         if (indicators.getBreakdownStrength() != null && indicators.getBreakdownStrength() > 0) {
             // Strong breakdown: >2% below support
-            if (indicators.getBreakdownStrength() > 2.0) {
-                score -= 2.0; // Additional points for strong breakdown
+            if (indicators.getBreakdownStrength() > scoringConfigService.getScoringConfig().getPriceActionScoring().getBreakdownStrength().getStrongBreakdown().getThreshold()) {
+                score += scoringConfigService.getScoringConfig().getPriceActionScoring().getBreakdownStrength().getStrongBreakdown().getBonus();
             } else {
-                score -= 1.0; // Standard breakdown points
+                score += scoringConfigService.getScoringConfig().getPriceActionScoring().getBreakdownStrength().getStandardBreakdown().getBonus();
             }
         }
         
-        return Math.max(-5.0, Math.min(5.0, score));
+        return Math.max(scoringConfigService.getPriceActionMinScore(), Math.min(scoringConfigService.getPriceActionMaxScore(), score));
     }
     
     /**
@@ -571,15 +573,15 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         if (indicators.getFuturesignals() != null) {
             // Positive points for bullish futuresignals
             if (indicators.getFuturesignals().getAllTimeframesBullish()) {
-                score += 2.0;
+                score += scoringConfigService.getFuturesignalBullishScore();
             }
             // Negative points for bearish futuresignals
             else if (indicators.getFuturesignals().getAllTimeframesBearish()) {
-                score -= 2.0;
+                score += scoringConfigService.getFuturesignalBearishScore();
             }
         }
         
-        return Math.max(-2.0, Math.min(2.0, score));
+        return Math.max(scoringConfigService.getFuturesignalMinScore(), Math.min(scoringConfigService.getFuturesignalMaxScore(), score));
     }
     
     private void flattenEmaIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries) {
@@ -660,8 +662,8 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 log.debug("1min RSI: {} (BarCount: {})", rsi_1min, oneMinSeries.getBarCount());
                 
                 if (rsi_1min != null) {
-                    indicators.setRsi_1min_gt_70(rsi_1min > 70.0);
-                    indicators.setRsi_1min_lt_30(rsi_1min < 30.0);
+                                indicators.setRsi_1min_gt_70(rsi_1min > scoringConfigService.getOverboughtRsi());
+            indicators.setRsi_1min_lt_30(rsi_1min < scoringConfigService.getOversoldRsi());
                     indicators.setRsi_1min_gt_56(rsi_1min > callRsiThreshold);
                     indicators.setRsi_1min_lt_44(rsi_1min < putRsiThreshold);
                 } else {
@@ -684,8 +686,8 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 log.debug("5min RSI: {} (BarCount: {})", rsi_5min, fiveMinSeries.getBarCount());
                 
                 if (rsi_5min != null) {
-                    indicators.setRsi_5min_gt_70(rsi_5min > 70.0);
-                    indicators.setRsi_5min_lt_30(rsi_5min < 30.0);
+                                indicators.setRsi_5min_gt_70(rsi_5min > scoringConfigService.getOverboughtRsi());
+            indicators.setRsi_5min_lt_30(rsi_5min < scoringConfigService.getOversoldRsi());
                     indicators.setRsi_5min_gt_56(rsi_5min > callRsiThreshold);
                     indicators.setRsi_5min_lt_44(rsi_5min < putRsiThreshold);
                 } else {
@@ -708,8 +710,8 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 log.debug("15min RSI: {} (BarCount: {})", rsi_15min, fifteenMinSeries.getBarCount());
                 
                 if (rsi_15min != null) {
-                    indicators.setRsi_15min_gt_70(rsi_15min > 70.0);
-                    indicators.setRsi_15min_lt_30(rsi_15min < 30.0);
+                                indicators.setRsi_15min_gt_70(rsi_15min > scoringConfigService.getOverboughtRsi());
+            indicators.setRsi_15min_lt_30(rsi_15min < scoringConfigService.getOversoldRsi());
                     indicators.setRsi_15min_gt_56(rsi_15min > callRsiThreshold);
                     indicators.setRsi_15min_lt_44(rsi_15min < putRsiThreshold);
                 } else {
@@ -1161,36 +1163,36 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         
         // EMA Quality Score (0-10)
         double emaScore = 0.0;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) emaScore += 5.0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) emaScore += 5.0;
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) emaScore += scoringConfigService.getEmaQuality();
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) emaScore += scoringConfigService.getEmaQuality();
         quality.setEmaScore(emaScore);
         
         // RSI Quality Score (0-10)
         double rsiScore = 0.0;
-        if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) rsiScore += 5.0;
-        if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) rsiScore += 5.0;
+        if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) rsiScore += scoringConfigService.getRsiQuality();
+        if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) rsiScore += scoringConfigService.getRsiQuality();
         quality.setRsiScore(rsiScore);
         
         // Volume Quality Score (0-10)
         double volumeScore = 0.0;
-        if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeScore += 5.0;
-        if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeScore += 3.0;
-        if (indicators.getVolume_surge_multiplier() != null && indicators.getVolume_surge_multiplier() >= 3.0) volumeScore += 2.0;
+        if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min();
+        if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
+        if (indicators.getVolume_surge_multiplier() != null && indicators.getVolume_surge_multiplier() >= scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolumeMultiplierThreshold()) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolumeMultiplier();
         quality.setVolumeScore(volumeScore);
         
         // Price Action Quality Score (0-10)
         double priceActionScore = 0.0;
-        if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) priceActionScore += 5.0;
-        if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) priceActionScore += 5.0;
+        if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) priceActionScore += scoringConfigService.getPriceActionQuality();
+        if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) priceActionScore += scoringConfigService.getPriceActionQuality();
         quality.setPriceActionScore(priceActionScore);
         
         // Futuresignal Quality Score (0-10)
         double futuresignalScore = 0.0;
         if (indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBullish()) {
-            futuresignalScore = 10.0;
+            futuresignalScore = scoringConfigService.getFuturesignalQuality();
         } else if (indicators.getFuturesignals() != null && 
                    (indicators.getFuturesignals().getFiveMinBullishSurge() || indicators.getFuturesignals().getOneMinBullishSurge())) {
-            futuresignalScore = 5.0;
+            futuresignalScore = scoringConfigService.getFuturesignalQuality() / 2.0; // Half score for partial signals
         }
         quality.setFuturesignalScore(futuresignalScore);
         
@@ -1201,38 +1203,38 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) bullishTimeframes++;
         if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) bullishTimeframes++;
         
-        if (bullishTimeframes == 3) momentumScore = 10.0;
-        else if (bullishTimeframes == 2) momentumScore = 7.0;
-        else if (bullishTimeframes == 1) momentumScore = 3.0;
+        if (bullishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
+        else if (bullishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();
+        else if (bullishTimeframes == 1) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getSingleAlignment();
         quality.setMomentumScore(momentumScore);
         
         // Candlestick Pattern Quality Score (0-10)
         double candlestickScore = 0.0;
         
         // High reliability bullish patterns (3 points each)
-        if (indicators.getBullish_engulfing_5min() != null && indicators.getBullish_engulfing_5min()) candlestickScore += 3.0;
-        if (indicators.getBullish_engulfing_1min() != null && indicators.getBullish_engulfing_1min()) candlestickScore += 3.0;
-        if (indicators.getBullish_morning_star_5min() != null && indicators.getBullish_morning_star_5min()) candlestickScore += 3.0;
-        if (indicators.getBullish_morning_star_1min() != null && indicators.getBullish_morning_star_1min()) candlestickScore += 3.0;
+        if (indicators.getBullish_engulfing_5min() != null && indicators.getBullish_engulfing_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (indicators.getBullish_engulfing_1min() != null && indicators.getBullish_engulfing_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (indicators.getBullish_morning_star_5min() != null && indicators.getBullish_morning_star_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (indicators.getBullish_morning_star_1min() != null && indicators.getBullish_morning_star_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
         
         // Medium reliability bullish patterns (2 points each)
-        if (indicators.getHammer_5min() != null && indicators.getHammer_5min()) candlestickScore += 2.0;
-        if (indicators.getHammer_1min() != null && indicators.getHammer_1min()) candlestickScore += 2.0;
-        if (indicators.getInverted_hammer_5min() != null && indicators.getInverted_hammer_5min()) candlestickScore += 2.0;
-        if (indicators.getInverted_hammer_1min() != null && indicators.getInverted_hammer_1min()) candlestickScore += 2.0;
-        if (indicators.getBullish_harami_5min() != null && indicators.getBullish_harami_5min()) candlestickScore += 2.0;
-        if (indicators.getBullish_harami_1min() != null && indicators.getBullish_harami_1min()) candlestickScore += 2.0;
-        if (indicators.getBullish_marubozu_5min() != null && indicators.getBullish_marubozu_5min()) candlestickScore += 2.0;
-        if (indicators.getBullish_marubozu_1min() != null && indicators.getBullish_marubozu_1min()) candlestickScore += 2.0;
+        if (indicators.getHammer_5min() != null && indicators.getHammer_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getHammer_1min() != null && indicators.getHammer_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getInverted_hammer_5min() != null && indicators.getInverted_hammer_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getInverted_hammer_1min() != null && indicators.getInverted_hammer_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBullish_harami_5min() != null && indicators.getBullish_harami_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBullish_harami_1min() != null && indicators.getBullish_harami_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBullish_marubozu_5min() != null && indicators.getBullish_marubozu_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBullish_marubozu_1min() != null && indicators.getBullish_marubozu_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
         
         // Low reliability bullish patterns (1 point each)
-        if (indicators.getLong_lower_shadow_5min() != null && indicators.getLong_lower_shadow_5min()) candlestickScore += 1.0;
-        if (indicators.getLong_lower_shadow_1min() != null && indicators.getLong_lower_shadow_1min()) candlestickScore += 1.0;
-        if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickScore += 1.0;
-        if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickScore += 1.0;
+        if (indicators.getLong_lower_shadow_5min() != null && indicators.getLong_lower_shadow_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (indicators.getLong_lower_shadow_1min() != null && indicators.getLong_lower_shadow_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
         
-        // Cap the score at 10
-        candlestickScore = Math.min(candlestickScore, 10.0);
+        // Cap the score at max score
+        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
         quality.setCandlestickScore(candlestickScore);
         
         // Calculate overall quality score
@@ -1254,36 +1256,36 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         
         // EMA Quality Score (0-10)
         double emaScore = 0.0;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) emaScore += 5.0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) emaScore += 5.0;
+        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) emaScore += scoringConfigService.getEmaQuality();
+        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) emaScore += scoringConfigService.getEmaQuality();
         quality.setEmaScore(emaScore);
         
         // RSI Quality Score (0-10)
         double rsiScore = 0.0;
-        if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) rsiScore += 5.0;
-        if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) rsiScore += 5.0;
+        if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) rsiScore += scoringConfigService.getRsiQuality();
+        if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) rsiScore += scoringConfigService.getRsiQuality();
         quality.setRsiScore(rsiScore);
         
         // Volume Quality Score (0-10)
         double volumeScore = 0.0;
-        if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeScore += 5.0;
-        if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeScore += 3.0;
-        if (indicators.getVolume_surge_multiplier() != null && indicators.getVolume_surge_multiplier() >= 3.0) volumeScore += 2.0;
+        if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min();
+        if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
+        if (indicators.getVolume_surge_multiplier() != null && indicators.getVolume_surge_multiplier() >= scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolumeMultiplierThreshold()) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolumeMultiplier();
         quality.setVolumeScore(volumeScore);
         
         // Price Action Quality Score (0-10)
         double priceActionScore = 0.0;
-        if (indicators.getPrice_lt_vwap_5min() != null && indicators.getPrice_lt_vwap_5min()) priceActionScore += 5.0;
-        if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) priceActionScore += 5.0;
+        if (indicators.getPrice_lt_vwap_5min() != null && indicators.getPrice_lt_vwap_5min()) priceActionScore += scoringConfigService.getPriceActionQuality();
+        if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) priceActionScore += scoringConfigService.getPriceActionQuality();
         quality.setPriceActionScore(priceActionScore);
         
         // Futuresignal Quality Score (0-10)
         double futuresignalScore = 0.0;
         if (indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBearish()) {
-            futuresignalScore = 10.0;
+            futuresignalScore = scoringConfigService.getFuturesignalQuality();
         } else if (indicators.getFuturesignals() != null && 
                    (indicators.getFuturesignals().getFiveMinBearishSurge() || indicators.getFuturesignals().getOneMinBearishSurge())) {
-            futuresignalScore = 5.0;
+            futuresignalScore = scoringConfigService.getFuturesignalQuality() / 2.0; // Half score for partial signals
         }
         quality.setFuturesignalScore(futuresignalScore);
         
@@ -1294,38 +1296,38 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) bearishTimeframes++;
         if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) bearishTimeframes++;
         
-        if (bearishTimeframes == 3) momentumScore = 10.0;
-        else if (bearishTimeframes == 2) momentumScore = 7.0;
-        else if (bearishTimeframes == 1) momentumScore = 3.0;
+        if (bearishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
+        else if (bearishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();
+        else if (bearishTimeframes == 1) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getSingleAlignment();
         quality.setMomentumScore(momentumScore);
         
         // Candlestick Pattern Quality Score (0-10)
         double candlestickScore = 0.0;
         
         // High reliability bearish patterns (3 points each)
-        if (indicators.getBearish_engulfing_5min() != null && indicators.getBearish_engulfing_5min()) candlestickScore += 3.0;
-        if (indicators.getBearish_engulfing_1min() != null && indicators.getBearish_engulfing_1min()) candlestickScore += 3.0;
-        if (indicators.getBearish_evening_star_5min() != null && indicators.getBearish_evening_star_5min()) candlestickScore += 3.0;
-        if (indicators.getBearish_evening_star_1min() != null && indicators.getBearish_evening_star_1min()) candlestickScore += 3.0;
+        if (indicators.getBearish_engulfing_5min() != null && indicators.getBearish_engulfing_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (indicators.getBearish_engulfing_1min() != null && indicators.getBearish_engulfing_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (indicators.getBearish_evening_star_5min() != null && indicators.getBearish_evening_star_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (indicators.getBearish_evening_star_1min() != null && indicators.getBearish_evening_star_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
         
         // Medium reliability bearish patterns (2 points each)
-        if (indicators.getShooting_star_5min() != null && indicators.getShooting_star_5min()) candlestickScore += 2.0;
-        if (indicators.getShooting_star_1min() != null && indicators.getShooting_star_1min()) candlestickScore += 2.0;
-        if (indicators.getBearish_harami_5min() != null && indicators.getBearish_harami_5min()) candlestickScore += 2.0;
-        if (indicators.getBearish_harami_1min() != null && indicators.getBearish_harami_1min()) candlestickScore += 2.0;
-        if (indicators.getBearish_marubozu_5min() != null && indicators.getBearish_marubozu_5min()) candlestickScore += 2.0;
-        if (indicators.getBearish_marubozu_1min() != null && indicators.getBearish_marubozu_1min()) candlestickScore += 2.0;
-        if (indicators.getLong_upper_shadow_5min() != null && indicators.getLong_upper_shadow_5min()) candlestickScore += 2.0;
-        if (indicators.getLong_upper_shadow_1min() != null && indicators.getLong_upper_shadow_1min()) candlestickScore += 2.0;
+        if (indicators.getShooting_star_5min() != null && indicators.getShooting_star_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getShooting_star_1min() != null && indicators.getShooting_star_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBearish_harami_5min() != null && indicators.getBearish_harami_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBearish_harami_1min() != null && indicators.getBearish_harami_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBearish_marubozu_5min() != null && indicators.getBearish_marubozu_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getBearish_marubozu_1min() != null && indicators.getBearish_marubozu_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getLong_upper_shadow_5min() != null && indicators.getLong_upper_shadow_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (indicators.getLong_upper_shadow_1min() != null && indicators.getLong_upper_shadow_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
         
         // Low reliability bearish patterns (1 point each)
-        if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickScore += 1.0;
-        if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickScore += 1.0;
-        if (indicators.getShort_body_5min() != null && indicators.getShort_body_5min()) candlestickScore += 1.0;
-        if (indicators.getShort_body_1min() != null && indicators.getShort_body_1min()) candlestickScore += 1.0;
+        if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (indicators.getShort_body_5min() != null && indicators.getShort_body_5min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (indicators.getShort_body_1min() != null && indicators.getShort_body_1min()) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
         
-        // Cap the score at 10
-        candlestickScore = Math.min(candlestickScore, 10.0);
+        // Cap the score at max score
+        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
         quality.setCandlestickScore(candlestickScore);
         
         // Calculate overall quality score
