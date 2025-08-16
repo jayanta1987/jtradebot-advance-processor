@@ -91,7 +91,7 @@ public class DynamicStrategyConfigService {
     }
     
     public double getCallVolumeSurgeMultiplier() {
-        return profitableTradeFilterConfig.getCallStrategy().getVolumeSurgeMultiplier().getMin();
+        return profitableTradeFilterConfig.getCallStrategy().getVolumeSurgeMultiplier();
     }
     
     public double getCallSignalStrength() {
@@ -160,7 +160,7 @@ public class DynamicStrategyConfigService {
     }
     
     public double getPutVolumeSurgeMultiplier() {
-        return profitableTradeFilterConfig.getPutStrategy().getVolumeSurgeMultiplier().getMin();
+        return profitableTradeFilterConfig.getPutStrategy().getVolumeSurgeMultiplier();
     }
     
     public double getPutSignalStrength() {

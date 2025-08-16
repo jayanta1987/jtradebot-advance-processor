@@ -16,6 +16,7 @@ public class ProfitableTradeFilterConfig {
     private Boolean enabled;
     private String description;
     
+    private HighQualityEntryLogic highQualityEntryLogic;
     private CallStrategyFilter callStrategy;
     private PutStrategyFilter putStrategy;
     private LoggingConfig logging;
@@ -25,11 +26,22 @@ public class ProfitableTradeFilterConfig {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class HighQualityEntryLogic {
+        private Boolean enabled;
+        private Double highQualityThreshold;
+        private Integer relaxedCategoryRequirement;
+        private String description;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CallStrategyFilter {
         private Boolean enabled;
         private Double minQualityScore;
         private Double minCandlestickScore;
-        private VolumeSurgeMultiplier volumeSurgeMultiplier;
+        private Double volumeSurgeMultiplier;
         private RiskManagement riskManagement;
         private Categories categories;
     }
@@ -91,19 +103,12 @@ public class ProfitableTradeFilterConfig {
         private Boolean enabled;
         private Double minQualityScore;
         private Double minCandlestickScore;
-        private VolumeSurgeMultiplier volumeSurgeMultiplier;
+        private Double volumeSurgeMultiplier;
         private RiskManagement riskManagement;
         private Categories categories;
     }
     
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class VolumeSurgeMultiplier {
-        private Double min;
-        private Double max;
-    }
+    // VolumeSurgeMultiplier is now a simple Double value (minimum threshold only)
     
     @Data
     @Builder

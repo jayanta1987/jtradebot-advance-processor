@@ -39,6 +39,9 @@ public class ProfitableTradeFilterResult {
     private Double candlestickScore;
     private Double volumeSurgeMultiplier;
     
+    // High quality entry logic tracking
+    private Boolean highQualityEntryLogicApplied;
+    
     // Helper methods
     public boolean isRejected() {
         return !isProfitableEntry;
@@ -46,8 +49,9 @@ public class ProfitableTradeFilterResult {
     
     public String getSummary() {
         if (isProfitableEntry) {
-            return String.format("PROFITABLE_ENTRY - %s | Quality: %.1f | Candlestick: %.1f | Volume: %.1fx | Categories: EMA:%s, FV:%s, CS:%s, M:%s",
-                    strategyType, qualityScore, candlestickScore, volumeSurgeMultiplier, 
+            String hqIndicator = Boolean.TRUE.equals(highQualityEntryLogicApplied) ? " [HQ]" : "";
+            return String.format("PROFITABLE_ENTRY%s - %s | Quality: %.1f | Candlestick: %.1f | Volume: %.1fx | Categories: EMA:%s, FV:%s, CS:%s, M:%s",
+                    hqIndicator, strategyType, qualityScore, candlestickScore, volumeSurgeMultiplier, 
                     emaCategoryPassed ? "✓" : "✗", futureAndVolumeCategoryPassed ? "✓" : "✗", 
                     candlestickCategoryPassed ? "✓" : "✗", momentumCategoryPassed ? "✓" : "✗");
         } else {

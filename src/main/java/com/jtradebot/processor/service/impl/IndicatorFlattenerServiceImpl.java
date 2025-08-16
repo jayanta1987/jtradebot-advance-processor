@@ -116,6 +116,13 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
     @Override
     public void flattenVolumeIndicators(TickDocument tickDocument, FlattenedIndicators flattenedIndicators) {
         try {
+            // Get current volume from the tick document
+            long currentVolume = tickDocument.getVolumeTradedToday() != null ? tickDocument.getVolumeTradedToday() : 0;
+            
+            // Log the instrument token and volume being processed
+            log.info("🔍 VOLUME INDICATOR PROCESSING - Instrument Token: {}, Current Volume: {}, Timestamp: {}", 
+                    tickDocument.getInstrumentToken(), currentVolume, tickDocument.getTickTimestamp());
+            
             // Get BarSeries for different timeframes
             BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tickDocument.getInstrumentToken()), ONE_MIN);
             BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tickDocument.getInstrumentToken()), FIVE_MIN);
@@ -127,12 +134,12 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             Boolean volume_15min_surge = false;
             Double volumeMultiplier = 1.0;
             
-            // Get current volume from the tick document
-            long currentVolume = tickDocument.getVolumeTradedToday() != null ? tickDocument.getVolumeTradedToday() : 0;
-            
             // 1-minute volume surge
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
                 try {
+                    log.info("📊 CALCULATING 1MIN VOLUME SURGE - Instrument: {}, Volume: {}, BarCount: {}", 
+                            tickDocument.getInstrumentToken(), currentVolume, oneMinSeries.getBarCount());
+                    
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge1min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         String.valueOf(tickDocument.getInstrumentToken()), ONE_MIN, currentVolume);
                     volume_1min_surge = surge1min.hasSurge();
@@ -147,6 +154,9 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             // 5-minute volume surge
             if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
                 try {
+                    log.info("📊 CALCULATING 5MIN VOLUME SURGE - Instrument: {}, Volume: {}, BarCount: {}", 
+                            tickDocument.getInstrumentToken(), currentVolume, fiveMinSeries.getBarCount());
+                    
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge5min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         String.valueOf(tickDocument.getInstrumentToken()), FIVE_MIN, currentVolume);
                     volume_5min_surge = surge5min.hasSurge();
@@ -161,6 +171,9 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             // 15-minute volume surge
             if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 20) {
                 try {
+                    log.info("📊 CALCULATING 15MIN VOLUME SURGE - Instrument: {}, Volume: {}, BarCount: {}", 
+                            tickDocument.getInstrumentToken(), currentVolume, fifteenMinSeries.getBarCount());
+                    
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge15min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         String.valueOf(tickDocument.getInstrumentToken()), FIFTEEN_MIN, currentVolume);
                     volume_15min_surge = surge15min.hasSurge();

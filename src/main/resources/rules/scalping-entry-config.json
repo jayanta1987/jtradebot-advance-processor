@@ -45,14 +45,18 @@
     "enabled": true,
     "description": "Balanced filter with 4 categories - each category must meet minimum count requirements",
     
+    "highQualityEntryLogic": {
+      "enabled": true,
+      "highQualityThreshold": 8.0,
+      "relaxedCategoryRequirement": 1,
+      "description": "When QualityScore >= 8.0, relax category requirements to just 1 condition per category instead of minCount"
+    },
+    
     "callStrategy": {
       "enabled": true,
       "minQualityScore": 7.5,
       "minCandlestickScore": 4.0,
-      "volumeSurgeMultiplier": {
-        "min": 15.1,
-        "max": 16.0
-      },
+      "volumeSurgeMultiplier": 10.0,
       "riskManagement": {
         "maxRiskPerTrade": 1.0,
         "stopLossPercentage": 0.3,
@@ -116,10 +120,7 @@
       "enabled": true,
       "minQualityScore": 7.5,
       "minCandlestickScore": 4.0,
-      "volumeSurgeMultiplier": {
-        "min": 15.1,
-        "max": 16.0
-      },
+      "volumeSurgeMultiplier": 10.0,
       "riskManagement": {
         "maxRiskPerTrade": 1.0,
         "stopLossPercentage": 0.3,

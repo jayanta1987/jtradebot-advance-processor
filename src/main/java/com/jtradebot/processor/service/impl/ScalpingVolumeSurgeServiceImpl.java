@@ -31,6 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.Bar;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
@@ -55,6 +57,11 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
     private ScalpingVolumeSurgePutRule putRule;
+    
+    // Cache for flattened indicators to prevent multiple calculations
+    private final Map<String, FlattenedIndicators> indicatorsCache = new ConcurrentHashMap<>();
+    private final Map<String, Long> cacheTimestamps = new ConcurrentHashMap<>();
+    private static final long CACHE_DURATION_MS = 1000; // 1 second cache
     
 
     
@@ -212,8 +219,21 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     @Override
     public FlattenedIndicators getFlattenedIndicators(Tick indexTick) {
         try {
+            String instrumentToken = String.valueOf(indexTick.getInstrumentToken());
+            long currentTime = System.currentTimeMillis();
+            
+            // Check cache first
+            FlattenedIndicators cachedIndicators = indicatorsCache.get(instrumentToken);
+            Long cacheTimestamp = cacheTimestamps.get(instrumentToken);
+            
+            if (cachedIndicators != null && cacheTimestamp != null && 
+                (currentTime - cacheTimestamp) < CACHE_DURATION_MS) {
+                log.debug("📋 Using cached indicators for instrument: {}", instrumentToken);
+                return cachedIndicators;
+            }
+            
             FlattenedIndicators indicators = new FlattenedIndicators();
-            indicators.setInstrumentToken(String.valueOf(indexTick.getInstrumentToken()));
+            indicators.setInstrumentToken(instrumentToken);
             
             // Check if we have sufficient BarSeries data for indicator calculations
             ensureSufficientBarSeriesData(String.valueOf(indexTick.getInstrumentToken()));
@@ -229,8 +249,8 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // Flatten RSI indicators
             flattenRsiIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
             
-            // Flatten volume indicators using index tick (will be enhanced with future data)
-            flattenVolumeIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
+            // Skip volume indicators for index tokens (no volume data) - will be calculated with future data later
+            // flattenVolumeIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
             
             // Flatten price action indicators
             flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
@@ -252,8 +272,13 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                     indexTick.getInstrumentToken(), futureTick.getInstrumentToken(),
                     indexTick.getLastTradedPrice(), futureTick.getVolumeTradedToday());
             } else {
-                log.debug("No future tick available for volume enhancement");
+                log.warn("⚠️ No future tick available for volume enhancement - Index Token: {}, Expected Future Token: {}", 
+                    indexTick.getInstrumentToken(), niftyFutureToken);
             }
+            
+            // Cache the result
+            indicatorsCache.put(instrumentToken, indicators);
+            cacheTimestamps.put(instrumentToken, currentTime);
             
             return indicators;
             
@@ -1159,6 +1184,16 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         double priceActionScore = 0.0;
         if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) priceActionScore += scoringConfigService.getPriceActionQuality();
         if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) priceActionScore += scoringConfigService.getPriceActionQuality();
+        
+        // Debug logging for price action conditions
+        log.info("🔍 PRICE ACTION DEBUG - CALL Order | Price: {} | VWAP5min: {} | Resistance: {} | Price>VWAP: {} | Price>Resistance: {} | Score: {}/10", 
+                tick.getLastTradedPrice(), 
+                indicators.getPrice_gt_vwap_5min() != null ? "VWAP calculated" : "VWAP null",
+                indicators.getPrice_above_resistance() != null ? "Resistance calculated" : "Resistance null",
+                indicators.getPrice_gt_vwap_5min(),
+                indicators.getPrice_above_resistance(),
+                priceActionScore);
+        
         quality.setPriceActionScore(priceActionScore);
         
         // Futuresignal Quality Score (0-10)
@@ -1252,6 +1287,16 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         double priceActionScore = 0.0;
         if (indicators.getPrice_lt_vwap_5min() != null && indicators.getPrice_lt_vwap_5min()) priceActionScore += scoringConfigService.getPriceActionQuality();
         if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) priceActionScore += scoringConfigService.getPriceActionQuality();
+        
+        // Debug logging for price action conditions
+        log.info("🔍 PRICE ACTION DEBUG - PUT Order | Price: {} | VWAP5min: {} | Support: {} | Price<VWAP: {} | Price<Support: {} | Score: {}/10", 
+                tick.getLastTradedPrice(), 
+                indicators.getPrice_lt_vwap_5min() != null ? "VWAP calculated" : "VWAP null",
+                indicators.getPrice_below_support() != null ? "Support calculated" : "Support null",
+                indicators.getPrice_lt_vwap_5min(),
+                indicators.getPrice_below_support(),
+                priceActionScore);
+        
         quality.setPriceActionScore(priceActionScore);
         
         // Futuresignal Quality Score (0-10)

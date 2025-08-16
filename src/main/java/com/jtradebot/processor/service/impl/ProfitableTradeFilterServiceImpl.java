@@ -28,7 +28,8 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
     // Cache for filter configuration
     private ProfitableTradeFilterConfig filterConfig;
     private final Map<String, Long> lastFilterLogTime = new ConcurrentHashMap<>();
-    private static final long FILTER_LOG_COOLDOWN_MS = 5000; // 5 seconds between filter logs
+    private final Map<String, String> lastFilterLogMessage = new ConcurrentHashMap<>();
+    private static final long FILTER_LOG_COOLDOWN_MS = 10000; // 10 seconds between filter logs
     
     @Override
     public ProfitableTradeFilterResult evaluateCallEntry(FlattenedIndicators indicators, EntryQuality entryQuality, Tick tick) {
@@ -45,7 +46,8 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
                 .strategyType("CALL")
                 .qualityScore(entryQuality.getQualityScore())
                 .candlestickScore(entryQuality.getCandlestickScore())
-                .volumeSurgeMultiplier(indicators.getVolume_surge_multiplier());
+                .volumeSurgeMultiplier(indicators.getVolume_surge_multiplier())
+                .highQualityEntryLogicApplied(isHighQualityEntryLogicApplied(entryQuality.getQualityScore()));
         
         // Check quality score
         boolean qualityScorePassed = entryQuality.getQualityScore() >= config.getCallStrategy().getMinQualityScore();
@@ -73,40 +75,39 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
         boolean volumeSurgeMultiplierPassed = false;
         if (indicators.getVolume_surge_multiplier() != null) {
             double multiplier = indicators.getVolume_surge_multiplier();
-            volumeSurgeMultiplierPassed = multiplier >= config.getCallStrategy().getVolumeSurgeMultiplier().getMin() &&
-                                         multiplier <= config.getCallStrategy().getVolumeSurgeMultiplier().getMax();
+            volumeSurgeMultiplierPassed = multiplier >= config.getCallStrategy().getVolumeSurgeMultiplier();
         }
         resultBuilder.volumeSurgeMultiplierPassed(volumeSurgeMultiplierPassed);
         
         if (!volumeSurgeMultiplierPassed) {
             return resultBuilder
                     .isProfitableEntry(false)
-                    .rejectionReason("Volume surge multiplier " + indicators.getVolume_surge_multiplier() + " not in range [" +
-                            config.getCallStrategy().getVolumeSurgeMultiplier().getMin() + ", " +
-                            config.getCallStrategy().getVolumeSurgeMultiplier().getMax() + "]")
+                    .rejectionReason("Volume surge multiplier " + indicators.getVolume_surge_multiplier() + " below minimum threshold " +
+                            config.getCallStrategy().getVolumeSurgeMultiplier())
                     .build();
         }
         
         // Evaluate each category
         ProfitableTradeFilterConfig.Categories categories = config.getCallStrategy().getCategories();
+        double qualityScore = entryQuality.getQualityScore();
         
         // EMA Category
-        ProfitableTradeFilterResult.CategoryResult emaCategory = evaluateCategory(indicators, categories.getEma(), "EMA");
+        ProfitableTradeFilterResult.CategoryResult emaCategory = evaluateCategory(indicators, categories.getEma(), "EMA", qualityScore);
         resultBuilder.emaCategory(emaCategory);
         resultBuilder.emaCategoryPassed(emaCategory.getPassed());
         
         // Future and Volume Category
-        ProfitableTradeFilterResult.CategoryResult futureAndVolumeCategory = evaluateCategory(indicators, categories.getFutureAndVolume(), "FutureAndVolume");
+        ProfitableTradeFilterResult.CategoryResult futureAndVolumeCategory = evaluateCategory(indicators, categories.getFutureAndVolume(), "FutureAndVolume", qualityScore);
         resultBuilder.futureAndVolumeCategory(futureAndVolumeCategory);
         resultBuilder.futureAndVolumeCategoryPassed(futureAndVolumeCategory.getPassed());
         
         // Candlestick Category
-        ProfitableTradeFilterResult.CategoryResult candlestickCategory = evaluateCategory(indicators, categories.getCandlestick(), "Candlestick");
+        ProfitableTradeFilterResult.CategoryResult candlestickCategory = evaluateCategory(indicators, categories.getCandlestick(), "Candlestick", qualityScore);
         resultBuilder.candlestickCategory(candlestickCategory);
         resultBuilder.candlestickCategoryPassed(candlestickCategory.getPassed());
         
         // Momentum Category
-        ProfitableTradeFilterResult.CategoryResult momentumCategory = evaluateCategory(indicators, categories.getMomentum(), "Momentum");
+        ProfitableTradeFilterResult.CategoryResult momentumCategory = evaluateCategory(indicators, categories.getMomentum(), "Momentum", qualityScore);
         resultBuilder.momentumCategory(momentumCategory);
         resultBuilder.momentumCategoryPassed(momentumCategory.getPassed());
         
@@ -154,7 +155,8 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
                 .strategyType("PUT")
                 .qualityScore(entryQuality.getQualityScore())
                 .candlestickScore(entryQuality.getCandlestickScore())
-                .volumeSurgeMultiplier(indicators.getVolume_surge_multiplier());
+                .volumeSurgeMultiplier(indicators.getVolume_surge_multiplier())
+                .highQualityEntryLogicApplied(isHighQualityEntryLogicApplied(entryQuality.getQualityScore()));
         
         // Check quality score
         boolean qualityScorePassed = entryQuality.getQualityScore() >= config.getPutStrategy().getMinQualityScore();
@@ -182,40 +184,39 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
         boolean volumeSurgeMultiplierPassed = false;
         if (indicators.getVolume_surge_multiplier() != null) {
             double multiplier = indicators.getVolume_surge_multiplier();
-            volumeSurgeMultiplierPassed = multiplier >= config.getPutStrategy().getVolumeSurgeMultiplier().getMin() &&
-                                         multiplier <= config.getPutStrategy().getVolumeSurgeMultiplier().getMax();
+            volumeSurgeMultiplierPassed = multiplier >= config.getPutStrategy().getVolumeSurgeMultiplier();
         }
         resultBuilder.volumeSurgeMultiplierPassed(volumeSurgeMultiplierPassed);
         
         if (!volumeSurgeMultiplierPassed) {
             return resultBuilder
                     .isProfitableEntry(false)
-                    .rejectionReason("Volume surge multiplier " + indicators.getVolume_surge_multiplier() + " not in range [" +
-                            config.getPutStrategy().getVolumeSurgeMultiplier().getMin() + ", " +
-                            config.getPutStrategy().getVolumeSurgeMultiplier().getMax() + "]")
+                    .rejectionReason("Volume surge multiplier " + indicators.getVolume_surge_multiplier() + " below minimum threshold " +
+                            config.getPutStrategy().getVolumeSurgeMultiplier())
                     .build();
         }
         
         // Evaluate each category
         ProfitableTradeFilterConfig.Categories categories = config.getPutStrategy().getCategories();
+        double qualityScore = entryQuality.getQualityScore();
         
         // EMA Category
-        ProfitableTradeFilterResult.CategoryResult emaCategory = evaluateCategory(indicators, categories.getEma(), "EMA");
+        ProfitableTradeFilterResult.CategoryResult emaCategory = evaluateCategory(indicators, categories.getEma(), "EMA", qualityScore);
         resultBuilder.emaCategory(emaCategory);
         resultBuilder.emaCategoryPassed(emaCategory.getPassed());
         
         // Future and Volume Category
-        ProfitableTradeFilterResult.CategoryResult futureAndVolumeCategory = evaluateCategory(indicators, categories.getFutureAndVolume(), "FutureAndVolume");
+        ProfitableTradeFilterResult.CategoryResult futureAndVolumeCategory = evaluateCategory(indicators, categories.getFutureAndVolume(), "FutureAndVolume", qualityScore);
         resultBuilder.futureAndVolumeCategory(futureAndVolumeCategory);
         resultBuilder.futureAndVolumeCategoryPassed(futureAndVolumeCategory.getPassed());
         
         // Candlestick Category
-        ProfitableTradeFilterResult.CategoryResult candlestickCategory = evaluateCategory(indicators, categories.getCandlestick(), "Candlestick");
+        ProfitableTradeFilterResult.CategoryResult candlestickCategory = evaluateCategory(indicators, categories.getCandlestick(), "Candlestick", qualityScore);
         resultBuilder.candlestickCategory(candlestickCategory);
         resultBuilder.candlestickCategoryPassed(candlestickCategory.getPassed());
         
         // Momentum Category
-        ProfitableTradeFilterResult.CategoryResult momentumCategory = evaluateCategory(indicators, categories.getMomentum(), "Momentum");
+        ProfitableTradeFilterResult.CategoryResult momentumCategory = evaluateCategory(indicators, categories.getMomentum(), "Momentum", qualityScore);
         resultBuilder.momentumCategory(momentumCategory);
         resultBuilder.momentumCategoryPassed(momentumCategory.getPassed());
         
@@ -274,7 +275,7 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
     /**
      * Evaluate a category and return the result
      */
-    private ProfitableTradeFilterResult.CategoryResult evaluateCategory(FlattenedIndicators indicators, ProfitableTradeFilterConfig.Category category, String categoryName) {
+    private ProfitableTradeFilterResult.CategoryResult evaluateCategory(FlattenedIndicators indicators, ProfitableTradeFilterConfig.Category category, String categoryName, double qualityScore) {
         List<String> passedConditions = new ArrayList<>();
         List<String> failedConditions = new ArrayList<>();
         
@@ -288,11 +289,17 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
         }
         
         int passedCount = passedConditions.size();
-        int requiredCount = category.getMinCount();
+        
+        // Determine required count based on quality score and high quality entry logic
+        int requiredCount = getRequiredCountForCategory(category, qualityScore);
+        
         boolean passed = passedCount >= requiredCount;
         
         String failureReason = passed ? null : 
-            String.format("%s category: %d/%d conditions met (need %d)", categoryName, passedCount, category.getConditions().size(), requiredCount);
+            String.format("%s category: %d/%d conditions met (need %d) - Passed: [%s], Failed: [%s]", 
+                categoryName, passedCount, category.getConditions().size(), requiredCount,
+                String.join(", ", passedConditions),
+                String.join(", ", failedConditions));
         
         return ProfitableTradeFilterResult.CategoryResult.builder()
                 .categoryName(categoryName)
@@ -303,6 +310,38 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
                 .failedConditions(failedConditions)
                 .failureReason(failureReason)
                 .build();
+    }
+    
+    /**
+     * Determine the required count for a category based on quality score and high quality entry logic
+     */
+    private int getRequiredCountForCategory(ProfitableTradeFilterConfig.Category category, double qualityScore) {
+        ProfitableTradeFilterConfig config = getFilterConfig();
+        
+        // Check if high quality entry logic is enabled and quality score meets threshold
+        if (config.getHighQualityEntryLogic() != null && 
+            Boolean.TRUE.equals(config.getHighQualityEntryLogic().getEnabled()) &&
+            qualityScore >= config.getHighQualityEntryLogic().getHighQualityThreshold()) {
+            
+            // Use relaxed requirement (1 condition per category)
+            int relaxedRequirement = config.getHighQualityEntryLogic().getRelaxedCategoryRequirement();
+            log.debug("🎯 HIGH QUALITY ENTRY LOGIC APPLIED - Quality Score: {} >= {} | Using relaxed requirement: {} (instead of {})", 
+                     qualityScore, config.getHighQualityEntryLogic().getHighQualityThreshold(), relaxedRequirement, category.getMinCount());
+            return relaxedRequirement;
+        }
+        
+        // Use normal minCount requirement
+        return category.getMinCount();
+    }
+    
+    /**
+     * Check if high quality entry logic should be applied based on quality score
+     */
+    private boolean isHighQualityEntryLogicApplied(double qualityScore) {
+        ProfitableTradeFilterConfig config = getFilterConfig();
+        return config.getHighQualityEntryLogic() != null && 
+               Boolean.TRUE.equals(config.getHighQualityEntryLogic().getEnabled()) &&
+               qualityScore >= config.getHighQualityEntryLogic().getHighQualityThreshold();
     }
     
     /**
@@ -428,7 +467,13 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
         long currentTime = System.currentTimeMillis();
         Long lastLogTime = lastFilterLogTime.get(instrumentToken);
         
-        if (lastLogTime == null || (currentTime - lastLogTime) > FILTER_LOG_COOLDOWN_MS) {
+        // Create a unique message key to prevent duplicate logs
+        String messageKey = result.getStrategyType() + "_" + (isAccepted ? "ACCEPTED" : "REJECTED") + "_" + 
+                           (result.getRejectionReason() != null ? result.getRejectionReason().hashCode() : "null");
+        
+        if (lastLogTime == null || (currentTime - lastLogTime) > FILTER_LOG_COOLDOWN_MS || 
+            !messageKey.equals(lastFilterLogMessage.get(instrumentToken))) {
+            
             if (isAccepted) {
                 log.info("🎯 PROFITABLE TRADE FILTER - ACCEPTED | {} | Price: {} | {}", 
                         result.getStrategyType(), tick.getLastTradedPrice(), result.getSummary());
@@ -436,7 +481,9 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
                 log.debug("🚫 PROFITABLE TRADE FILTER - REJECTED | {} | Price: {} | Reason: {}", 
                         result.getStrategyType(), tick.getLastTradedPrice(), result.getRejectionReason());
             }
+            
             lastFilterLogTime.put(instrumentToken, currentTime);
+            lastFilterLogMessage.put(instrumentToken, messageKey);
         }
     }
 }
