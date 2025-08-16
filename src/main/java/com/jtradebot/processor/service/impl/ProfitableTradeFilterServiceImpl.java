@@ -2,10 +2,10 @@ package com.jtradebot.processor.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
-import com.jtradebot.processor.model.EntryQuality;
-import com.jtradebot.processor.model.FlattenedIndicators;
-import com.jtradebot.processor.model.ProfitableTradeFilterConfig;
-import com.jtradebot.processor.model.ProfitableTradeFilterResult;
+import com.jtradebot.processor.model.indicator.EntryQuality;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.ProfitableTradeFilterConfig;
+import com.jtradebot.processor.model.strategy.ProfitableTradeFilterResult;
 import com.jtradebot.processor.service.ProfitableTradeFilterService;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;

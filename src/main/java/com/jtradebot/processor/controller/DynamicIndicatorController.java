@@ -1,8 +1,8 @@
 package com.jtradebot.processor.controller;
 
-import com.jtradebot.processor.model.DynamicFlattenedIndicators;
-import com.jtradebot.processor.model.DynamicIndicatorConfig;
-import com.jtradebot.processor.model.StrategyEvaluationResult;
+import com.jtradebot.processor.model.indicator.DynamicFlattenedIndicators;
+import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
+import com.jtradebot.processor.model.strategy.StrategyEvaluationResult;
 import com.jtradebot.processor.repository.document.TickDocument;
 import com.jtradebot.processor.service.DynamicIndicatorFlattenerService;
 import com.jtradebot.processor.service.DynamicStrategyEvaluatorService;

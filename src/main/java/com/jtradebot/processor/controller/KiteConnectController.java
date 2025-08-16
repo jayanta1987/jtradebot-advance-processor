@@ -1,6 +1,6 @@
 package com.jtradebot.processor.controller;
 
-import com.jtradebot.processor.aws.AwsSecretHandler;
+import com.jtradebot.processor.config.AwsSecretHandler;
 import com.jtradebot.processor.connector.KiteSetupHandler;
 import com.jtradebot.processor.service.TickSetupService;
 import com.zerodhatech.kiteconnect.KiteConnect;

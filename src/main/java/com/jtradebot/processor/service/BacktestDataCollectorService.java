@@ -1,9 +1,9 @@
 package com.jtradebot.processor.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jtradebot.processor.model.FlattenedIndicators;
-import com.jtradebot.processor.model.EntryQuality;
-import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.indicator.EntryQuality;
+import com.jtradebot.processor.model.strategy.StrategyScore;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.zerodhatech.models.Tick;

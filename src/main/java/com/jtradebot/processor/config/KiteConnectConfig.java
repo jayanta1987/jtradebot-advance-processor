@@ -1,6 +1,6 @@
 package com.jtradebot.processor.config;
 
-import com.jtradebot.processor.aws.AwsSecretHandler;
+import com.jtradebot.processor.config.AwsSecretHandler;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

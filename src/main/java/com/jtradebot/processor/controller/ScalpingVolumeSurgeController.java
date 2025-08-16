@@ -1,8 +1,8 @@
 package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
-import com.jtradebot.processor.model.FlattenedIndicators;
-import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.StrategyScore;
 import com.jtradebot.processor.service.ExitStrategyService;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
 import com.jtradebot.processor.repository.document.JtradeOrder;

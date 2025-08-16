@@ -1,11 +1,11 @@
 package com.jtradebot.processor.service;
 
-import com.jtradebot.processor.model.DynamicFlattenedIndicators;
-import com.jtradebot.processor.model.DynamicIndicatorConfig;
-import com.jtradebot.processor.model.ScalpingEntryLogic;
-import com.jtradebot.processor.model.ScalpingEntryDecision;
-import com.jtradebot.processor.model.StopLossTargetLevels;
-import com.jtradebot.processor.model.MarketConditionValidation;
+import com.jtradebot.processor.model.indicator.DynamicFlattenedIndicators;
+import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
+import com.jtradebot.processor.model.strategy.ScalpingEntryLogic;
+import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.model.trading.StopLossTargetLevels;
+import com.jtradebot.processor.model.indicator.MarketConditionValidation;
 
 public interface ScalpingEntryService {
     

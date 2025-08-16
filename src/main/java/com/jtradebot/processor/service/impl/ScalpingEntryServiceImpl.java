@@ -2,7 +2,12 @@ package com.jtradebot.processor.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.config.TradingConfigurationService;
-import com.jtradebot.processor.model.*;
+import com.jtradebot.processor.model.indicator.DynamicFlattenedIndicators;
+import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
+import com.jtradebot.processor.model.indicator.MarketConditionValidation;
+import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.model.strategy.ScalpingEntryLogic;
+import com.jtradebot.processor.model.trading.StopLossTargetLevels;
 import com.jtradebot.processor.service.ScalpingEntryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

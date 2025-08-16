@@ -1,7 +1,7 @@
 package com.jtradebot.processor.backTest;
 
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
-import com.jtradebot.processor.model.FlattenedIndicators;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.zerodhatech.models.Tick;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;

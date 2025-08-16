@@ -1,7 +1,7 @@
 package com.jtradebot.processor.indicator;
 
-import com.jtradebot.processor.model.EmaIndicatorInfo;
-import com.jtradebot.processor.model.EmaInfo;
+import com.jtradebot.processor.model.indicator.EmaIndicatorInfo;
+import com.jtradebot.processor.model.indicator.EmaInfo;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.CrossTypeEnum;
 import com.jtradebot.processor.model.enums.TrendEnum;

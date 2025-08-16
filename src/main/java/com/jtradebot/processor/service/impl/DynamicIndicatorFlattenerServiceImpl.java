@@ -7,9 +7,9 @@ import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.indicator.VWAPIndicator;
 import com.jtradebot.processor.manager.TickDataManager;
-import com.jtradebot.processor.model.DynamicFlattenedIndicators;
-import com.jtradebot.processor.model.DynamicIndicatorConfig;
-import com.jtradebot.processor.model.EmaInfo;
+import com.jtradebot.processor.model.indicator.DynamicFlattenedIndicators;
+import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
+import com.jtradebot.processor.model.indicator.EmaInfo;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.repository.document.TickDocument;
 import com.jtradebot.processor.service.DynamicIndicatorFlattenerService;
@@ -28,8 +28,8 @@ import java.util.Map;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 import com.jtradebot.processor.candleStick.CandlestickPattern;
-import com.jtradebot.processor.model.Support;
-import com.jtradebot.processor.model.Resistance;
+import com.jtradebot.processor.model.indicator.Support;
+import com.jtradebot.processor.model.indicator.Resistance;
 
 @Service
 @RequiredArgsConstructor

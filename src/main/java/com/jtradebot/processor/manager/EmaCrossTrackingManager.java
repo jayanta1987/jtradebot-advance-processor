@@ -1,6 +1,6 @@
 package com.jtradebot.processor.manager;
 
-import com.jtradebot.processor.model.EmaCrossOverConfirmation;
+import com.jtradebot.processor.model.indicator.EmaCrossOverConfirmation;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;

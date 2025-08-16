@@ -1,8 +1,8 @@
 package com.jtradebot.processor.service;
 
-import com.jtradebot.processor.model.EntryQuality;
-import com.jtradebot.processor.model.FlattenedIndicators;
-import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.model.indicator.EntryQuality;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.StrategyScore;
 
 import com.zerodhatech.models.Tick;
 

@@ -1,6 +1,6 @@
 package com.jtradebot.processor.controller;
 
-import com.jtradebot.processor.model.IntraDayPreference;
+import com.jtradebot.processor.model.trading.IntraDayPreference;
 import com.jtradebot.processor.service.TickSetupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

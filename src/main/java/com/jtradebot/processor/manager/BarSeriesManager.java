@@ -1,7 +1,7 @@
 package com.jtradebot.processor.manager;
 
 import com.jtradebot.processor.handler.DateTimeHandler;
-import com.jtradebot.processor.model.BarSeriesData;
+import com.jtradebot.processor.model.indicator.BarSeriesData;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.KiteHistoricalDataTimeframeEnum;
 import com.zerodhatech.kiteconnect.KiteConnect;

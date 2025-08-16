@@ -3,7 +3,7 @@ package com.jtradebot.processor.service;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.EmaCrossTrackingManager;
 import com.jtradebot.processor.manager.TickDataManager;
-import com.jtradebot.processor.model.BarSeriesData;
+import com.jtradebot.processor.model.indicator.BarSeriesData;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;

@@ -2,9 +2,9 @@ package com.jtradebot.processor.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jtradebot.processor.model.DynamicIndicatorConfig;
-import com.jtradebot.processor.model.ScalpingEntryConfig;
-import com.jtradebot.processor.model.ProfitableTradeFilterConfig;
+import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
+import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
+import com.jtradebot.processor.model.strategy.ProfitableTradeFilterConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;

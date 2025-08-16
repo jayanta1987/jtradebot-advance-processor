@@ -1,8 +1,8 @@
 package com.jtradebot.processor.service;
 
-import com.jtradebot.processor.model.EntryQuality;
-import com.jtradebot.processor.model.FlattenedIndicators;
-import com.jtradebot.processor.model.ProfitableTradeFilterResult;
+import com.jtradebot.processor.model.indicator.EntryQuality;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.ProfitableTradeFilterResult;
 import com.zerodhatech.models.Tick;
 
 public interface ProfitableTradeFilterService {
@@ -35,5 +35,5 @@ public interface ProfitableTradeFilterService {
      * Get the current filter configuration
      * @return ProfitableTradeFilterConfig object
      */
-    com.jtradebot.processor.model.ProfitableTradeFilterConfig getFilterConfig();
+    com.jtradebot.processor.model.strategy.ProfitableTradeFilterConfig getFilterConfig();
 }
