@@ -18,10 +18,15 @@ public class FlattenedIndicators {
     private LocalDateTime timestamp;
     private String timeframe;
     
-    // EMA Crossover indicators
-    private Boolean ema9_1min_gt_ema21_1min;
-    private Boolean ema9_5min_gt_ema21_5min;
-    private Boolean ema9_15min_gt_ema21_15min;
+    // EMA Crossover indicators (EMA5 vs EMA34)
+    private Boolean ema5_1min_gt_ema34_1min;
+    private Boolean ema5_5min_gt_ema34_5min;
+    private Boolean ema5_15min_gt_ema34_15min;
+    
+    // Bearish EMA indicators (EMA5 < EMA34)
+    private Boolean ema5_1min_lt_ema34_1min;
+    private Boolean ema5_5min_lt_ema34_5min;
+    private Boolean ema5_15min_lt_ema34_15min;
     
     // RSI indicators - Updated thresholds
     private Boolean rsi_1min_gt_70;

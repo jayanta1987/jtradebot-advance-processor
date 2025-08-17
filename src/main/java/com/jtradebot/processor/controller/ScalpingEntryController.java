@@ -1,20 +1,15 @@
 package com.jtradebot.processor.controller;
 
-import com.jtradebot.processor.model.indicator.DynamicFlattenedIndicators;
-import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
-import com.jtradebot.processor.model.indicator.MarketConditionValidation;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
-import com.jtradebot.processor.model.strategy.ScalpingEntryLogic;
-import com.jtradebot.processor.model.trading.StopLossTargetLevels;
-import com.jtradebot.processor.repository.document.TickDocument;
-import com.jtradebot.processor.service.DynamicIndicatorFlattenerService;
 import com.jtradebot.processor.service.ScalpingEntryService;
+import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
+import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,185 +19,114 @@ import java.util.Map;
 @Slf4j
 public class ScalpingEntryController {
 
-    private final DynamicIndicatorFlattenerService dynamicIndicatorFlattenerService;
     private final ScalpingEntryService scalpingEntryService;
+    private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
 
     /**
-     * Evaluate scalping entry for both CALL and PUT strategies
+     * Evaluate scalping entry using the new scenario-based approach
      */
     @PostMapping("/evaluate")
-    public ResponseEntity<Map<String, Object>> evaluateScalpingEntry(@RequestBody TickDocument tickDocument) {
+    public ResponseEntity<Map<String, Object>> evaluateScalpingEntry(@RequestBody Tick tick) {
         try {
-            log.info("Evaluating scalping entry for instrument: {}", tickDocument.getInstrumentToken());
+            log.info("Evaluating scalping entry for instrument: {}", tick.getInstrumentToken());
             
-            // Load dynamic indicator configuration
-            DynamicIndicatorConfig config = dynamicIndicatorFlattenerService.loadConfiguration("rules/dynamic-indicators-config.json");
-            if (config == null) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Failed to load indicator configuration"));
-            }
+            // Get flattened indicators from the volume surge service
+            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
             
-            // Flatten indicators
-            DynamicFlattenedIndicators flattenedIndicators = dynamicIndicatorFlattenerService.flattenIndicators(tickDocument, config);
-            
-            // Get current price and time
-            double currentPrice = tickDocument.getLastTradedPrice();
-            LocalDateTime currentTime = LocalDateTime.now();
-            
-            // Validate market conditions
-            MarketConditionValidation marketConditions = scalpingEntryService.validateMarketConditions(
-                currentTime, currentPrice, currentPrice * 0.9999, currentPrice * 1.0001, 1000000L);
-            
-            // Evaluate CALL entry
-            ScalpingEntryDecision callDecision = scalpingEntryService.evaluateCallEntry(
-                flattenedIndicators, config, currentPrice, currentTime);
-            
-            // Evaluate PUT entry
-            ScalpingEntryDecision putDecision = scalpingEntryService.evaluatePutEntry(
-                flattenedIndicators, config, currentPrice, currentTime);
+            // Evaluate entry using new scenario-based approach
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
             
             // Prepare response
             Map<String, Object> response = new HashMap<>();
-            response.put("instrumentToken", tickDocument.getInstrumentToken());
-            response.put("currentPrice", currentPrice);
-            response.put("currentTime", currentTime);
-            response.put("marketConditions", marketConditions);
-            response.put("callDecision", callDecision);
-            response.put("putDecision", putDecision);
-            response.put("flattenedIndicators", flattenedIndicators);
+            response.put("instrumentToken", tick.getInstrumentToken());
+            response.put("currentPrice", tick.getLastTradedPrice());
+            response.put("currentTime", tick.getTickTimestamp());
+            response.put("decision", decision);
+            response.put("flattenedIndicators", indicators);
             
-            // Determine best entry
-            ScalpingEntryDecision bestEntry = determineBestEntry(callDecision, putDecision);
-            response.put("bestEntry", bestEntry);
-            
-            log.info("Scalping entry evaluation completed for instrument: {}", tickDocument.getInstrumentToken());
+            log.info("Scalping entry evaluation completed for instrument: {}", tick.getInstrumentToken());
             
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("Error evaluating scalping entry for instrument: {}", tickDocument.getInstrumentToken(), e);
+            log.error("Error evaluating scalping entry for instrument: {}", tick.getInstrumentToken(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
     /**
-     * Evaluate CALL entry only
+     * Evaluate CALL entry using legacy approach (for backward compatibility)
      */
     @PostMapping("/evaluate-call")
-    public ResponseEntity<ScalpingEntryDecision> evaluateCallEntry(@RequestBody TickDocument tickDocument) {
+    public ResponseEntity<Map<String, Object>> evaluateCallEntry(@RequestBody Tick tick) {
         try {
-            log.info("Evaluating CALL entry for instrument: {}", tickDocument.getInstrumentToken());
+            log.info("Evaluating CALL entry for instrument: {}", tick.getInstrumentToken());
             
-            DynamicIndicatorConfig config = dynamicIndicatorFlattenerService.loadConfiguration("rules/dynamic-indicators-config.json");
-            if (config == null) {
-                return ResponseEntity.badRequest().build();
-            }
-            
-            DynamicFlattenedIndicators flattenedIndicators = dynamicIndicatorFlattenerService.flattenIndicators(tickDocument, config);
-            
-            ScalpingEntryDecision callDecision = scalpingEntryService.evaluateCallEntry(
-                flattenedIndicators, config, tickDocument.getLastTradedPrice(), LocalDateTime.now());
-            
-            return ResponseEntity.ok(callDecision);
-            
-        } catch (Exception e) {
-            log.error("Error evaluating CALL entry", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    /**
-     * Evaluate PUT entry only
-     */
-    @PostMapping("/evaluate-put")
-    public ResponseEntity<ScalpingEntryDecision> evaluatePutEntry(@RequestBody TickDocument tickDocument) {
-        try {
-            log.info("Evaluating PUT entry for instrument: {}", tickDocument.getInstrumentToken());
-            
-            DynamicIndicatorConfig config = dynamicIndicatorFlattenerService.loadConfiguration("rules/dynamic-indicators-config.json");
-            if (config == null) {
-                return ResponseEntity.badRequest().build();
-            }
-            
-            DynamicFlattenedIndicators flattenedIndicators = dynamicIndicatorFlattenerService.flattenIndicators(tickDocument, config);
-            
-            ScalpingEntryDecision putDecision = scalpingEntryService.evaluatePutEntry(
-                flattenedIndicators, config, tickDocument.getLastTradedPrice(), LocalDateTime.now());
-            
-            return ResponseEntity.ok(putDecision);
-            
-        } catch (Exception e) {
-            log.error("Error evaluating PUT entry", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    /**
-     * Calculate position size and risk levels
-     */
-    @PostMapping("/calculate-position")
-    public ResponseEntity<Map<String, Object>> calculatePosition(@RequestBody Map<String, Object> request) {
-        try {
-            double accountBalance = Double.parseDouble(request.get("accountBalance").toString());
-            double riskPerTrade = Double.parseDouble(request.get("riskPerTrade").toString());
-            double stopLossPoints = Double.parseDouble(request.get("stopLossPoints").toString());
-            double currentPrice = Double.parseDouble(request.get("currentPrice").toString());
-            String strategyType = request.get("strategyType").toString();
-            
-            int positionSize = scalpingEntryService.calculatePositionSize(accountBalance, riskPerTrade, stopLossPoints, currentPrice);
-            
-            StopLossTargetLevels levels = scalpingEntryService.calculateStopLossTarget(currentPrice, strategyType, stopLossPoints, 8.0);
+            // Use the volume surge service for CALL evaluation
+            boolean shouldMakeCallEntry = scalpingVolumeSurgeService.shouldMakeCallEntry(tick);
             
             Map<String, Object> response = new HashMap<>();
-            response.put("positionSize", positionSize);
-            response.put("stopLossTargetLevels", levels);
-            response.put("riskAmount", accountBalance * (riskPerTrade / 100.0));
-            response.put("riskPerShare", stopLossPoints);
+            response.put("instrumentToken", tick.getInstrumentToken());
+            response.put("currentPrice", tick.getLastTradedPrice());
+            response.put("shouldMakeCallEntry", shouldMakeCallEntry);
+            response.put("strategyType", "CALL");
             
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("Error calculating position", e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            log.error("Error evaluating CALL entry", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
     /**
-     * Validate market conditions
+     * Evaluate PUT entry using legacy approach (for backward compatibility)
      */
-    @PostMapping("/validate-market")
-    public ResponseEntity<MarketConditionValidation> validateMarketConditions(@RequestBody Map<String, Object> request) {
+    @PostMapping("/evaluate-put")
+    public ResponseEntity<Map<String, Object>> evaluatePutEntry(@RequestBody Tick tick) {
         try {
-            LocalDateTime currentTime = LocalDateTime.now();
-            double currentPrice = Double.parseDouble(request.get("currentPrice").toString());
-            double bidPrice = Double.parseDouble(request.get("bidPrice").toString());
-            double askPrice = Double.parseDouble(request.get("askPrice").toString());
-            long volume = Long.parseLong(request.get("volume").toString());
+            log.info("Evaluating PUT entry for instrument: {}", tick.getInstrumentToken());
             
-            MarketConditionValidation validation = scalpingEntryService.validateMarketConditions(
-                currentTime, currentPrice, bidPrice, askPrice, volume);
+            // Use the volume surge service for PUT evaluation
+            boolean shouldMakePutEntry = scalpingVolumeSurgeService.shouldMakePutEntry(tick);
             
-            return ResponseEntity.ok(validation);
+            Map<String, Object> response = new HashMap<>();
+            response.put("instrumentToken", tick.getInstrumentToken());
+            response.put("currentPrice", tick.getLastTradedPrice());
+            response.put("shouldMakePutEntry", shouldMakePutEntry);
+            response.put("strategyType", "PUT");
+            
+            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("Error validating market conditions", e);
-            return ResponseEntity.badRequest().build();
+            log.error("Error evaluating PUT entry", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
     /**
-     * Get scalping entry configuration
+     * Get strategy score and recommendation
      */
-    @GetMapping("/config")
-    public ResponseEntity<ScalpingEntryLogic> getEntryConfig() {
+    @PostMapping("/strategy-score")
+    public ResponseEntity<Map<String, Object>> getStrategyScore(@RequestBody Tick tick) {
         try {
-            ScalpingEntryLogic config = scalpingEntryService.loadEntryLogic("rules/scalping-entry-config.json");
-            if (config == null) {
-                return ResponseEntity.notFound().build();
-            }
-            return ResponseEntity.ok(config);
+            log.info("Getting strategy score for instrument: {}", tick.getInstrumentToken());
+            
+            // Get strategy score from volume surge service
+            String recommendedStrategy = scalpingVolumeSurgeService.getRecommendedStrategy(tick);
+            Double strategyConfidence = scalpingVolumeSurgeService.getStrategyConfidence(tick);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("instrumentToken", tick.getInstrumentToken());
+            response.put("currentPrice", tick.getLastTradedPrice());
+            response.put("recommendedStrategy", recommendedStrategy);
+            response.put("strategyConfidence", strategyConfidence);
+            
+            return ResponseEntity.ok(response);
+            
         } catch (Exception e) {
-            log.error("Error loading entry configuration", e);
-            return ResponseEntity.internalServerError().build();
+            log.error("Error getting strategy score", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -214,42 +138,28 @@ public class ScalpingEntryController {
         Map<String, Object> health = new HashMap<>();
         health.put("status", "UP");
         health.put("service", "ScalpingEntryService");
-        health.put("version", "1.0");
-        
-        try {
-            ScalpingEntryLogic config = scalpingEntryService.loadEntryLogic("rules/scalping-entry-config.json");
-            health.put("configLoaded", config != null);
-        } catch (Exception e) {
-            health.put("configLoaded", false);
-            health.put("error", e.getMessage());
-        }
+        health.put("version", "2.0");
+        health.put("description", "Scenario-based scalping entry evaluation");
         
         return ResponseEntity.ok(health);
     }
 
-    // Helper method to determine best entry
-    private ScalpingEntryDecision determineBestEntry(ScalpingEntryDecision callDecision, ScalpingEntryDecision putDecision) {
-        if (!callDecision.isShouldEnter() && !putDecision.isShouldEnter()) {
-            return ScalpingEntryDecision.builder()
-                    .strategyType("NO_TRADE")
-                    .shouldEnter(false)
-                    .rejectionReason("Neither CALL nor PUT conditions met")
-                    .build();
-        }
-        
-        if (callDecision.isShouldEnter() && !putDecision.isShouldEnter()) {
-            return callDecision;
-        }
-        
-        if (!callDecision.isShouldEnter() && putDecision.isShouldEnter()) {
-            return putDecision;
-        }
-        
-        // Both are valid, choose the one with higher confidence
-        if (callDecision.getConfidenceScore() > putDecision.getConfidenceScore()) {
-            return callDecision;
-        } else {
-            return putDecision;
+    /**
+     * Get available scenarios and categories
+     */
+    @GetMapping("/scenarios")
+    public ResponseEntity<Map<String, Object>> getScenarios() {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Scenarios and categories are configured in scalping-entry-config.json");
+            response.put("note", "Use /api/scalping-volume-surge/rules to see current configuration");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error getting scenarios", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 }
+

@@ -66,5 +66,12 @@ public interface ScalpingVolumeSurgeService {
      * @return EntryQuality object with quality score and breakdown
      */
     EntryQuality evaluatePutEntryQuality(FlattenedIndicators indicators, Tick tick);
+    
+    /**
+     * Gets the scenario-based entry decision with full details
+     * @param tick The current tick data
+     * @return ScalpingEntryDecision object with scenario information
+     */
+    com.jtradebot.processor.model.strategy.ScalpingEntryDecision getEntryDecision(Tick tick);
 
 }

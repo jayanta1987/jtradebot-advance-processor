@@ -2,6 +2,7 @@ package com.jtradebot.processor.service;
 
 import com.jtradebot.processor.model.indicator.EntryQuality;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -18,67 +20,65 @@ public class EntryConditionAnalysisService {
     private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
     
     /**
-     * Capture all conditions that led to the order entry - Category-based approach aligned with JSON configuration
+     * Capture all conditions that led to the order entry - Scenario-based approach aligned with JSON configuration
      */
     public List<String> captureEntryConditions(Tick tick, String orderType) {
         List<String> conditions = new ArrayList<>();
         
         try {
-            // Get flattened indicators
-            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
+            // Get the scenario-based entry decision
+            ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(tick);
             
-            if (indicators == null) {
-                conditions.add("ERROR: No indicators available");
+            if (entryDecision == null) {
+                conditions.add("ERROR: No entry decision available");
                 return conditions;
             }
             
-            // Add quality scores
-            if ("CALL_BUY".equals(orderType)) {
-                EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
-                conditions.add(String.format("Quality Score: %.1f/10", callQuality.getQualityScore()));
-                conditions.add(String.format("EMA Score: %.1f/10", callQuality.getEmaScore()));
-                conditions.add(String.format("RSI Score: %.1f/10", callQuality.getRsiScore()));
-                conditions.add(String.format("Volume Score: %.1f/10", callQuality.getVolumeScore()));
-                conditions.add(String.format("Price Action Score: %.1f/10", callQuality.getPriceActionScore()));
-                conditions.add(String.format("Futuresignal Score: %.1f/10", callQuality.getFuturesignalScore()));
-                conditions.add(String.format("Momentum Score: %.1f/10", callQuality.getMomentumScore()));
-                conditions.add(String.format("Candlestick Score: %.1f/10", callQuality.getCandlestickScore()));
-            } else if ("PUT_BUY".equals(orderType)) {
-                EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
-                conditions.add(String.format("Quality Score: %.1f/10", putQuality.getQualityScore()));
-                conditions.add(String.format("EMA Score: %.1f/10", putQuality.getEmaScore()));
-                conditions.add(String.format("RSI Score: %.1f/10", putQuality.getRsiScore()));
-                conditions.add(String.format("Volume Score: %.1f/10", putQuality.getVolumeScore()));
-                conditions.add(String.format("Price Action Score: %.1f/10", putQuality.getPriceActionScore()));
-                conditions.add(String.format("Futuresignal Score: %.1f/10", putQuality.getFuturesignalScore()));
-                conditions.add(String.format("Momentum Score: %.1f/10", putQuality.getMomentumScore()));
-                conditions.add(String.format("Candlestick Score: %.1f/10", putQuality.getCandlestickScore()));
+            // Add scenario information
+            conditions.add(String.format("Scenario: %s", entryDecision.getScenarioName()));
+            conditions.add(String.format("Confidence: %.1f/10", entryDecision.getConfidence()));
+            conditions.add(String.format("Reason: %s", entryDecision.getReason()));
+            
+            // Add quality score if available
+            if (entryDecision.getQualityScore() > 0.0) {
+                conditions.add(String.format("Quality Score: %.1f/10", entryDecision.getQualityScore()));
             }
             
-            // Capture conditions by category using the same logic as ProfitableTradeFilterService
-            conditions.add("--- CATEGORY-BASED CONDITIONS (JSON Configuration) ---");
-            
-            if ("CALL_BUY".equals(orderType)) {
-                captureCallCategoryConditions(conditions, indicators);
-            } else if ("PUT_BUY".equals(orderType)) {
-                capturePutCategoryConditions(conditions, indicators);
-            }
-            
-            // Add futuresignal information
-            if (indicators.getFuturesignals() != null) {
-                conditions.add("--- FUTURESIGNALS ---");
-                if (indicators.getFuturesignals().getAllTimeframesBullish()) {
-                    conditions.add("✓ All timeframes bullish");
-                } else if (indicators.getFuturesignals().getAllTimeframesBearish()) {
-                    conditions.add("✓ All timeframes bearish");
-                } else {
-                    conditions.add("Mixed futuresignals");
+            // Add category scores if available
+            if (entryDecision.getCategoryScores() != null && !entryDecision.getCategoryScores().isEmpty()) {
+                conditions.add("--- CATEGORY SCORES ---");
+                for (Map.Entry<String, Integer> entry : entryDecision.getCategoryScores().entrySet()) {
+                    conditions.add(String.format("%s: %d", entry.getKey(), entry.getValue()));
                 }
             }
             
-            // Add volume surge multiplier if available
-            if (indicators.getVolume_surge_multiplier() != null) {
-                conditions.add(String.format("Volume Surge Multiplier: %.2fx", indicators.getVolume_surge_multiplier()));
+            // Add matched conditions if available
+            if (entryDecision.getMatchedConditions() != null && !entryDecision.getMatchedConditions().isEmpty()) {
+                conditions.add("--- MATCHED CONDITIONS ---");
+                for (Map.Entry<String, List<String>> entry : entryDecision.getMatchedConditions().entrySet()) {
+                    conditions.add(String.format("%s: %s", entry.getKey(), String.join(", ", entry.getValue())));
+                }
+            }
+            
+            // Add additional indicator information if needed
+            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
+            if (indicators != null) {
+                // Add futuresignal information
+                if (indicators.getFuturesignals() != null) {
+                    conditions.add("--- FUTURESIGNALS ---");
+                    if (indicators.getFuturesignals().getAllTimeframesBullish()) {
+                        conditions.add("✓ All timeframes bullish");
+                    } else if (indicators.getFuturesignals().getAllTimeframesBearish()) {
+                        conditions.add("✓ All timeframes bearish");
+                    } else {
+                        conditions.add("Mixed futuresignals");
+                    }
+                }
+                
+                // Add volume surge multiplier if available
+                if (indicators.getVolume_surge_multiplier() != null) {
+                    conditions.add(String.format("Volume Surge Multiplier: %.2fx", indicators.getVolume_surge_multiplier()));
+                }
             }
             
         } catch (Exception e) {
@@ -96,9 +96,9 @@ public class EntryConditionAnalysisService {
         // EMA Category (need 2/3)
         conditions.add("--- EMA CATEGORY (Need 2/3) ---");
         int emaPassed = 0;
-        if (checkCondition(indicators, "ema9_5min_gt_ema21_5min")) { conditions.add("✓ ema9_5min_gt_ema21_5min"); emaPassed++; }
-        if (checkCondition(indicators, "ema9_1min_gt_ema21_1min")) { conditions.add("✓ ema9_1min_gt_ema21_1min"); emaPassed++; }
-        if (checkCondition(indicators, "ema9_15min_gt_ema21_15min")) { conditions.add("✓ ema9_15min_gt_ema21_15min"); emaPassed++; }
+        if (checkCondition(indicators, "ema5_5min_gt_ema34_5min")) { conditions.add("✓ ema5_5min_gt_ema34_5min"); emaPassed++; }
+        if (checkCondition(indicators, "ema5_1min_gt_ema34_1min")) { conditions.add("✓ ema5_1min_gt_ema34_1min"); emaPassed++; }
+        if (checkCondition(indicators, "ema5_15min_gt_ema34_15min")) { conditions.add("✓ ema5_15min_gt_ema34_15min"); emaPassed++; }
         conditions.add(String.format("EMA Category: %d/3 passed (Need 2)", emaPassed));
         
         // Future and Volume Category (need 4/7)
@@ -144,9 +144,9 @@ public class EntryConditionAnalysisService {
         // EMA Category (need 2/3) - Bearish
         conditions.add("--- EMA CATEGORY (Need 2/3) - Bearish ---");
         int emaPassed = 0;
-        if (checkCondition(indicators, "ema9_5min_lt_ema21_5min")) { conditions.add("✓ ema9_5min_lt_ema21_5min"); emaPassed++; }
-        if (checkCondition(indicators, "ema9_1min_lt_ema21_1min")) { conditions.add("✓ ema9_1min_lt_ema21_1min"); emaPassed++; }
-        if (checkCondition(indicators, "ema9_15min_lt_ema21_15min")) { conditions.add("✓ ema9_15min_lt_ema21_15min"); emaPassed++; }
+        if (checkCondition(indicators, "ema5_5min_lt_ema34_5min")) { conditions.add("✓ ema5_5min_lt_ema34_5min"); emaPassed++; }
+        if (checkCondition(indicators, "ema5_1min_lt_ema34_1min")) { conditions.add("✓ ema5_1min_lt_ema34_1min"); emaPassed++; }
+        if (checkCondition(indicators, "ema5_15min_lt_ema34_15min")) { conditions.add("✓ ema5_15min_lt_ema34_15min"); emaPassed++; }
         conditions.add(String.format("EMA Category: %d/3 passed (Need 2)", emaPassed));
         
         // Future and Volume Category (need 4/7) - Bearish
@@ -191,18 +191,18 @@ public class EntryConditionAnalysisService {
     private boolean checkCondition(FlattenedIndicators indicators, String condition) {
         switch (condition) {
             // EMA conditions
-            case "ema9_5min_gt_ema21_5min":
-                return Boolean.TRUE.equals(indicators.getEma9_5min_gt_ema21_5min());
-            case "ema9_1min_gt_ema21_1min":
-                return Boolean.TRUE.equals(indicators.getEma9_1min_gt_ema21_1min());
-            case "ema9_15min_gt_ema21_15min":
-                return Boolean.TRUE.equals(indicators.getEma9_15min_gt_ema21_15min());
-            case "ema9_5min_lt_ema21_5min":
-                return indicators.getEma9_5min_gt_ema21_5min() != null ? !indicators.getEma9_5min_gt_ema21_5min() : false;
-            case "ema9_1min_lt_ema21_1min":
-                return indicators.getEma9_1min_gt_ema21_1min() != null ? !indicators.getEma9_1min_gt_ema21_1min() : false;
-            case "ema9_15min_lt_ema21_15min":
-                return indicators.getEma9_15min_gt_ema21_15min() != null ? !indicators.getEma9_15min_gt_ema21_15min() : false;
+            case "ema5_5min_gt_ema34_5min":
+                return Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min());
+            case "ema5_1min_gt_ema34_1min":
+                return Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min());
+            case "ema5_15min_gt_ema34_15min":
+                return Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min());
+            case "ema5_5min_lt_ema34_5min":
+                return indicators.getEma5_5min_gt_ema34_5min() != null ? !indicators.getEma5_5min_gt_ema34_5min() : false;
+            case "ema5_1min_lt_ema34_1min":
+                return indicators.getEma5_1min_gt_ema34_1min() != null ? !indicators.getEma5_1min_gt_ema34_1min() : false;
+            case "ema5_15min_lt_ema34_15min":
+                return indicators.getEma5_15min_gt_ema34_15min() != null ? !indicators.getEma5_15min_gt_ema34_15min() : false;
             
             // Volume conditions
             case "volume_5min_surge":

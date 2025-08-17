@@ -460,8 +460,8 @@ public class BacktestDataCollectorService {
         
         // EMA Quality Score (0-10)
         double emaScore = 0.0;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) emaScore += 5.0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) emaScore += 5.0;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) emaScore += 5.0;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) emaScore += 5.0;
         quality.setEmaScore(emaScore);
         
         // RSI Quality Score (0-10)
@@ -502,8 +502,8 @@ public class BacktestDataCollectorService {
         
         // EMA Quality Score (0-10)
         double emaScore = 0.0;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) emaScore += 5.0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) emaScore += 5.0;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && !indicators.getEma5_5min_gt_ema34_5min()) emaScore += 5.0;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && !indicators.getEma5_1min_gt_ema34_1min()) emaScore += 5.0;
         quality.setEmaScore(emaScore);
         
         // RSI Quality Score (0-10)
@@ -539,9 +539,9 @@ public class BacktestDataCollectorService {
         
         // Count strong signals
         int strongEmaSignals = 0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) strongEmaSignals++;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) strongEmaSignals++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) strongEmaSignals++;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) strongEmaSignals++;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) strongEmaSignals++;
+        if (indicators.getEma5_15min_gt_ema34_15min() != null && indicators.getEma5_15min_gt_ema34_15min()) strongEmaSignals++;
         
         int strongRsiSignals = 0;
         if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) strongRsiSignals++;

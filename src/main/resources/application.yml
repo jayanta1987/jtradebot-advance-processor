@@ -50,6 +50,14 @@ management:
 jtradebot:
   strategy:
     enable-scalping-volume-surge: true
+
+logging:
+  level:
+    com.jtradebot.processor.service.TickProcessService: DEBUG
+    com.jtradebot.processor.service.impl.IndicatorFlattenerServiceImpl: INFO
+    com.jtradebot.processor.service.impl.ScalpingEntryServiceImpl: INFO
+    com.jtradebot.processor.service.impl.DynamicIndicatorFlattenerServiceImpl: INFO
+    com.jtradebot.processor.service.impl.ScalpingVolumeSurgeServiceImpl: INFO
   
   # Backtest Data Collection Configuration
   backtest-data:

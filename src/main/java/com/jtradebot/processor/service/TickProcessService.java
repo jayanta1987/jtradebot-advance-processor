@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import com.jtradebot.processor.model.strategy.StrategyScore;
+import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.indicator.EntryQuality;
 import com.jtradebot.processor.service.ProfitableTradeFilterService;
 import com.jtradebot.processor.model.strategy.ProfitableTradeFilterResult;
@@ -81,7 +83,7 @@ public class TickProcessService {
         }
         
         if (skipMarketHoursCheck) {
-            log.debug("Running in backtesting mode - market hours check bypassed");
+            // Removed verbose debug logging
         }
 
         Map<Long, Tick> latestTicks = new HashMap<>();
@@ -95,8 +97,6 @@ public class TickProcessService {
         
         for (Tick tick : latestTicks.values()) {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
-            log.debug("Processing tick: {} : {} -> {}, isTradable = {}", 
-                    instrumentToken, tick.getTickTimestamp(), tick.getLastTradedPrice(), tick.isTradable());
             
             // Initialize on first tick for both instruments
             initializeOnFirstTick(tick);
@@ -160,14 +160,29 @@ public class TickProcessService {
     private void logRealEntryLogic(Tick indexTick) {
         try {
             // Get the REAL indicators - future data will be fetched from map when needed
-            StrategyScore strategyScore = scalpingVolumeSurgeService.calculateStrategyScore(indexTick);
-            
-            // Get flattened indicators - future data will be fetched from map when needed
             FlattenedIndicators realIndicators = scalpingVolumeSurgeService.getFlattenedIndicators(indexTick);
             
-            // Check REAL entry conditions using the enhanced strategy score
-            boolean shouldCall = strategyScore.getShouldMakeCallEntry() != null ? strategyScore.getShouldMakeCallEntry() : false;
-            boolean shouldPut = strategyScore.getShouldMakePutEntry() != null ? strategyScore.getShouldMakePutEntry() : false;
+            // Use NEW scenario-based entry logic instead of old StrategyScore approach
+            ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(indexTick);
+            
+            // Check entry conditions using the new scenario-based logic
+            // If scenario passes, determine market direction to decide order type
+            boolean scenarioPassed = entryDecision.isShouldEntry();
+            
+            // Use the same dominant trend logic for both logging and entry decisions
+            EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(realIndicators, indexTick);
+            EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(realIndicators, indexTick);
+            
+            boolean isCallDominant = callQuality.getQualityScore() > putQuality.getQualityScore();
+            boolean isPutDominant = putQuality.getQualityScore() > callQuality.getQualityScore();
+            
+            // Only create orders if scenario passes AND dominant direction is clear
+            boolean shouldCall = scenarioPassed && isCallDominant;
+            boolean shouldPut = scenarioPassed && isPutDominant;
+            
+            // Market direction info will be added to the main log
+            
+            // Removed verbose scenario passed log
             
             // Get essential indicator data with actual values
             String emaStatus = getDetailedEmaStatus(realIndicators, indexTick);
@@ -178,48 +193,127 @@ public class TickProcessService {
             // Calculate entry proximity
             String entryProximity = getEntryProximity(realIndicators, indexTick);
             
-            // SIMPLIFIED LOG: Show only trend and entry conditions
-            String trendInfo = getTrendAndConditionsInfo(strategyScore, realIndicators, indexTick);
-            log.info("📊 {} | 💰 {} | {}", 
+            // Get trend and conditions info
+            String trendInfo = getTrendAndConditionsInfo(entryDecision, realIndicators, indexTick);
+            
+            // LOG: Show trend analysis with category conditions and market direction
+            // Add market direction info to all logs using dominant trend logic with colors
+            String callStatus = isCallDominant ? "🟢" : "⚫";
+            String putStatus = isPutDominant ? "🟢" : "⚫";
+            String marketDirectionInfo = String.format(" | 🎯 Call:%s Put:%s", callStatus, putStatus);
+            log.info("📊 {} | 💰 {} | {}{}", 
                 indexTick.getTickTimestamp(), 
                 indexTick.getLastTradedPrice(), 
-                trendInfo);
+                trendInfo, marketDirectionInfo);
             
             // Log actual entry signals and execute orders (only when signals are generated)
-            if (shouldCall) {
-                // Get the actual quality score used for entry decision
-                EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(scalpingVolumeSurgeService.getFlattenedIndicators(indexTick), indexTick);
-                log.info("🚀 CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
-                    indexTick.getInstrumentToken(), indexTick.getLastTradedPrice(), callQuality.getQualityScore(), indexTick.getTickTimestamp());
+            if (shouldCall || shouldPut) {
+                // Get the scenario-based entry decision (reuse existing entryDecision)
+                ScalpingEntryDecision scenarioDecision = scalpingVolumeSurgeService.getEntryDecision(indexTick);
                 
-                // Check if we can execute the order (no active orders)
-                if (!exitStrategyService.hasActiveOrder()) {
-                    // 🔥 EXECUTE CALL ORDER
-                    log.info("🎯 EXECUTING CALL ORDER - Quality Score: {}/10 meets threshold", callQuality.getQualityScore());
-                    createTradeOrder(indexTick, "CALL_BUY");
-                } else {
-                    log.warn("⚠️ CALL SIGNAL IGNORED - Active order already exists (Risk management: only one trade at a time)");
-                }
-            }
-            if (shouldPut) {
-                // Get the actual quality score used for entry decision
-                EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(scalpingVolumeSurgeService.getFlattenedIndicators(indexTick), indexTick);
-                log.info("📉 PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
-                    indexTick.getInstrumentToken(), indexTick.getLastTradedPrice(), putQuality.getQualityScore(), indexTick.getTickTimestamp());
-                
-                // Check if we can execute the order (no active orders)
-                if (!exitStrategyService.hasActiveOrder()) {
-                    // 🔥 EXECUTE PUT ORDER
-                    log.info("🎯 EXECUTING PUT ORDER - Quality Score: {}/10 meets threshold", putQuality.getQualityScore());
-                    createTradeOrder(indexTick, "PUT_BUY");
-                } else {
-                    log.warn("⚠️ PUT SIGNAL IGNORED - Active order already exists (Risk management: only one trade at a time)");
+                if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
+                    String orderType = shouldCall ? "CALL" : "PUT";
+                    log.info("🚀 {} ENTRY SIGNAL - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 
+                        orderType, indexTick.getInstrumentToken(), indexTick.getLastTradedPrice(), 
+                        scenarioDecision.getScenarioName(), scenarioDecision.getConfidence(), indexTick.getTickTimestamp());
+                    
+                    // Check if we can execute the order (no active orders)
+                    if (!exitStrategyService.hasActiveOrder()) {
+                        // 🔥 EXECUTE ORDER
+                        log.info("🎯 EXECUTING {} ORDER - Scenario: {}, Confidence: {}/10", 
+                            orderType, scenarioDecision.getScenarioName(), scenarioDecision.getConfidence());
+                        createTradeOrder(indexTick, shouldCall ? "CALL_BUY" : "PUT_BUY");
+                    } else {
+                        // Removed verbose active order warning
+                    }
                 }
             }
             
         } catch (Exception e) {
             log.error("Error logging real entry logic: {}", e.getMessage());
         }
+    }
+    
+
+    
+    /**
+     * Determine if market conditions are bullish for CALL entries
+     */
+    boolean isMarketConditionBullish(FlattenedIndicators indicators) {
+        if (indicators == null) return false;
+        
+        int bullishSignals = 0;
+        int totalSignals = 0;
+        
+        // EMA conditions (bullish when EMA9 > EMA21)
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishSignals++;
+        totalSignals += 3;
+        
+        // Price action conditions (bullish when price > VWAP)
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) bullishSignals++;
+        totalSignals += 3;
+        
+        // RSI conditions (bullish when RSI > 56)
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_56())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_56())) bullishSignals++;
+        totalSignals += 3;
+        
+        // Candlestick conditions (bullish patterns)
+        if (Boolean.TRUE.equals(indicators.getGreen_candle_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getGreen_candle_1min())) bullishSignals++;
+        totalSignals += 2;
+        
+        // Require at least 60% of signals to be bullish
+        boolean isBullish = totalSignals > 0 && (double) bullishSignals / totalSignals >= 0.6;
+        
+        // Debug logging for bullish signals - REMOVED
+        
+        return isBullish;
+    }
+    
+    /**
+     * Determine if market conditions are bearish for PUT entries
+     */
+    boolean isMarketConditionBearish(FlattenedIndicators indicators) {
+        if (indicators == null) return false;
+        
+        int bearishSignals = 0;
+        int totalSignals = 0;
+        
+        // EMA conditions (bearish when EMA9 < EMA21)
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) bearishSignals++;
+        totalSignals += 3;
+        
+        // Price action conditions (bearish when price < VWAP)
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) bearishSignals++;
+        totalSignals += 3;
+        
+        // RSI conditions (bearish when RSI < 44)
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_44())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_44())) bearishSignals++;
+        totalSignals += 3;
+        
+        // Candlestick conditions (bearish patterns)
+        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_5min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_1min())) bearishSignals++;
+        totalSignals += 2;
+        
+        // Require at least 60% of signals to be bearish
+        boolean isBearish = totalSignals > 0 && (double) bearishSignals / totalSignals >= 0.6;
+        
+        // Debug logging for bearish signals - REMOVED
+        
+        return isBearish;
     }
     
     /**
@@ -521,17 +615,17 @@ public class TickProcessService {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             
-            log.debug("Processing entry signals for instrument: {}", instrumentToken);
+            // Removed verbose debug logging
             
             // Check: if ExitStrategyService has any active order, skip (only one active order allowed globally)
             if (exitStrategyService.hasActiveOrder()) {
-                log.debug("Active order already exists, skipping new entry for instrument: {} (Risk management: only one active order allowed)", instrumentToken);
+                // Removed verbose active order debug log
                 return;
             }
             
             // Note: Entry decisions are now handled by the dynamic configuration system
             // This method is kept for compatibility but actual entry logic is in the dynamic system
-            log.debug("Entry decisions are handled by dynamic configuration system for instrument: {}", instrumentToken);
+            // Removed verbose debug logging
             
         } catch (Exception e) {
             log.error("Error processing entry signals for tick: {}", tick.getInstrumentToken(), e);
@@ -567,8 +661,7 @@ public class TickProcessService {
             double currentOptionPrice = optionPricingService.calculateCurrentLTP(entryOptionPrice, entryIndexPrice, currentIndexPrice, activeOrder.getOrderType());
             
             // Debug logging for P&L calculation
-            log.debug("P&L Debug - Entry Option: {}, Current Option: {}, Entry Index: {}, Current Index: {}, Order Type: {}", 
-                    entryOptionPrice, currentOptionPrice, entryIndexPrice, currentIndexPrice, activeOrder.getOrderType());
+            // Removed verbose P&L debug log
             
             double points = 0.0;
             double pnl = 0.0;
@@ -648,19 +741,45 @@ public class TickProcessService {
                 return;
             }
             
+            // Get scenario information for the entry
+            ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(tick);
+            
             // Use placeholder option symbols since we're analyzing with index/future tokens
             String optionSymbol = "CALL_BUY".equals(orderType) ? "TEST_OPTION_CE" : "TEST_OPTION_PE";
             
-            JtradeOrder order = exitStrategyService.createOrderEntry(
-                OrderTypeEnum.valueOf(orderType),
-                optionSymbol, // Placeholder option symbol
-                0L, // No instrument token (using placeholder symbols)
-                optionEntryPrice, // Option entry price (premium)
-                currentIndexPrice, // Entry index price (Nifty level)
-                stopLossPrice,
-                targetPrice,
-                tradingConfigService.getMinLotSize() // Get configured minimum lot size from JSON
-            );
+            JtradeOrder order;
+            if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
+                // Create order with scenario information
+                order = exitStrategyService.createOrderEntryWithScenario(
+                    OrderTypeEnum.valueOf(orderType),
+                    optionSymbol, // Placeholder option symbol
+                    0L, // No instrument token (using placeholder symbols)
+                    optionEntryPrice, // Option entry price (premium)
+                    currentIndexPrice, // Entry index price (Nifty level)
+                    stopLossPrice,
+                    targetPrice,
+                    tradingConfigService.getMinLotSize(), // Get configured minimum lot size from JSON
+                    entryDecision.getScenarioName(),
+                    entryDecision.getReason(), // Use reason as description
+                    entryDecision.getConfidence(),
+                    entryDecision.getCategoryScores(),
+                    entryDecision.getMatchedConditions(),
+                    tick.getTickTimestamp() // Use tick timestamp instead of current time
+                );
+            } else {
+                // Fallback to regular order creation if no scenario info
+                order = exitStrategyService.createOrderEntry(
+                    OrderTypeEnum.valueOf(orderType),
+                    optionSymbol, // Placeholder option symbol
+                    0L, // No instrument token (using placeholder symbols)
+                    optionEntryPrice, // Option entry price (premium)
+                    currentIndexPrice, // Entry index price (Nifty level)
+                    stopLossPrice,
+                    targetPrice,
+                    tradingConfigService.getMinLotSize(), // Get configured minimum lot size from JSON
+                    tick.getTickTimestamp() // Use tick timestamp instead of current time
+                );
+            }
             
             if (order != null) {
                 // Store the entry conditions in the order
@@ -679,6 +798,18 @@ public class TickProcessService {
                         orderType, order.getTradingSymbol(), optionEntryPrice);
                 log.info("📊 ORDER DETAILS - ID: {}, Status: {}, StopLoss: {}, Target: {}", 
                         order.getId(), order.getStatus(), order.getStopLossPrice(), order.getTargetPrice());
+                
+                // Log scenario information if available
+                if (order.getEntryScenarioName() != null) {
+                    log.info("🎯 SCENARIO INFO - Name: {}, Description: {}, Confidence: {}/10", 
+                            order.getEntryScenarioName(), order.getEntryScenarioDescription(), order.getEntryScenarioConfidence());
+                    if (order.getEntryCategoryScores() != null) {
+                        log.info("📈 CATEGORY SCORES - {}", order.getEntryCategoryScores());
+                    }
+                    if (order.getEntryMatchedConditions() != null) {
+                        log.info("✅ MATCHED CONDITIONS - {}", order.getEntryMatchedConditions());
+                    }
+                }
                 log.info("🎯 OPTION PRICE LEVELS - Entry: {}, StopLoss: {} (-{} points), Target: {} (+{} points) - Same logic for CALL/PUT", 
                         optionEntryPrice, stopLossPrice, stopLossPoints,
                         targetPrice, targetPoints);
@@ -831,39 +962,325 @@ public class TickProcessService {
     /**
      * Get trend and entry conditions info for simplified logging - aligned with actual entry logic
      */
-    private String getTrendAndConditionsInfo(StrategyScore strategyScore, FlattenedIndicators indicators, Tick tick) {
+    private String getTrendAndConditionsInfo(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Tick tick) {
         try {
-            // Get the actual entry quality scores to align with entry logic
-            EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
-            EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
-            
-            // Determine dominant trend based on quality scores
-            String dominantTrend;
-            double dominantQuality;
-            String conditionList;
-            
-            if (callQuality.getQualityScore() > putQuality.getQualityScore()) {
-                dominantTrend = "CALL";
-                dominantQuality = callQuality.getQualityScore();
-                conditionList = String.format("Quality:%.1f/10 | Conditions: %s", 
-                    callQuality.getQualityScore(), getConditionCounts(indicators, "CALL"));
-            } else if (putQuality.getQualityScore() > callQuality.getQualityScore()) {
-                dominantTrend = "PUT";
-                dominantQuality = putQuality.getQualityScore();
-                conditionList = String.format("Quality:%.1f/10 | Conditions: %s", 
-                    putQuality.getQualityScore(), getConditionCounts(indicators, "PUT"));
+            // Use scenario information from entry decision
+            if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
+                String scenarioInfo = String.format("Scenario: %s (%.1f/10)", 
+                    entryDecision.getScenarioName(), entryDecision.getQualityScore());
+                
+                if (entryDecision.getCategoryScores() != null) {
+                    // Get scenario requirements to check if categories pass
+                    Map<String, Integer> categoryScores = entryDecision.getCategoryScores();
+                    
+                    // Get scenario requirements from config
+                    List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
+                    ScalpingEntryConfig.ScenarioRequirements requirements = null;
+                    
+                    for (ScalpingEntryConfig.Scenario scenario : scenarios) {
+                        if (scenario.getName().equals(entryDecision.getScenarioName())) {
+                            requirements = scenario.getRequirements();
+                            break;
+                        }
+                    }
+                    
+                    // Build category info with green ticks
+                    StringBuilder categoryInfo = new StringBuilder();
+                    
+                    // Quality Score
+                    if (requirements != null && requirements.getMinQualityScore() != null) {
+                        boolean qsPass = entryDecision.getQualityScore() >= requirements.getMinQualityScore();
+                        categoryInfo.append(String.format("QS:%.1f/%.1f%s ", 
+                            entryDecision.getQualityScore(), requirements.getMinQualityScore(), qsPass ? "✅" : ""));
+                    }
+                    
+                    // EMA
+                    int emaCount = categoryScores.getOrDefault("ema", 0);
+                    boolean emaPass = requirements != null && requirements.getEma_min_count() != null && 
+                                   emaCount >= requirements.getEma_min_count();
+                    categoryInfo.append(String.format("EMA:%d/%d%s ", 
+                        emaCount, requirements != null ? requirements.getEma_min_count() : 0, emaPass ? "✅" : ""));
+                    
+                    // FutureAndVolume
+                    int fvCount = categoryScores.getOrDefault("futureAndVolume", 0);
+                    boolean fvPass = requirements != null && requirements.getFutureAndVolume_min_count() != null && 
+                                   fvCount >= requirements.getFutureAndVolume_min_count();
+                    categoryInfo.append(String.format("FV:%d/%d%s ", 
+                        fvCount, requirements != null ? requirements.getFutureAndVolume_min_count() : 0, fvPass ? "✅" : ""));
+                    
+                    // Candlestick
+                    int csCount = categoryScores.getOrDefault("candlestick", 0);
+                    boolean csPass = requirements != null && requirements.getCandlestick_min_count() != null && 
+                                   csCount >= requirements.getCandlestick_min_count();
+                    categoryInfo.append(String.format("CS:%d/%d%s ", 
+                        csCount, requirements != null ? requirements.getCandlestick_min_count() : 0, csPass ? "✅" : ""));
+                    
+                    // Momentum
+                    int mCount = categoryScores.getOrDefault("momentum", 0);
+                    boolean mPass = requirements != null && requirements.getMomentum_min_count() != null && 
+                                   mCount >= requirements.getMomentum_min_count();
+                    categoryInfo.append(String.format("M:%d/%d%s ", 
+                        mCount, requirements != null ? requirements.getMomentum_min_count() : 0, mPass ? "✅" : ""));
+                    
+                    return String.format("🎯 %s | %s", scenarioInfo, categoryInfo.toString().trim());
+                } else {
+                    return String.format("🎯 %s", scenarioInfo);
+                }
             } else {
-                dominantTrend = "NEUTRAL";
-                dominantQuality = Math.max(callQuality.getQualityScore(), putQuality.getQualityScore());
-                conditionList = String.format("Quality:%.1f/10 | Conditions: %s", 
-                    dominantQuality, getConditionCounts(indicators, "NEUTRAL"));
+                // Show scenario-based evaluation when no scenario is triggered
+                String evaluation = getScenarioBasedEvaluation(indicators, tick);
+                // Add market direction info to non-entry logs as well
+                return evaluation;
             }
-            
-            return String.format("🎯 %s (%.1f/10): %s", dominantTrend, dominantQuality, conditionList);
             
         } catch (Exception e) {
             return "🎯 ERROR";
         }
+    }
+    
+    /**
+     * Get scenario-based evaluation showing which scenarios are being checked and their requirements
+     */
+    private String getScenarioBasedEvaluation(FlattenedIndicators indicators, Tick tick) {
+        try {
+            // Get dominant trend first
+            EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
+            EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
+            
+            String dominantTrend = callQuality.getQualityScore() > putQuality.getQualityScore() ? "CALL" : "PUT";
+            double dominantQuality = Math.max(callQuality.getQualityScore(), putQuality.getQualityScore());
+            
+            // Get scenarios from configuration
+            List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
+            
+            // Find the best scenario that could pass
+            String bestScenarioInfo = "";
+            for (ScalpingEntryConfig.Scenario scenario : scenarios) {
+                ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
+                
+                // Get category counts for the dominant trend
+                Map<String, Integer> categoryCounts = getCategoryCountsMap(indicators, dominantTrend);
+                
+                // Check if this scenario could pass
+                boolean couldPass = true;
+                StringBuilder scenarioDetails = new StringBuilder();
+                
+                // Check quality score requirement
+                if (requirements.getMinQualityScore() != null) {
+                    boolean qualityPass = dominantQuality >= requirements.getMinQualityScore();
+                    scenarioDetails.append(String.format("QS:%.1f/%.1f%s ", 
+                        dominantQuality, requirements.getMinQualityScore(), qualityPass ? "✅" : ""));
+                    if (!qualityPass) couldPass = false;
+                }
+                
+                // Check category requirements
+                if (requirements.getEma_min_count() != null) {
+                    int emaCount = categoryCounts.getOrDefault("ema", 0);
+                    boolean emaPass = emaCount >= requirements.getEma_min_count();
+                    scenarioDetails.append(String.format("EMA:%d/%d%s ", 
+                        emaCount, requirements.getEma_min_count(), emaPass ? "✅" : ""));
+                    if (!emaPass) couldPass = false;
+                }
+                
+                if (requirements.getFutureAndVolume_min_count() != null) {
+                    int fvCount = categoryCounts.getOrDefault("futureAndVolume", 0);
+                    boolean fvPass = fvCount >= requirements.getFutureAndVolume_min_count();
+                    scenarioDetails.append(String.format("FV:%d/%d%s ", 
+                        fvCount, requirements.getFutureAndVolume_min_count(), fvPass ? "✅" : ""));
+                    if (!fvPass) couldPass = false;
+                }
+                
+                if (requirements.getCandlestick_min_count() != null) {
+                    int csCount = categoryCounts.getOrDefault("candlestick", 0);
+                    boolean csPass = csCount >= requirements.getCandlestick_min_count();
+                    scenarioDetails.append(String.format("CS:%d/%d%s ", 
+                        csCount, requirements.getCandlestick_min_count(), csPass ? "✅" : ""));
+                    if (!csPass) couldPass = false;
+                }
+                
+                if (requirements.getMomentum_min_count() != null) {
+                    int mCount = categoryCounts.getOrDefault("momentum", 0);
+                    boolean mPass = mCount >= requirements.getMomentum_min_count();
+                    scenarioDetails.append(String.format("M:%d/%d%s ", 
+                        mCount, requirements.getMomentum_min_count(), mPass ? "✅" : ""));
+                    if (!mPass) couldPass = false;
+                }
+                
+                // If this scenario could pass, show it
+                if (couldPass) {
+                    bestScenarioInfo = String.format("🎯 %s (%.1f/10) | %s: %s", 
+                        dominantTrend, dominantQuality, scenario.getName(), scenarioDetails.toString().trim());
+                    break;
+                }
+            }
+            
+            // If no scenario could pass, show all scenarios being evaluated
+            if (bestScenarioInfo.isEmpty() && !scenarios.isEmpty()) {
+                StringBuilder allScenariosInfo = new StringBuilder();
+                
+                for (int i = 0; i < scenarios.size(); i++) {
+                    ScalpingEntryConfig.Scenario scenario = scenarios.get(i);
+                    ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
+                    Map<String, Integer> categoryCounts = getCategoryCountsMap(indicators, dominantTrend);
+                    
+                    StringBuilder scenarioDetails = new StringBuilder();
+                    if (requirements.getMinQualityScore() != null) {
+                        boolean qsPass = dominantQuality >= requirements.getMinQualityScore();
+                        scenarioDetails.append(String.format("QS:%.1f/%.1f%s ", 
+                            dominantQuality, requirements.getMinQualityScore(), qsPass ? "✅" : ""));
+                    }
+                    if (requirements.getEma_min_count() != null) {
+                        int emaCount = categoryCounts.getOrDefault("ema", 0);
+                        boolean emaPass = emaCount >= requirements.getEma_min_count();
+                        scenarioDetails.append(String.format("EMA:%d/%d%s ", 
+                            emaCount, requirements.getEma_min_count(), emaPass ? "✅" : ""));
+                    }
+                    if (requirements.getFutureAndVolume_min_count() != null) {
+                        int fvCount = categoryCounts.getOrDefault("futureAndVolume", 0);
+                        boolean fvPass = fvCount >= requirements.getFutureAndVolume_min_count();
+                        scenarioDetails.append(String.format("FV:%d/%d%s ", 
+                            fvCount, requirements.getFutureAndVolume_min_count(), fvPass ? "✅" : ""));
+                    }
+                    if (requirements.getCandlestick_min_count() != null) {
+                        int csCount = categoryCounts.getOrDefault("candlestick", 0);
+                        boolean csPass = csCount >= requirements.getCandlestick_min_count();
+                        scenarioDetails.append(String.format("CS:%d/%d%s ", 
+                            csCount, requirements.getCandlestick_min_count(), csPass ? "✅" : ""));
+                    }
+                    if (requirements.getMomentum_min_count() != null) {
+                        int mCount = categoryCounts.getOrDefault("momentum", 0);
+                        boolean mPass = mCount >= requirements.getMomentum_min_count();
+                        scenarioDetails.append(String.format("M:%d/%d%s ", 
+                            mCount, requirements.getMomentum_min_count(), mPass ? "✅" : ""));
+                    }
+                    
+                    if (i > 0) allScenariosInfo.append(" | ");
+                    allScenariosInfo.append(String.format("%s: %s", 
+                        scenario.getName(), scenarioDetails.toString().trim()));
+                }
+                
+                bestScenarioInfo = String.format("🎯 %s (%.1f/10) | %s", 
+                    dominantTrend, dominantQuality, allScenariosInfo.toString());
+            }
+            
+            return bestScenarioInfo;
+            
+        } catch (Exception e) {
+            return "🎯 ERROR";
+        }
+    }
+    
+    /**
+     * Get category counts as a map for scenario evaluation
+     */
+    private Map<String, Integer> getCategoryCountsMap(FlattenedIndicators indicators, String strategy) {
+        Map<String, Integer> categoryCounts = new HashMap<>();
+        
+        if ("CALL".equals(strategy)) {
+            categoryCounts.put("ema", getEmaCount(indicators, true));
+            categoryCounts.put("futureAndVolume", getFutureVolumeCount(indicators, true));
+            categoryCounts.put("candlestick", getCandlestickCount(indicators, true));
+            categoryCounts.put("momentum", getMomentumCount(indicators, true));
+        } else if ("PUT".equals(strategy)) {
+            categoryCounts.put("ema", getEmaCount(indicators, false));
+            categoryCounts.put("futureAndVolume", getFutureVolumeCount(indicators, false));
+            categoryCounts.put("candlestick", getCandlestickCount(indicators, false));
+            categoryCounts.put("momentum", getMomentumCount(indicators, false));
+        }
+        
+        return categoryCounts;
+    }
+    
+    /**
+     * Get EMA count for the given strategy
+     */
+    private int getEmaCount(FlattenedIndicators indicators, boolean isCall) {
+        int emaCount = 0;
+        if (isCall) {
+            // EMA5 vs EMA34 logic
+            if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) emaCount++;
+            if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) emaCount++;
+            if (indicators.getEma5_15min_gt_ema34_15min() != null && indicators.getEma5_15min_gt_ema34_15min()) emaCount++;
+        } else {
+            // EMA5 vs EMA34 logic
+            if (indicators.getEma5_5min_lt_ema34_5min() != null && indicators.getEma5_5min_lt_ema34_5min()) emaCount++;
+            if (indicators.getEma5_1min_lt_ema34_1min() != null && indicators.getEma5_1min_lt_ema34_1min()) emaCount++;
+            if (indicators.getEma5_15min_lt_ema34_15min() != null && indicators.getEma5_15min_lt_ema34_15min()) emaCount++;
+        }
+        return emaCount;
+    }
+    
+    /**
+     * Get Future & Volume count for the given strategy
+     */
+    private int getFutureVolumeCount(FlattenedIndicators indicators, boolean isCall) {
+        int futureVolumeCount = 0;
+        if (isCall) {
+            if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) futureVolumeCount++;
+            if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) futureVolumeCount++;
+            if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) futureVolumeCount++;
+            if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) futureVolumeCount++;
+            if (indicators.getPrice_gt_vwap_1min() != null && indicators.getPrice_gt_vwap_1min()) futureVolumeCount++;
+            if (indicators.getPrice_gt_vwap_15min() != null && indicators.getPrice_gt_vwap_15min()) futureVolumeCount++;
+            if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) futureVolumeCount++;
+        } else {
+            if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) futureVolumeCount++;
+            if (indicators.getVolume_1min_surge() != null && indicators.getVolume_1min_surge()) futureVolumeCount++;
+            if (indicators.getVolume_15min_surge() != null && indicators.getVolume_15min_surge()) futureVolumeCount++;
+            if (indicators.getPrice_lt_vwap_5min() != null && indicators.getPrice_lt_vwap_5min()) futureVolumeCount++;
+            if (indicators.getPrice_lt_vwap_1min() != null && indicators.getPrice_lt_vwap_1min()) futureVolumeCount++;
+            if (indicators.getPrice_lt_vwap_15min() != null && indicators.getPrice_lt_vwap_15min()) futureVolumeCount++;
+            if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) futureVolumeCount++;
+        }
+        return futureVolumeCount;
+    }
+    
+    /**
+     * Get Candlestick count for the given strategy
+     */
+    private int getCandlestickCount(FlattenedIndicators indicators, boolean isCall) {
+        int candlestickCount = 0;
+        if (isCall) {
+            if (indicators.getGreen_candle_5min() != null && indicators.getGreen_candle_5min()) candlestickCount++;
+            if (indicators.getGreen_candle_1min() != null && indicators.getGreen_candle_1min()) candlestickCount++;
+            if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickCount++;
+            if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickCount++;
+            if (indicators.getBullish_engulfing_5min() != null && indicators.getBullish_engulfing_5min()) candlestickCount++;
+            if (indicators.getBullish_engulfing_1min() != null && indicators.getBullish_engulfing_1min()) candlestickCount++;
+            if (indicators.getBullish_morning_star_5min() != null && indicators.getBullish_morning_star_5min()) candlestickCount++;
+            if (indicators.getBullish_morning_star_1min() != null && indicators.getBullish_morning_star_1min()) candlestickCount++;
+            if (indicators.getHammer_5min() != null && indicators.getHammer_5min()) candlestickCount++;
+            if (indicators.getHammer_1min() != null && indicators.getHammer_1min()) candlestickCount++;
+        } else {
+            if (indicators.getRed_candle_5min() != null && indicators.getRed_candle_5min()) candlestickCount++;
+            if (indicators.getRed_candle_1min() != null && indicators.getRed_candle_1min()) candlestickCount++;
+            if (indicators.getLong_body_5min() != null && indicators.getLong_body_5min()) candlestickCount++;
+            if (indicators.getLong_body_1min() != null && indicators.getLong_body_1min()) candlestickCount++;
+            if (indicators.getBearish_engulfing_5min() != null && indicators.getBearish_engulfing_5min()) candlestickCount++;
+            if (indicators.getBearish_engulfing_1min() != null && indicators.getBearish_engulfing_1min()) candlestickCount++;
+            if (indicators.getBearish_evening_star_5min() != null && indicators.getBearish_evening_star_5min()) candlestickCount++;
+            if (indicators.getBearish_evening_star_1min() != null && indicators.getBearish_evening_star_1min()) candlestickCount++;
+            if (indicators.getShooting_star_5min() != null && indicators.getShooting_star_5min()) candlestickCount++;
+            if (indicators.getShooting_star_1min() != null && indicators.getShooting_star_1min()) candlestickCount++;
+        }
+        return candlestickCount;
+    }
+    
+    /**
+     * Get Momentum count for the given strategy
+     */
+    private int getMomentumCount(FlattenedIndicators indicators, boolean isCall) {
+        int momentumCount = 0;
+        if (isCall) {
+            if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) momentumCount++;
+            if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) momentumCount++;
+            if (indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) momentumCount++;
+        } else {
+            if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) momentumCount++;
+            if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) momentumCount++;
+            if (indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) momentumCount++;
+        }
+        return momentumCount;
     }
     
     /**
@@ -893,9 +1310,9 @@ public class TickProcessService {
         int momentumCount = 0;
         
         // EMA Category (need 2/3)
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) emaCount++;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) emaCount++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) emaCount++;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) emaCount++;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) emaCount++;
+        if (indicators.getEma5_15min_gt_ema34_15min() != null && indicators.getEma5_15min_gt_ema34_15min()) emaCount++;
         
         // Future and Volume Category (need 4/7)
         if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) futureVolumeCount++;
@@ -923,8 +1340,25 @@ public class TickProcessService {
         if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) momentumCount++;
         if (indicators.getRsi_15min_gt_56() != null && indicators.getRsi_15min_gt_56()) momentumCount++;
         
-        return String.format("Categories: EMA:%d/2 FV:%d/4 CS:%d/3 M:%d/2", 
-                           emaCount, futureVolumeCount, candlestickCount, momentumCount);
+        // Get actual scenario requirements instead of hardcoded values
+        List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
+        ScalpingEntryConfig.ScenarioRequirements requirements = null;
+        
+        if (!scenarios.isEmpty()) {
+            requirements = scenarios.get(0).getRequirements(); // Use first scenario (SAFE_ENTRY_SIGNAL)
+        }
+        
+        // Use actual requirements or fallback to hardcoded if config not available
+        int emaRequired = requirements != null && requirements.getEma_min_count() != null ? requirements.getEma_min_count() : 2;
+        int fvRequired = requirements != null && requirements.getFutureAndVolume_min_count() != null ? requirements.getFutureAndVolume_min_count() : 3;
+        int csRequired = requirements != null && requirements.getCandlestick_min_count() != null ? requirements.getCandlestick_min_count() : 3;
+        int mRequired = requirements != null && requirements.getMomentum_min_count() != null ? requirements.getMomentum_min_count() : 2;
+        
+        return String.format("Categories: EMA:%d/%d%s FV:%d/%d%s CS:%d/%d%s M:%d/%d%s", 
+                           emaCount, emaRequired, emaCount >= emaRequired ? "✅" : "",
+                           futureVolumeCount, fvRequired, futureVolumeCount >= fvRequired ? "✅" : "",
+                           candlestickCount, csRequired, candlestickCount >= csRequired ? "✅" : "",
+                           momentumCount, mRequired, momentumCount >= mRequired ? "✅" : "");
     }
     
     /**
@@ -936,10 +1370,10 @@ public class TickProcessService {
         int candlestickCount = 0;
         int momentumCount = 0;
         
-        // EMA Category (need 2/3)
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) emaCount++;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) emaCount++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) emaCount++;
+        // EMA Category (need 2/3) - Use proper PUT EMA fields
+        if (indicators.getEma5_5min_lt_ema34_5min() != null && indicators.getEma5_5min_lt_ema34_5min()) emaCount++;
+        if (indicators.getEma5_1min_lt_ema34_1min() != null && indicators.getEma5_1min_lt_ema34_1min()) emaCount++;
+        if (indicators.getEma5_15min_lt_ema34_15min() != null && indicators.getEma5_15min_lt_ema34_15min()) emaCount++;
         
         // Future and Volume Category (need 4/7)
         if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) futureVolumeCount++;
@@ -967,8 +1401,25 @@ public class TickProcessService {
         if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) momentumCount++;
         if (indicators.getRsi_15min_lt_44() != null && indicators.getRsi_15min_lt_44()) momentumCount++;
         
-        return String.format("Categories: EMA:%d/2 FV:%d/4 CS:%d/3 M:%d/2", 
-                           emaCount, futureVolumeCount, candlestickCount, momentumCount);
+        // Get actual scenario requirements instead of hardcoded values
+        List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
+        ScalpingEntryConfig.ScenarioRequirements requirements = null;
+        
+        if (!scenarios.isEmpty()) {
+            requirements = scenarios.get(0).getRequirements(); // Use first scenario (SAFE_ENTRY_SIGNAL)
+        }
+        
+        // Use actual requirements or fallback to hardcoded if config not available
+        int emaRequired = requirements != null && requirements.getEma_min_count() != null ? requirements.getEma_min_count() : 2;
+        int fvRequired = requirements != null && requirements.getFutureAndVolume_min_count() != null ? requirements.getFutureAndVolume_min_count() : 3;
+        int csRequired = requirements != null && requirements.getCandlestick_min_count() != null ? requirements.getCandlestick_min_count() : 3;
+        int mRequired = requirements != null && requirements.getMomentum_min_count() != null ? requirements.getMomentum_min_count() : 2;
+        
+        return String.format("Categories: EMA:%d/%d%s FV:%d/%d%s CS:%d/%d%s M:%d/%d%s", 
+                           emaCount, emaRequired, emaCount >= emaRequired ? "✅" : "",
+                           futureVolumeCount, fvRequired, futureVolumeCount >= fvRequired ? "✅" : "",
+                           candlestickCount, csRequired, candlestickCount >= csRequired ? "✅" : "",
+                           momentumCount, mRequired, momentumCount >= mRequired ? "✅" : "");
     }
     
 }

@@ -11,6 +11,7 @@ import com.jtradebot.processor.candleStick.CandlestickPattern;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.model.indicator.EmaIndicatorInfo;
+import com.jtradebot.processor.model.indicator.EmaInfo;
 import com.jtradebot.processor.model.indicator.EntryQuality;
 import com.jtradebot.processor.model.indicator.Resistance;
 import com.jtradebot.processor.model.indicator.Support;
@@ -21,6 +22,7 @@ import com.jtradebot.processor.model.indicator.FuturesignalData;
 import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgeCallRule;
 import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgePutRule;
 import com.jtradebot.processor.model.strategy.StrategyScore;
+import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.service.ScalpingEntryService;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
@@ -121,42 +123,25 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     @Override
     public boolean shouldMakeCallEntry(Tick tick) {
         try {
-            // Initialize rules if not already done
-            if (callRule == null) {
-                initializeRules();
-            }
-            
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             
-            // 🔥 NATURAL APPROACH: Intelligent signal validation without forced cooldowns
+            // Get flattened indicators
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Enhanced CALL entry logic with unified profitable trade filter
-            EntryQuality entryQuality = evaluateCallEntryQuality(indicators, tick);
+            // Use new scenario-based entry evaluation for CALL direction
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
             
-            // Apply unified profitable trade filter
-            boolean shouldEntry = false;
-            String filterRejectionReason = null;
+            // Only trigger CALL if scenario passes AND market conditions are bullish
+            boolean isBullish = isMarketConditionBullish(indicators);
+            boolean shouldEntry = decision.isShouldEntry() && isBullish;
             
-            if (profitableTradeFilterService.isFilterEnabled()) {
-                var filterResult = profitableTradeFilterService.evaluateCallEntry(indicators, entryQuality, tick);
-                shouldEntry = filterResult.getIsProfitableEntry();
-                filterRejectionReason = filterResult.getRejectionReason();
-            } else {
-                // Fallback to basic quality check if filter is disabled
-                shouldEntry = entryQuality.getQualityScore() >= callRule.getMinSignalStrength();
-            }
-            
-            // Log entry decision
-            if (entryQuality.getQualityScore() >= callRule.getMinSignalStrength() && !shouldEntry) {
-                log.info("🔍 CALL ENTRY BLOCKED - Quality: {}/10 | Reason: {}", 
-                    entryQuality.getQualityScore(), filterRejectionReason != null ? filterRejectionReason : "Filter disabled");
-            }
-            
-            // Log successful entry
             if (shouldEntry) {
-                log.debug("🚀 CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
-                    tick.getInstrumentToken(), tick.getLastTradedPrice(), entryQuality.getQualityScore(), tick.getTickTimestamp());
+                log.debug("🚀 CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Bullish: {}, Time: {}", 
+                    tick.getInstrumentToken(), tick.getLastTradedPrice(), decision.getScenarioName(), 
+                    decision.getConfidence(), isBullish, tick.getTickTimestamp());
+            } else {
+                log.debug("🔍 CALL ENTRY BLOCKED - Instrument: {}, Scenario: {}, Bullish: {}, Reason: {}", 
+                    tick.getInstrumentToken(), decision.getScenarioName(), isBullish, decision.getReason());
             }
             
             return shouldEntry;
@@ -167,45 +152,100 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         }
     }
     
+    /**
+     * Determine if market conditions are bullish for CALL entries
+     */
+    private boolean isMarketConditionBullish(FlattenedIndicators indicators) {
+        if (indicators == null) return false;
+        
+        int bullishSignals = 0;
+        int totalSignals = 0;
+        
+        // EMA conditions (bullish when EMA9 > EMA21)
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishSignals++;
+        totalSignals += 3;
+        
+        // Price action conditions (bullish when price > VWAP)
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) bullishSignals++;
+        totalSignals += 3;
+        
+        // RSI conditions (bullish when RSI > 56)
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_56())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_56())) bullishSignals++;
+        totalSignals += 3;
+        
+        // Candlestick conditions (bullish patterns)
+        if (Boolean.TRUE.equals(indicators.getGreen_candle_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getGreen_candle_1min())) bullishSignals++;
+        totalSignals += 2;
+        
+        // Require at least 60% of signals to be bullish
+        return totalSignals > 0 && (double) bullishSignals / totalSignals >= 0.6;
+    }
+    
+    /**
+     * Determine if market conditions are bearish for PUT entries
+     */
+    private boolean isMarketConditionBearish(FlattenedIndicators indicators) {
+        if (indicators == null) return false;
+        
+        int bearishSignals = 0;
+        int totalSignals = 0;
+        
+        // EMA conditions (bearish when EMA9 < EMA21)
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) bearishSignals++;
+        totalSignals += 3;
+        
+        // Price action conditions (bearish when price < VWAP)
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) bearishSignals++;
+        totalSignals += 3;
+        
+        // RSI conditions (bearish when RSI < 44)
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_44())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_44())) bearishSignals++;
+        totalSignals += 3;
+        
+        // Candlestick conditions (bearish patterns)
+        if (Boolean.TRUE.equals(indicators.getRed_candle_5min())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRed_candle_1min())) bearishSignals++;
+        totalSignals += 2;
+        
+        // Require at least 60% of signals to be bearish
+        return totalSignals > 0 && (double) bearishSignals / totalSignals >= 0.6;
+    }
+    
     @Override
     public boolean shouldMakePutEntry(Tick tick) {
         try {
-            // Initialize rules if not already done
-            if (putRule == null) {
-                initializeRules();
-            }
-            
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             
-            // 🔥 NATURAL APPROACH: Intelligent signal validation without forced cooldowns
+            // Get flattened indicators
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Enhanced PUT entry logic with unified profitable trade filter
-            EntryQuality entryQuality = evaluatePutEntryQuality(indicators, tick);
+            // Use new scenario-based entry evaluation for PUT direction
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
             
-            // Apply unified profitable trade filter
-            boolean shouldEntry = false;
-            String filterRejectionReason = null;
+            // Only trigger PUT if scenario passes AND market conditions are bearish
+            boolean isBearish = isMarketConditionBearish(indicators);
+            boolean shouldEntry = decision.isShouldEntry() && isBearish;
             
-            if (profitableTradeFilterService.isFilterEnabled()) {
-                var filterResult = profitableTradeFilterService.evaluatePutEntry(indicators, entryQuality, tick);
-                shouldEntry = filterResult.getIsProfitableEntry();
-                filterRejectionReason = filterResult.getRejectionReason();
-            } else {
-                // Fallback to basic quality check if filter is disabled
-                shouldEntry = entryQuality.getQualityScore() >= putRule.getMinSignalStrength();
-            }
-            
-            // Log entry decision
-            if (entryQuality.getQualityScore() >= putRule.getMinSignalStrength() && !shouldEntry) {
-                log.info("🔍 PUT ENTRY BLOCKED - Quality: {}/10 | Reason: {}", 
-                    entryQuality.getQualityScore(), filterRejectionReason != null ? filterRejectionReason : "Filter disabled");
-            }
-            
-            // Log successful entry
             if (shouldEntry) {
-                log.debug("📉 PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Quality: {}/10, Time: {}", 
-                    tick.getInstrumentToken(), tick.getLastTradedPrice(), entryQuality.getQualityScore(), tick.getTickTimestamp());
+                log.debug("📉 PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Bearish: {}, Time: {}", 
+                    tick.getInstrumentToken(), tick.getLastTradedPrice(), decision.getScenarioName(), 
+                    decision.getConfidence(), isBearish, tick.getTickTimestamp());
+            } else {
+                log.debug("🔍 PUT ENTRY BLOCKED - Instrument: {}, Scenario: {}, Bearish: {}, Reason: {}", 
+                    tick.getInstrumentToken(), decision.getScenarioName(), isBearish, decision.getReason());
             }
             
             return shouldEntry;
@@ -213,6 +253,37 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         } catch (Exception e) {
             log.error("Error evaluating PUT entry for tick: {}", tick.getInstrumentToken(), e);
             return false;
+        }
+    }
+    
+    @Override
+    public ScalpingEntryDecision getEntryDecision(Tick tick) {
+        try {
+            String instrumentToken = String.valueOf(tick.getInstrumentToken());
+            
+            // Get flattened indicators
+            FlattenedIndicators indicators = getFlattenedIndicators(tick);
+            
+            // Use new scenario-based entry evaluation
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
+            
+            if (decision.isShouldEntry()) {
+                log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 
+                    tick.getInstrumentToken(), tick.getLastTradedPrice(), decision.getScenarioName(), 
+                    decision.getConfidence(), tick.getTickTimestamp());
+            } else {
+                log.debug("🔍 ENTRY BLOCKED - Instrument: {}, Reason: {}", 
+                    tick.getInstrumentToken(), decision.getReason());
+            }
+            
+            return decision;
+            
+        } catch (Exception e) {
+            log.error("Error getting entry decision for tick: {}", tick.getInstrumentToken(), e);
+            return ScalpingEntryDecision.builder()
+                    .shouldEntry(false)
+                    .reason("Error during evaluation: " + e.getMessage())
+                    .build();
         }
     }
     
@@ -306,7 +377,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             double confidence = 0.0;
             
             // Calculate confidence based on how many conditions are met - with null checks
-            if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) confidence += scoringConfigService.getEmaConfidence();
+            if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) confidence += scoringConfigService.getEmaConfidence();
             if (indicators.getRsi_5min_gt_70() != null && indicators.getRsi_5min_gt_70()) confidence += scoringConfigService.getRsiConfidence();
             if (indicators.getVolume_5min_surge() != null && indicators.getVolume_5min_surge()) confidence += scoringConfigService.getVolumeConfidence();
             if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) confidence += scoringConfigService.getPriceActionConfidence();
@@ -440,12 +511,12 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         double score = 0.0;
         
         // Positive points for bullish EMA crossovers (with null checks)
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) score += scoringConfigService.getEmaBullishScore();
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) score += scoringConfigService.getEmaBullishScore();
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) score += scoringConfigService.getEmaBullishScore();
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) score += scoringConfigService.getEmaBullishScore();
         
         // Negative points for bearish EMA crossovers (only if we have data)
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) score += scoringConfigService.getEmaBearishScore();
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) score += scoringConfigService.getEmaBearishScore();
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && !indicators.getEma5_5min_gt_ema34_5min()) score += scoringConfigService.getEmaBearishScore();
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && !indicators.getEma5_1min_gt_ema34_1min()) score += scoringConfigService.getEmaBearishScore();
         
         return Math.max(scoringConfigService.getEmaMinScore(), Math.min(scoringConfigService.getEmaMaxScore(), score));
     }
@@ -483,9 +554,9 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean isBearishVolume = false;
             
             // Check EMA direction for volume surge context
-            if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_1min_gt_ema21_1min() != null) {
-                isBullishVolume = indicators.getEma9_5min_gt_ema21_5min() && indicators.getEma9_1min_gt_ema21_1min();
-                isBearishVolume = !indicators.getEma9_5min_gt_ema21_5min() && !indicators.getEma9_1min_gt_ema21_1min();
+            if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_1min_gt_ema34_1min() != null) {
+                isBullishVolume = indicators.getEma5_5min_gt_ema34_5min() && indicators.getEma5_1min_gt_ema34_1min();
+                isBearishVolume = !indicators.getEma5_5min_gt_ema34_5min() && !indicators.getEma5_1min_gt_ema34_1min();
             }
             
             // Check RSI direction for volume surge context
@@ -592,51 +663,86 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // 1-minute EMA calculation
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 21) {
                 try {
-                    double ema9_1min = emaIndicator.getLastEmaValue(oneMinSeries, emaIndicator.createEmaInfoForTimeframes(oneMinSeries, ONE_MIN).getEma9());
-                    double ema21_1min = emaIndicator.getLastEmaValue(oneMinSeries, emaIndicator.createEmaInfoForTimeframes(oneMinSeries, ONE_MIN).getEma20());
+                    EmaInfo emaInfo_1min = multiEmaIndicator.calculateEmaValues(oneMinSeries, ONE_MIN);
+                    double ema5_1min = emaInfo_1min.getEma5();
+                    double ema34_1min = emaInfo_1min.getEma34();
                     
-                    indicators.setEma9_1min_gt_ema21_1min(ema9_1min > ema21_1min);
+                    boolean gtResult = ema5_1min > ema34_1min;
+                    boolean ltResult = ema5_1min < ema34_1min;
+                    indicators.setEma5_1min_gt_ema34_1min(gtResult);
+                    indicators.setEma5_1min_lt_ema34_1min(ltResult);
+                    
+
                 } catch (Exception e) {
-                    indicators.setEma9_1min_gt_ema21_1min(null);
+                    log.error("Error calculating 1min EMA", e);
+                    indicators.setEma5_1min_gt_ema34_1min(null);
+                    indicators.setEma5_1min_lt_ema34_1min(null);
                 }
             } else {
-                indicators.setEma9_1min_gt_ema21_1min(null);
+                log.warn("1min BarSeries insufficient data - BarCount: {}", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
+                indicators.setEma5_1min_gt_ema34_1min(null);
+                indicators.setEma5_1min_lt_ema34_1min(null);
             }
             
             // 5-minute EMA calculation
             if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 21) {
                 try {
-                    double ema9_5min = emaIndicator.getLastEmaValue(fiveMinSeries, emaIndicator.createEmaInfoForTimeframes(fiveMinSeries, FIVE_MIN).getEma9());
-                    double ema21_5min = emaIndicator.getLastEmaValue(fiveMinSeries, emaIndicator.createEmaInfoForTimeframes(fiveMinSeries, FIVE_MIN).getEma20());
+                    EmaInfo emaInfo_5min = multiEmaIndicator.calculateEmaValues(fiveMinSeries, FIVE_MIN);
+                    double ema5_5min = emaInfo_5min.getEma5();
+                    double ema34_5min = emaInfo_5min.getEma34();
                     
-                    indicators.setEma9_5min_gt_ema21_5min(ema9_5min > ema21_5min);
+                    boolean gtResult = ema5_5min > ema34_5min;
+                    boolean ltResult = ema5_5min < ema34_5min;
+                    indicators.setEma5_5min_gt_ema34_5min(gtResult);
+                    indicators.setEma5_5min_lt_ema34_5min(ltResult);
+                    
+
                 } catch (Exception e) {
-                    indicators.setEma9_5min_gt_ema21_5min(null);
+                    log.error("Error calculating 5min EMA", e);
+                    indicators.setEma5_5min_gt_ema34_5min(null);
+                    indicators.setEma5_5min_lt_ema34_5min(null);
                 }
             } else {
-                indicators.setEma9_5min_gt_ema21_5min(null);
+                log.warn("5min BarSeries insufficient data - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
+                indicators.setEma5_5min_gt_ema34_5min(null);
+                indicators.setEma5_5min_lt_ema34_5min(null);
             }
             
             // 15-minute EMA calculation
             if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 21) {
                 try {
-                    double ema9_15min = emaIndicator.getLastEmaValue(fifteenMinSeries, emaIndicator.createEmaInfoForTimeframes(fifteenMinSeries, FIFTEEN_MIN).getEma9());
-                    double ema21_15min = emaIndicator.getLastEmaValue(fifteenMinSeries, emaIndicator.createEmaInfoForTimeframes(fifteenMinSeries, FIFTEEN_MIN).getEma20());
+                    EmaInfo emaInfo_15min = multiEmaIndicator.calculateEmaValues(fifteenMinSeries, FIFTEEN_MIN);
+                    double ema5_15min = emaInfo_15min.getEma5();
+                    double ema34_15min = emaInfo_15min.getEma34();
                     
-                    indicators.setEma9_15min_gt_ema21_15min(ema9_15min > ema21_15min);
+                    boolean gtResult = ema5_15min > ema34_15min;
+                    boolean ltResult = ema5_15min < ema34_15min;
+                    indicators.setEma5_15min_gt_ema34_15min(gtResult);
+                    indicators.setEma5_15min_lt_ema34_15min(ltResult);
+                    
+
                 } catch (Exception e) {
-                    indicators.setEma9_15min_gt_ema21_15min(null);
+                    log.error("Error calculating 15min EMA", e);
+                    indicators.setEma5_15min_gt_ema34_15min(null);
+                    indicators.setEma5_15min_lt_ema34_15min(null);
                 }
             } else {
-                indicators.setEma9_15min_gt_ema21_15min(null);
+                log.warn("15min BarSeries insufficient data - BarCount: {}", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
+                indicators.setEma5_15min_gt_ema34_15min(null);
+                indicators.setEma5_15min_lt_ema34_15min(null);
             }
+            
+
             
         } catch (Exception e) {
             log.error("Error flattening EMA indicators", e);
             // Set to null on error to indicate no data
-            indicators.setEma9_1min_gt_ema21_1min(null);
-            indicators.setEma9_5min_gt_ema21_5min(null);
-            indicators.setEma9_15min_gt_ema21_15min(null);
+            indicators.setEma5_1min_gt_ema34_1min(null);
+            indicators.setEma5_1min_lt_ema34_1min(null);
+            indicators.setEma5_5min_gt_ema34_5min(null);
+            indicators.setEma5_5min_lt_ema34_5min(null);
+            indicators.setEma5_15min_gt_ema34_15min(null);
+            indicators.setEma5_15min_lt_ema34_15min(null);
         }
     }
     
@@ -1052,33 +1158,33 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
     
     private FuturesignalData calculateFuturesignals(FlattenedIndicators indicators) {
         // Enhanced futuresignal calculation using correct RSI thresholds
-        boolean oneMinBullish = indicators.getEma9_1min_gt_ema21_1min() != null && 
-                               indicators.getEma9_1min_gt_ema21_1min() && 
+        boolean oneMinBullish = indicators.getEma5_1min_gt_ema34_1min() != null && 
+                               indicators.getEma5_1min_gt_ema34_1min() && 
                                indicators.getRsi_1min_gt_56() != null && 
                                indicators.getRsi_1min_gt_56();
         
-        boolean fiveMinBullish = indicators.getEma9_5min_gt_ema21_5min() != null && 
-                                indicators.getEma9_5min_gt_ema21_5min() && 
+        boolean fiveMinBullish = indicators.getEma5_5min_gt_ema34_5min() != null && 
+                                indicators.getEma5_5min_gt_ema34_5min() && 
                                 indicators.getRsi_5min_gt_56() != null && 
                                 indicators.getRsi_5min_gt_56();
         
-        boolean fifteenMinBullish = indicators.getEma9_15min_gt_ema21_15min() != null && 
-                                   indicators.getEma9_15min_gt_ema21_15min() && 
+        boolean fifteenMinBullish = indicators.getEma5_15min_gt_ema34_15min() != null && 
+                                   indicators.getEma5_15min_gt_ema34_15min() && 
                                    indicators.getRsi_15min_gt_56() != null && 
                                    indicators.getRsi_15min_gt_56();
         
-        boolean oneMinBearish = indicators.getEma9_1min_gt_ema21_1min() != null && 
-                               !indicators.getEma9_1min_gt_ema21_1min() && 
+        boolean oneMinBearish = indicators.getEma5_1min_gt_ema34_1min() != null && 
+                               !indicators.getEma5_1min_gt_ema34_1min() && 
                                indicators.getRsi_1min_lt_44() != null && 
                                indicators.getRsi_1min_lt_44();
         
-        boolean fiveMinBearish = indicators.getEma9_5min_gt_ema21_5min() != null && 
-                                !indicators.getEma9_5min_gt_ema21_5min() && 
+        boolean fiveMinBearish = indicators.getEma5_5min_gt_ema34_5min() != null && 
+                                !indicators.getEma5_5min_gt_ema34_5min() && 
                                 indicators.getRsi_5min_lt_44() != null && 
                                 indicators.getRsi_5min_lt_44();
         
-        boolean fifteenMinBearish = indicators.getEma9_15min_gt_ema21_15min() != null && 
-                                   !indicators.getEma9_15min_gt_ema21_15min() && 
+        boolean fifteenMinBearish = indicators.getEma5_15min_gt_ema34_15min() != null && 
+                                   !indicators.getEma5_15min_gt_ema34_15min() && 
                                    indicators.getRsi_15min_lt_44() != null && 
                                    indicators.getRsi_15min_lt_44();
         
@@ -1109,14 +1215,14 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         int bearishTimeframes = 0;
         
         // Count bullish timeframes
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) bullishTimeframes++;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) bullishTimeframes++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) bullishTimeframes++;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) bullishTimeframes++;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) bullishTimeframes++;
+        if (indicators.getEma5_15min_gt_ema34_15min() != null && indicators.getEma5_15min_gt_ema34_15min()) bullishTimeframes++;
         
         // Count bearish timeframes
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) bearishTimeframes++;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) bearishTimeframes++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) bearishTimeframes++;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && !indicators.getEma5_1min_gt_ema34_1min()) bearishTimeframes++;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && !indicators.getEma5_5min_gt_ema34_5min()) bearishTimeframes++;
+        if (indicators.getEma5_15min_gt_ema34_15min() != null && !indicators.getEma5_15min_gt_ema34_15min()) bearishTimeframes++;
         
         // Perfect alignment bonus
         if (bullishTimeframes == 3) {
@@ -1163,8 +1269,8 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         
         // EMA Quality Score (0-10)
         double emaScore = 0.0;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) emaScore += scoringConfigService.getEmaQuality();
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) emaScore += scoringConfigService.getEmaQuality();
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) emaScore += scoringConfigService.getEmaQuality();
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) emaScore += scoringConfigService.getEmaQuality();
         quality.setEmaScore(emaScore);
         
         // RSI Quality Score (0-10)
@@ -1185,14 +1291,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         if (indicators.getPrice_gt_vwap_5min() != null && indicators.getPrice_gt_vwap_5min()) priceActionScore += scoringConfigService.getPriceActionQuality();
         if (indicators.getPrice_above_resistance() != null && indicators.getPrice_above_resistance()) priceActionScore += scoringConfigService.getPriceActionQuality();
         
-        // Debug logging for price action conditions
-        log.info("🔍 PRICE ACTION DEBUG - CALL Order | Price: {} | VWAP5min: {} | Resistance: {} | Price>VWAP: {} | Price>Resistance: {} | Score: {}/10", 
-                tick.getLastTradedPrice(), 
-                indicators.getPrice_gt_vwap_5min() != null ? "VWAP calculated" : "VWAP null",
-                indicators.getPrice_above_resistance() != null ? "Resistance calculated" : "Resistance null",
-                indicators.getPrice_gt_vwap_5min(),
-                indicators.getPrice_above_resistance(),
-                priceActionScore);
+        // Removed verbose debug logging - only log when there's an actual entry signal
         
         quality.setPriceActionScore(priceActionScore);
         
@@ -1209,9 +1308,9 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         // Momentum Quality Score (0-10)
         double momentumScore = 0.0;
         int bullishTimeframes = 0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && indicators.getEma9_1min_gt_ema21_1min()) bullishTimeframes++;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && indicators.getEma9_5min_gt_ema21_5min()) bullishTimeframes++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && indicators.getEma9_15min_gt_ema21_15min()) bullishTimeframes++;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && indicators.getEma5_1min_gt_ema34_1min()) bullishTimeframes++;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && indicators.getEma5_5min_gt_ema34_5min()) bullishTimeframes++;
+        if (indicators.getEma5_15min_gt_ema34_15min() != null && indicators.getEma5_15min_gt_ema34_15min()) bullishTimeframes++;
         
         if (bullishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
         else if (bullishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();
@@ -1266,8 +1365,8 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         
         // EMA Quality Score (0-10)
         double emaScore = 0.0;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) emaScore += scoringConfigService.getEmaQuality();
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) emaScore += scoringConfigService.getEmaQuality();
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && !indicators.getEma5_5min_gt_ema34_5min()) emaScore += scoringConfigService.getEmaQuality();
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && !indicators.getEma5_1min_gt_ema34_1min()) emaScore += scoringConfigService.getEmaQuality();
         quality.setEmaScore(emaScore);
         
         // RSI Quality Score (0-10)
@@ -1289,13 +1388,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         if (indicators.getPrice_below_support() != null && indicators.getPrice_below_support()) priceActionScore += scoringConfigService.getPriceActionQuality();
         
         // Debug logging for price action conditions
-        log.info("🔍 PRICE ACTION DEBUG - PUT Order | Price: {} | VWAP5min: {} | Support: {} | Price<VWAP: {} | Price<Support: {} | Score: {}/10", 
-                tick.getLastTradedPrice(), 
-                indicators.getPrice_lt_vwap_5min() != null ? "VWAP calculated" : "VWAP null",
-                indicators.getPrice_below_support() != null ? "Support calculated" : "Support null",
-                indicators.getPrice_lt_vwap_5min(),
-                indicators.getPrice_below_support(),
-                priceActionScore);
+        // Removed verbose debug logging - only log when there's an actual entry signal
         
         quality.setPriceActionScore(priceActionScore);
         
@@ -1312,9 +1405,9 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
         // Momentum Quality Score (0-10)
         double momentumScore = 0.0;
         int bearishTimeframes = 0;
-        if (indicators.getEma9_1min_gt_ema21_1min() != null && !indicators.getEma9_1min_gt_ema21_1min()) bearishTimeframes++;
-        if (indicators.getEma9_5min_gt_ema21_5min() != null && !indicators.getEma9_5min_gt_ema21_5min()) bearishTimeframes++;
-        if (indicators.getEma9_15min_gt_ema21_15min() != null && !indicators.getEma9_15min_gt_ema21_15min()) bearishTimeframes++;
+        if (indicators.getEma5_1min_gt_ema34_1min() != null && !indicators.getEma5_1min_gt_ema34_1min()) bearishTimeframes++;
+        if (indicators.getEma5_5min_gt_ema34_5min() != null && !indicators.getEma5_5min_gt_ema34_5min()) bearishTimeframes++;
+        if (indicators.getEma5_15min_gt_ema34_15min() != null && !indicators.getEma5_15min_gt_ema34_15min()) bearishTimeframes++;
         
         if (bearishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
         else if (bearishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();

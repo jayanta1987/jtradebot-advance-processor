@@ -20,23 +20,25 @@ public class ScalpingEntryConfig {
     private String version;
     private String description;
     
-    private ScalpingEntryLogic callStrategy;
-    private ScalpingEntryLogic putStrategy;
-    private CommonSettings commonSettings;
-    private Map<String, QualityGrade> qualityGrades;
-    private Map<String, MarketSession> marketSessions;
+    private TradingConfiguration tradingConfiguration;
+    private FuturesignalsConfig futuresignalsConfig;
+    private Map<String, List<String>> callCategories;
+    private Map<String, List<String>> putCategories;
+    private List<Scenario> scenarios;
+    private LoggingConfig logging;
+    private WeightsConfig weights;
     
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ScalpingEntryLogic {
-        private String strategyType; // CALL or PUT
-        private EntryConditions entryConditions;
+    public static class TradingConfiguration {
+        private Double accountBalance;
+        private QuantitySettings quantitySettings;
+        private InvestmentLimits investmentLimits;
         private RiskManagement riskManagement;
-        private EntryQuality entryQuality;
-        private MarketConditions marketConditions;
+        private TradeSettings tradeSettings;
     }
     
     @Data
@@ -44,15 +46,18 @@ public class ScalpingEntryConfig {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class EntryConditions {
-        private List<String> mandatoryConditions; // Must be satisfied
-        private List<String> optionalConditions; // Nice to have
-        private int minMandatoryCount; // Minimum mandatory conditions
-        private int minOptionalCount; // Minimum optional conditions
-        private double minConfidenceScore; // Minimum confidence score
-        private boolean requireAllTimeframes; // All timeframes must align
-        private boolean requireVolumeConfirmation; // Volume must confirm
-        private boolean requirePriceActionConfirmation; // Price action must confirm
+    public static class QuantitySettings {
+        private Integer minLotSize;
+        private Integer maxQuantityPerTrade;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class InvestmentLimits {
+        private Double maxInvestmentPercentage;
     }
     
     @Data
@@ -61,17 +66,8 @@ public class ScalpingEntryConfig {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class RiskManagement {
-        private double maxRiskPerTrade; // Maximum risk per trade (%)
-        private double positionSize; // Position size (% of capital)
-        private double stopLossPercentage; // Stop loss percentage
-        private double stopLossPoints; // Stop loss in points
-        private double targetPercentage; // Target percentage
-        private double targetPoints; // Target in points
-        private int maxHoldingTimeMinutes; // Maximum holding time
-        private boolean useTrailingStop; // Use trailing stop
-        private double trailingStopPercentage; // Trailing stop percentage
-        private boolean useBreakEven; // Move to break even after target
-        private double breakEvenTrigger; // Trigger for break even
+        private Double maxRiskPerDayPercentage;
+        private Double maxProfitPerDayPercentage;
     }
     
     @Data
@@ -79,15 +75,8 @@ public class ScalpingEntryConfig {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class EntryQuality {
-        private double minVolumeSurge; // Minimum volume surge multiplier
-        private double minRsiStrength; // Minimum RSI strength
-        private double minEmaAlignment; // Minimum EMA alignment
-        private double minPriceMomentum; // Minimum price momentum
-        private double minSignalStrength; // Minimum signal strength
-        private boolean requireTrendAlignment; // Require trend alignment
-        private boolean requireSupportResistance; // Require S/R confirmation
-        private boolean requireVwapAlignment; // Require VWAP alignment
+    public static class TradeSettings {
+        private Integer maxTradeHoldingTimeInSec;
     }
     
     @Data
@@ -95,16 +84,8 @@ public class ScalpingEntryConfig {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class MarketConditions {
-        private String marketSession; // Market session (OPENING, MID, CLOSING)
-        private double minVolatility; // Minimum volatility requirement
-        private double maxVolatility; // Maximum volatility limit
-        private boolean avoidHighSpread; // Avoid high spread conditions
-        private double maxSpreadPercentage; // Maximum spread percentage
-        private boolean avoidNewsTime; // Avoid news time
-        private List<String> avoidTimeSlots; // Time slots to avoid
-        private boolean requireLiquidity; // Require sufficient liquidity
-        private double minLiquidityThreshold; // Minimum liquidity threshold
+    public static class FuturesignalsConfig {
+        private List<String> enabledTimeframes;
     }
     
     @Data
@@ -112,27 +93,11 @@ public class ScalpingEntryConfig {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class CommonSettings {
-        private double accountBalance;
-        private int lotSize;
-        private double tickSize;
-        private int maxOpenPositions;
-        private int minTimeBetweenTrades;
-        private double maxDailyLoss;
-        private int maxDailyTrades;
-        private boolean enablePositionSizing;
-        private boolean enableRiskManagement;
-        private boolean enableMarketConditionValidation;
-    }
-    
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class QualityGrade {
-        private double minScore;
+    public static class Scenario {
+        private String name;
         private String description;
+        private ScenarioRequirements requirements;
+        private ScenarioRiskManagement riskManagement;
     }
     
     @Data
@@ -140,10 +105,48 @@ public class ScalpingEntryConfig {
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class MarketSession {
-        private String startTime;
-        private String endTime;
-        private String description;
+    public static class ScenarioRequirements {
+        private Integer ema_min_count;
+        private Integer futureAndVolume_min_count;
+        private Integer candlestick_min_count;
+        private Integer momentum_min_count;
+        private Double minQualityScore;
     }
     
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ScenarioRiskManagement {
+        private Double stopLossPoints;
+        private Double targetPoints;
+        private Boolean useTrailingStop;
+        private Double stopLossPercentage;
+        private Double targetPercentage;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class LoggingConfig {
+        private Boolean enabled;
+        private Boolean logFilteredEntries;
+        private Boolean logRejectionReasons;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class WeightsConfig {
+        private Double emaCrossoverWeight;
+        private Double rsiConditionWeight;
+        private Double volumeSurgeWeight;
+        private Double priceActionWeight;
+        private Double futuresignalsWeight;
+    }
 }

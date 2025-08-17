@@ -100,13 +100,10 @@ class ProfitableTradeFilterServiceTest {
                         .enabled(true)
                         .minQualityScore(7.5)
                         .minCandlestickScore(4.0)
-                        .volumeSurgeMultiplier(ProfitableTradeFilterConfig.VolumeSurgeMultiplier.builder()
-                                .min(15.1)
-                                .max(16.0)
-                                .build())
+                        .volumeSurgeMultiplier(15.5)
                         .categories(ProfitableTradeFilterConfig.Categories.builder()
                                 .ema(ProfitableTradeFilterConfig.Category.builder()
-                                        .conditions(java.util.List.of("ema9_5min_gt_ema21_5min", "ema9_1min_gt_ema21_1min"))
+                                        .conditions(java.util.List.of("ema5_5min_gt_ema34_5min", "ema5_1min_gt_ema34_1min"))
                                         .minCount(2)
                                         .build())
                                 .futureAndVolume(ProfitableTradeFilterConfig.Category.builder()
@@ -135,8 +132,8 @@ class ProfitableTradeFilterServiceTest {
         FlattenedIndicators indicators = new FlattenedIndicators();
         
         // Set all conditions to true to ensure they pass
-        indicators.setEma9_5min_gt_ema21_5min(true);
-        indicators.setEma9_1min_gt_ema21_1min(true);
+        indicators.setEma5_5min_gt_ema34_5min(true);
+        indicators.setEma5_1min_gt_ema34_1min(true);
         indicators.setVolume_5min_surge(true);
         indicators.setPrice_gt_vwap_5min(true);
         indicators.setGreen_candle_5min(true);

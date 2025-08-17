@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
 
 @RestController
 @RequestMapping("/api/exit-strategy")
@@ -34,7 +35,8 @@ public class ExitStrategyController {
                 request.getEntryIndexPrice(),
                 request.getStopLossPrice(),
                 request.getTargetPrice(),
-                request.getQuantity()
+                request.getQuantity(),
+                new Date() // Use current time for manual orders
             );
             return ResponseEntity.ok(order);
         } catch (Exception e) {

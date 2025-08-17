@@ -81,6 +81,10 @@ public class ScalpingVolumeSurgeController {
         response.put("indicators", new String[]{"EMA", "RSI", "Volume", "VWAP", "Support/Resistance"});
         response.put("entryConditions", new String[]{"Volume Surge", "EMA Crossover", "RSI Bullish/Bearish", "Price vs VWAP", "Support/Resistance"});
         
+        // Add scenarios information
+        response.put("scenarios", configService.getScenarios());
+        response.put("categories", configService.getCategories());
+        
         // Add current thresholds
         Map<String, Object> thresholds = new HashMap<>();
         thresholds.put("callRsiThreshold", configService.getCallRsiThreshold());

@@ -350,18 +350,18 @@ public class ProfitableTradeFilterServiceImpl implements ProfitableTradeFilterSe
     private Boolean getConditionValue(FlattenedIndicators indicators, String condition) {
         switch (condition) {
             // EMA conditions
-            case "ema9_5min_gt_ema21_5min":
-                return indicators.getEma9_5min_gt_ema21_5min();
-            case "ema9_1min_gt_ema21_1min":
-                return indicators.getEma9_1min_gt_ema21_1min();
-            case "ema9_15min_gt_ema21_15min":
-                return indicators.getEma9_15min_gt_ema21_15min();
-            case "ema9_5min_lt_ema21_5min":
-                return indicators.getEma9_5min_gt_ema21_5min() != null ? !indicators.getEma9_5min_gt_ema21_5min() : null;
-            case "ema9_1min_lt_ema21_1min":
-                return indicators.getEma9_1min_gt_ema21_1min() != null ? !indicators.getEma9_1min_gt_ema21_1min() : null;
-            case "ema9_15min_lt_ema21_15min":
-                return indicators.getEma9_15min_gt_ema21_15min() != null ? !indicators.getEma9_15min_gt_ema21_15min() : null;
+            case "ema5_5min_gt_ema34_5min":
+                return indicators.getEma5_5min_gt_ema34_5min();
+            case "ema5_1min_gt_ema34_1min":
+                return indicators.getEma5_1min_gt_ema34_1min();
+            case "ema5_15min_gt_ema34_15min":
+                return indicators.getEma5_15min_gt_ema34_15min();
+            case "ema5_5min_lt_ema34_5min":
+                return indicators.getEma5_5min_gt_ema34_5min() != null ? !indicators.getEma5_5min_gt_ema34_5min() : null;
+            case "ema5_1min_lt_ema34_1min":
+                return indicators.getEma5_1min_gt_ema34_1min() != null ? !indicators.getEma5_1min_gt_ema34_1min() : null;
+            case "ema5_15min_lt_ema34_15min":
+                return indicators.getEma5_15min_gt_ema34_15min() != null ? !indicators.getEma5_15min_gt_ema34_15min() : null;
             
             // Volume conditions
             case "volume_5min_surge":

@@ -55,6 +55,9 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
 
     @Override
     public void flattenEmaIndicators(TickDocument tickDocument, FlattenedIndicators flattenedIndicators) {
+        log.info("🚀 STARTING EMA CALCULATION - Instrument: {}, Timestamp: {}", 
+            tickDocument.getInstrumentToken(), tickDocument.getTickTimestamp());
+        
         try {
             // Get BarSeries for different timeframes
             BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tickDocument.getInstrumentToken()), ONE_MIN);
@@ -65,18 +68,44 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             EmaInfo emaInfo_1min = multiEmaIndicator.calculateEmaValues(oneMinSeries, ONE_MIN);
             EmaInfo emaInfo_5min = multiEmaIndicator.calculateEmaValues(fiveMinSeries, FIVE_MIN);
             EmaInfo emaInfo_15min = multiEmaIndicator.calculateEmaValues(fifteenMinSeries, FIFTEEN_MIN);
+            
+            // Check if EMA values are null
+            if (emaInfo_1min == null || emaInfo_5min == null || emaInfo_15min == null) {
+                log.error("❌ EMA CALCULATION FAILED - One or more EmaInfo objects are null");
+                return;
+            }
+            
+            if (emaInfo_1min.getEma5() == null || emaInfo_1min.getEma34() == null) {
+                log.error("❌ EMA VALUES NULL - 1min EMA5: {}, EMA34: {}", emaInfo_1min.getEma5(), emaInfo_1min.getEma34());
+                return;
+            }
 
-            // Flatten to boolean values
-            flattenedIndicators.setEma9_1min_gt_ema21_1min(emaInfo_1min.getEma9() > emaInfo_1min.getEma20());
-            flattenedIndicators.setEma9_5min_gt_ema21_5min(emaInfo_5min.getEma9() > emaInfo_5min.getEma20());
-            flattenedIndicators.setEma9_15min_gt_ema21_15min(emaInfo_15min.getEma9() > emaInfo_15min.getEma20());
+            // Log EMA values for debugging
+            log.info("📈 EMA VALUES - Instrument: {}, Timestamp: {}", 
+                tickDocument.getInstrumentToken(), tickDocument.getTickTimestamp());
+            log.info("   1min - EMA5: {:.2f}, EMA34: {:.2f}, EMA5>EMA34: {}", 
+                emaInfo_1min.getEma5(), emaInfo_1min.getEma34(), 
+                emaInfo_1min.getEma5() > emaInfo_1min.getEma34());
+            log.info("   5min - EMA5: {:.2f}, EMA34: {:.2f}, EMA5>EMA34: {}", 
+                emaInfo_5min.getEma5(), emaInfo_5min.getEma34(), 
+                emaInfo_5min.getEma5() > emaInfo_5min.getEma34());
+            log.info("   15min - EMA5: {:.2f}, EMA34: {:.2f}, EMA5>EMA34: {}", 
+                emaInfo_15min.getEma5(), emaInfo_15min.getEma34(), 
+                emaInfo_15min.getEma5() > emaInfo_15min.getEma34());
+            
+            // Flatten to boolean values (EMA5 vs EMA34)
+            flattenedIndicators.setEma5_1min_gt_ema34_1min(emaInfo_1min.getEma5() > emaInfo_1min.getEma34());
+            flattenedIndicators.setEma5_5min_gt_ema34_5min(emaInfo_5min.getEma5() > emaInfo_5min.getEma34());
+            flattenedIndicators.setEma5_15min_gt_ema34_15min(emaInfo_15min.getEma5() > emaInfo_15min.getEma34());
+            
+            log.info("✅ EMA CALCULATION COMPLETED - Instrument: {}", tickDocument.getInstrumentToken());
 
         } catch (Exception e) {
             log.error("Error flattening EMA indicators for instrument: {}", tickDocument.getInstrumentToken(), e);
-            // Set default values on error
-            flattenedIndicators.setEma9_1min_gt_ema21_1min(false);
-            flattenedIndicators.setEma9_5min_gt_ema21_5min(false);
-            flattenedIndicators.setEma9_15min_gt_ema21_15min(false);
+            // Set default values on error (EMA5 vs EMA34)
+            flattenedIndicators.setEma5_1min_gt_ema34_1min(false);
+            flattenedIndicators.setEma5_5min_gt_ema34_5min(false);
+            flattenedIndicators.setEma5_15min_gt_ema34_15min(false);
         }
     }
 
