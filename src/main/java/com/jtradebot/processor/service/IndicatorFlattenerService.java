@@ -1,6 +1,6 @@
 package com.jtradebot.processor.service;
 
-import com.jtradebot.processor.model.FlattenedIndicators;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.repository.document.TickDocument;
 
 public interface IndicatorFlattenerService {

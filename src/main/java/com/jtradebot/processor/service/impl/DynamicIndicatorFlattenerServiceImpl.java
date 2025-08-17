@@ -7,9 +7,9 @@ import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.indicator.VWAPIndicator;
 import com.jtradebot.processor.manager.TickDataManager;
-import com.jtradebot.processor.model.DynamicFlattenedIndicators;
-import com.jtradebot.processor.model.DynamicIndicatorConfig;
-import com.jtradebot.processor.model.EmaInfo;
+import com.jtradebot.processor.model.indicator.DynamicFlattenedIndicators;
+import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
+import com.jtradebot.processor.model.indicator.EmaInfo;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.repository.document.TickDocument;
 import com.jtradebot.processor.service.DynamicIndicatorFlattenerService;
@@ -28,8 +28,8 @@ import java.util.Map;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 import com.jtradebot.processor.candleStick.CandlestickPattern;
-import com.jtradebot.processor.model.Support;
-import com.jtradebot.processor.model.Resistance;
+import com.jtradebot.processor.model.indicator.Support;
+import com.jtradebot.processor.model.indicator.Resistance;
 
 @Service
 @RequiredArgsConstructor
@@ -114,6 +114,9 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
 
     private void flattenEmaIndicators(TickDocument tickDocument, DynamicFlattenedIndicators flattenedIndicators, 
                                     DynamicIndicatorConfig.IndicatorDefinition config) {
+        log.info("🚀 DYNAMIC EMA CALCULATION - Instrument: {}, Timestamp: {}", 
+            tickDocument.getInstrumentToken(), tickDocument.getTickTimestamp());
+        
         try {
             for (String timeframe : config.getTimeframes()) {
                 CandleTimeFrameEnum timeFrameEnum = getTimeFrameEnum(timeframe);
@@ -124,6 +127,13 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                 
                 EmaInfo emaInfo = multiEmaIndicator.calculateEmaValues(barSeries, timeFrameEnum);
                 Double currentPrice = tickDocument.getLastTradedPrice();
+                
+                // Log EMA values for debugging
+                if (emaInfo != null) {
+                    log.info("📈 DYNAMIC EMA VALUES - {}min - EMA5: {:.2f}, EMA34: {:.2f}, EMA5>EMA34: {}", 
+                        timeframe, emaInfo.getEma5(), emaInfo.getEma34(), 
+                        emaInfo.getEma5() > emaInfo.getEma34());
+                }
                 
                 // Only create indicators based on the configuration
                 String comparison = config.getComparison();
@@ -171,7 +181,10 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
                                 Double ema2Value = getEmaValue(emaInfo, ema2);
                                 if (ema1Value != null && ema2Value != null) {
                                     String gtKey = String.format("ema%d_above_ema%d_%s", ema1, ema2, timeframe);
-                                    flattenedIndicators.setBooleanIndicator(gtKey, ema1Value > ema2Value);
+                                    boolean result = ema1Value > ema2Value;
+                                    flattenedIndicators.setBooleanIndicator(gtKey, result);
+                                    log.info("🔍 EMA COMPARISON - {}min - EMA{}: {:.2f}, EMA{}: {:.2f}, EMA{}>EMA{}: {} (Key: {})", 
+                                        timeframe, ema1, ema1Value, ema2, ema2Value, ema1, ema2, result, gtKey);
                                 }
                             }
                             break;
@@ -183,6 +196,8 @@ public class DynamicIndicatorFlattenerServiceImpl implements DynamicIndicatorFla
         } catch (Exception e) {
             log.error("Error flattening EMA indicators", e);
         }
+        
+        log.info("✅ DYNAMIC EMA CALCULATION COMPLETED - Instrument: {}", tickDocument.getInstrumentToken());
     }
     
     /**

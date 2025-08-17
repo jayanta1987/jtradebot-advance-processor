@@ -15,6 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -46,10 +49,22 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         log.info("ExitStrategyService initialized with {} active orders", activeOrdersMap.size());
     }
     
+    // Utility methods for IST time formatting
+    private String formatDateToIST(Date date) {
+        if (date == null) return null;
+        ZonedDateTime istTime = date.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
+        return istTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"));
+    }
+    
+    private String getCurrentISTTime() {
+        ZonedDateTime istTime = ZonedDateTime.now(ZoneId.of("Asia/Kolkata"));
+        return istTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"));
+    }
+    
     @Override
     public JtradeOrder createOrderEntry(OrderTypeEnum orderType, String tradingSymbol, Long instrumentToken,
                                        Double entryPrice, Double entryIndexPrice, Double stopLossPrice,
-                                       Double targetPrice, Integer quantity) {
+                                       Double targetPrice, Integer quantity, Date entryTime) {
         
         // Check if there's already an active order
         if (hasActiveOrder()) {
@@ -68,9 +83,9 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         order.setTargetPrice(targetPrice);
         order.setQuantity(quantity);
         order.setStatus("ACTIVE");
-        order.setEntryTime(new Date());
-        order.setCreatedAt(new Date());
-        order.setLastUpdated(new Date());
+        order.setEntryTime(formatDateToIST(entryTime));
+        order.setCreatedAt(getCurrentISTTime());
+        order.setLastUpdated(getCurrentISTTime());
         
         // Initialize milestone system
         initializeMilestoneSystem(order);
@@ -81,6 +96,55 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         
         log.info("Created new order entry: {} - {} @ {} (SL: {}, Target: {})", 
                 orderType, tradingSymbol, entryPrice, stopLossPrice, targetPrice);
+        
+        return order;
+    }
+    
+    @Override
+    public JtradeOrder createOrderEntryWithScenario(OrderTypeEnum orderType, String tradingSymbol, Long instrumentToken,
+                                                   Double entryPrice, Double entryIndexPrice, Double stopLossPrice,
+                                                   Double targetPrice, Integer quantity, String scenarioName,
+                                                   String scenarioDescription, Double scenarioConfidence,
+                                                   Map<String, Integer> categoryScores,
+                                                   Map<String, List<String>> matchedConditions, Date entryTime) {
+        
+        // Check if there's already an active order
+        if (hasActiveOrder()) {
+            log.warn("Cannot create new order - there's already an active order. Please exit existing order first.");
+            return null;
+        }
+        
+        JtradeOrder order = new JtradeOrder();
+        order.setId(UUID.randomUUID().toString());
+        order.setOrderType(orderType);
+        order.setTradingSymbol(tradingSymbol);
+        order.setInstrumentToken(instrumentToken);
+        order.setEntryPrice(entryPrice);
+        order.setEntryIndexPrice(entryIndexPrice);
+        order.setStopLossPrice(stopLossPrice);
+        order.setTargetPrice(targetPrice);
+        order.setQuantity(quantity);
+        order.setStatus("ACTIVE");
+        order.setEntryTime(formatDateToIST(entryTime));
+        order.setCreatedAt(getCurrentISTTime());
+        order.setLastUpdated(getCurrentISTTime());
+        
+        // Store scenario information
+        order.setEntryScenarioName(scenarioName);
+        order.setEntryScenarioDescription(scenarioDescription);
+        order.setEntryScenarioConfidence(scenarioConfidence);
+        order.setEntryCategoryScores(categoryScores);
+        order.setEntryMatchedConditions(matchedConditions);
+        
+        // Initialize milestone system
+        initializeMilestoneSystem(order);
+        
+        // Store in memory
+        activeOrdersMap.put(order.getId(), order);
+        needsUpdate.set(true);
+        
+        log.info("Created new order entry with scenario: {} - {} @ {} (SL: {}, Target: {}) - Scenario: {} (Confidence: {})", 
+                orderType, tradingSymbol, entryPrice, stopLossPrice, targetPrice, scenarioName, scenarioConfidence);
         
         return order;
     }
@@ -117,19 +181,19 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
                 orderType, tradingSymbol, entryPrice, currentIndexPrice, stopLossPrice, targetPrice);
         
         // Create order with calculated prices
-        return createOrderEntry(orderType, tradingSymbol, instrumentToken, entryPrice, currentIndexPrice, 
-                              stopLossPrice, targetPrice, quantity);
+                return createOrderEntry(orderType, tradingSymbol, instrumentToken, entryPrice, currentIndexPrice,
+                               stopLossPrice, targetPrice, quantity, new Date());
     }
     
     @Override
-    public void exitOrder(String orderId, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice) {
+    public void exitOrder(String orderId, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice, Date exitTime) {
         JtradeOrder order = activeOrdersMap.get(orderId);
         if (order == null) {
             log.warn("Order not found for exit: {}", orderId);
             return;
         }
         
-        order.markExited(exitReason, exitPrice, exitIndexPrice);
+        order.markExited(exitReason, exitPrice, exitIndexPrice, exitTime);
         
         // Calculate profit/loss using option pricing service
         Double points = optionPricingService.calculateProfitLoss(
@@ -201,7 +265,7 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         for (JtradeOrder order : ordersToExit) {
             Double currentLTP = calculateCurrentLTP(order, currentIndexPrice);
             ExitReasonEnum exitReason = determineExitReason(order, currentLTP, currentIndexPrice);
-            exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice);
+            exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice, new Date()); // Use current time for non-tick exits
         }
     }
     
@@ -225,7 +289,7 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             
             // Check all exit conditions including time-based and strategy-based
             if (shouldExitOrder(order, currentLTP, currentIndexPrice) || 
-                shouldExitBasedOnTime(order) || 
+                shouldExitBasedOnTime(order, tick.getTickTimestamp()) || 
                 shouldExitBasedOnStrategy(order, tick)) {
                 ordersToExit.add(order);
             }
@@ -235,7 +299,7 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         for (JtradeOrder order : ordersToExit) {
             Double currentLTP = calculateCurrentLTP(order, currentIndexPrice);
             ExitReasonEnum exitReason = determineEnhancedExitReason(order, currentLTP, currentIndexPrice, tick);
-            exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice);
+            exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice, tick.getTickTimestamp()); // Use tick timestamp for accurate backtesting
         }
     }
     
@@ -259,8 +323,20 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         if (order.getEntryTime() == null || order.getExitTime() == null) {
             return 0;
         }
-        long durationMillis = order.getExitTime().getTime() - order.getEntryTime().getTime();
-        return durationMillis / (1000 * 60); // Convert to minutes
+        
+        try {
+            // Parse the IST time strings
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z");
+            ZonedDateTime entryTime = ZonedDateTime.parse(order.getEntryTime(), formatter);
+            ZonedDateTime exitTime = ZonedDateTime.parse(order.getExitTime(), formatter);
+            
+            // Calculate duration in minutes
+            return java.time.Duration.between(entryTime, exitTime).toMinutes();
+        } catch (Exception e) {
+            log.error("Error calculating order duration for order: {} - Entry: {}, Exit: {}", 
+                    order.getId(), order.getEntryTime(), order.getExitTime(), e);
+            return 0;
+        }
     }
     
     @Override
@@ -426,7 +502,7 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
      */
     private ExitReasonEnum determineEnhancedExitReason(JtradeOrder order, Double currentLTP, Double currentIndexPrice, Tick tick) {
         // Check time-based exit first
-        if (shouldExitBasedOnTime(order)) {
+        if (shouldExitBasedOnTime(order, tick.getTickTimestamp())) {
             return ExitReasonEnum.TIME_BASED_EXIT;
         }
         
@@ -442,7 +518,7 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
     /**
      * Check if order should be exited based on time limit
      */
-    private boolean shouldExitBasedOnTime(JtradeOrder order) {
+    private boolean shouldExitBasedOnTime(JtradeOrder order, Date currentTime) {
         if (order.getEntryTime() == null) {
             return false;
         }
@@ -452,17 +528,28 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             configService.getCallMaxHoldingTimeMinutes() : 
             configService.getPutMaxHoldingTimeMinutes();
         
-        long currentTime = System.currentTimeMillis();
-        long entryTime = order.getEntryTime().getTime();
-        long durationMinutes = (currentTime - entryTime) / (1000 * 60);
-        
-        if (durationMinutes >= maxHoldingTimeMinutes) {
-            log.info("Time-based exit triggered for order: {} - Duration: {} minutes (Max: {})", 
-                    order.getId(), durationMinutes, maxHoldingTimeMinutes);
-            return true;
+        try {
+            // Parse the IST entry time string
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z");
+            ZonedDateTime entryTime = ZonedDateTime.parse(order.getEntryTime(), formatter);
+            
+            // Convert current time to IST
+            ZonedDateTime currentISTTime = currentTime.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
+            
+            // Calculate duration in minutes
+            long durationMinutes = java.time.Duration.between(entryTime, currentISTTime).toMinutes();
+            
+            if (durationMinutes >= maxHoldingTimeMinutes) {
+                log.info("Time-based exit triggered for order: {} - Duration: {} minutes (Max: {})", 
+                        order.getId(), durationMinutes, maxHoldingTimeMinutes);
+                return true;
+            }
+            
+            return false;
+        } catch (Exception e) {
+            log.error("Error parsing entry time for order: {} - Entry time: {}", order.getId(), order.getEntryTime(), e);
+            return false; // Don't exit if we can't parse the time
         }
-        
-        return false;
     }
     
     /**

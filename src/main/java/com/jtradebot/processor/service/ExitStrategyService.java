@@ -6,6 +6,7 @@ import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.zerodhatech.models.Tick;
 
+import java.util.Date;
 import java.util.List;
 
 public interface ExitStrategyService {
@@ -15,7 +16,18 @@ public interface ExitStrategyService {
      */
     JtradeOrder createOrderEntry(OrderTypeEnum orderType, String tradingSymbol, Long instrumentToken, 
                                 Double entryPrice, Double entryIndexPrice, Double stopLossPrice, 
-                                Double targetPrice, Integer quantity);
+                                Double targetPrice, Integer quantity, java.util.Date entryTime);
+    
+    /**
+     * Create a new order entry with scenario information
+     */
+    JtradeOrder createOrderEntryWithScenario(OrderTypeEnum orderType, String tradingSymbol, Long instrumentToken, 
+                                            Double entryPrice, Double entryIndexPrice, Double stopLossPrice, 
+                                            Double targetPrice, Integer quantity, String scenarioName, 
+                                            String scenarioDescription, Double scenarioConfidence,
+                                            java.util.Map<String, Integer> categoryScores,
+                                            java.util.Map<String, java.util.List<String>> matchedConditions,
+                                            java.util.Date entryTime);
     
     /**
      * Create a new order entry with realistic option pricing (1% of index price)
@@ -28,7 +40,7 @@ public interface ExitStrategyService {
     /**
      * Exit an order with specified reason and prices
      */
-    void exitOrder(String orderId, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice);
+    void exitOrder(String orderId, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice, Date exitTime);
     
     /**
      * Check if there's already an active order (to prevent multiple orders)

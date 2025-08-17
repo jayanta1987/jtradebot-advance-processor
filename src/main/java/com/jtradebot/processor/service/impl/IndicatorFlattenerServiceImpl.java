@@ -6,8 +6,8 @@ import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.indicator.VWAPIndicator;
 import com.jtradebot.processor.manager.TickDataManager;
-import com.jtradebot.processor.model.EmaInfo;
-import com.jtradebot.processor.model.FlattenedIndicators;
+import com.jtradebot.processor.model.indicator.EmaInfo;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.repository.document.TickDocument;
 import com.jtradebot.processor.service.IndicatorFlattenerService;
@@ -55,6 +55,9 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
 
     @Override
     public void flattenEmaIndicators(TickDocument tickDocument, FlattenedIndicators flattenedIndicators) {
+        log.info("🚀 STARTING EMA CALCULATION - Instrument: {}, Timestamp: {}", 
+            tickDocument.getInstrumentToken(), tickDocument.getTickTimestamp());
+        
         try {
             // Get BarSeries for different timeframes
             BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tickDocument.getInstrumentToken()), ONE_MIN);
@@ -65,18 +68,44 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             EmaInfo emaInfo_1min = multiEmaIndicator.calculateEmaValues(oneMinSeries, ONE_MIN);
             EmaInfo emaInfo_5min = multiEmaIndicator.calculateEmaValues(fiveMinSeries, FIVE_MIN);
             EmaInfo emaInfo_15min = multiEmaIndicator.calculateEmaValues(fifteenMinSeries, FIFTEEN_MIN);
+            
+            // Check if EMA values are null
+            if (emaInfo_1min == null || emaInfo_5min == null || emaInfo_15min == null) {
+                log.error("❌ EMA CALCULATION FAILED - One or more EmaInfo objects are null");
+                return;
+            }
+            
+            if (emaInfo_1min.getEma5() == null || emaInfo_1min.getEma34() == null) {
+                log.error("❌ EMA VALUES NULL - 1min EMA5: {}, EMA34: {}", emaInfo_1min.getEma5(), emaInfo_1min.getEma34());
+                return;
+            }
 
-            // Flatten to boolean values
-            flattenedIndicators.setEma9_1min_gt_ema21_1min(emaInfo_1min.getEma9() > emaInfo_1min.getEma20());
-            flattenedIndicators.setEma9_5min_gt_ema21_5min(emaInfo_5min.getEma9() > emaInfo_5min.getEma20());
-            flattenedIndicators.setEma9_15min_gt_ema21_15min(emaInfo_15min.getEma9() > emaInfo_15min.getEma20());
+            // Log EMA values for debugging
+            log.info("📈 EMA VALUES - Instrument: {}, Timestamp: {}", 
+                tickDocument.getInstrumentToken(), tickDocument.getTickTimestamp());
+            log.info("   1min - EMA5: {:.2f}, EMA34: {:.2f}, EMA5>EMA34: {}", 
+                emaInfo_1min.getEma5(), emaInfo_1min.getEma34(), 
+                emaInfo_1min.getEma5() > emaInfo_1min.getEma34());
+            log.info("   5min - EMA5: {:.2f}, EMA34: {:.2f}, EMA5>EMA34: {}", 
+                emaInfo_5min.getEma5(), emaInfo_5min.getEma34(), 
+                emaInfo_5min.getEma5() > emaInfo_5min.getEma34());
+            log.info("   15min - EMA5: {:.2f}, EMA34: {:.2f}, EMA5>EMA34: {}", 
+                emaInfo_15min.getEma5(), emaInfo_15min.getEma34(), 
+                emaInfo_15min.getEma5() > emaInfo_15min.getEma34());
+            
+            // Flatten to boolean values (EMA5 vs EMA34)
+            flattenedIndicators.setEma5_1min_gt_ema34_1min(emaInfo_1min.getEma5() > emaInfo_1min.getEma34());
+            flattenedIndicators.setEma5_5min_gt_ema34_5min(emaInfo_5min.getEma5() > emaInfo_5min.getEma34());
+            flattenedIndicators.setEma5_15min_gt_ema34_15min(emaInfo_15min.getEma5() > emaInfo_15min.getEma34());
+            
+            log.info("✅ EMA CALCULATION COMPLETED - Instrument: {}", tickDocument.getInstrumentToken());
 
         } catch (Exception e) {
             log.error("Error flattening EMA indicators for instrument: {}", tickDocument.getInstrumentToken(), e);
-            // Set default values on error
-            flattenedIndicators.setEma9_1min_gt_ema21_1min(false);
-            flattenedIndicators.setEma9_5min_gt_ema21_5min(false);
-            flattenedIndicators.setEma9_15min_gt_ema21_15min(false);
+            // Set default values on error (EMA5 vs EMA34)
+            flattenedIndicators.setEma5_1min_gt_ema34_1min(false);
+            flattenedIndicators.setEma5_5min_gt_ema34_5min(false);
+            flattenedIndicators.setEma5_15min_gt_ema34_15min(false);
         }
     }
 
@@ -116,6 +145,13 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
     @Override
     public void flattenVolumeIndicators(TickDocument tickDocument, FlattenedIndicators flattenedIndicators) {
         try {
+            // Get current volume from the tick document
+            long currentVolume = tickDocument.getVolumeTradedToday() != null ? tickDocument.getVolumeTradedToday() : 0;
+            
+            // Log the instrument token and volume being processed
+            log.info("🔍 VOLUME INDICATOR PROCESSING - Instrument Token: {}, Current Volume: {}, Timestamp: {}", 
+                    tickDocument.getInstrumentToken(), currentVolume, tickDocument.getTickTimestamp());
+            
             // Get BarSeries for different timeframes
             BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tickDocument.getInstrumentToken()), ONE_MIN);
             BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(tickDocument.getInstrumentToken()), FIVE_MIN);
@@ -127,12 +163,12 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             Boolean volume_15min_surge = false;
             Double volumeMultiplier = 1.0;
             
-            // Get current volume from the tick document
-            long currentVolume = tickDocument.getVolumeTradedToday() != null ? tickDocument.getVolumeTradedToday() : 0;
-            
             // 1-minute volume surge
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
                 try {
+                    log.info("📊 CALCULATING 1MIN VOLUME SURGE - Instrument: {}, Volume: {}, BarCount: {}", 
+                            tickDocument.getInstrumentToken(), currentVolume, oneMinSeries.getBarCount());
+                    
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge1min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         String.valueOf(tickDocument.getInstrumentToken()), ONE_MIN, currentVolume);
                     volume_1min_surge = surge1min.hasSurge();
@@ -147,6 +183,9 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             // 5-minute volume surge
             if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
                 try {
+                    log.info("📊 CALCULATING 5MIN VOLUME SURGE - Instrument: {}, Volume: {}, BarCount: {}", 
+                            tickDocument.getInstrumentToken(), currentVolume, fiveMinSeries.getBarCount());
+                    
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge5min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         String.valueOf(tickDocument.getInstrumentToken()), FIVE_MIN, currentVolume);
                     volume_5min_surge = surge5min.hasSurge();
@@ -161,6 +200,9 @@ public class IndicatorFlattenerServiceImpl implements IndicatorFlattenerService 
             // 15-minute volume surge
             if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 20) {
                 try {
+                    log.info("📊 CALCULATING 15MIN VOLUME SURGE - Instrument: {}, Volume: {}, BarCount: {}", 
+                            tickDocument.getInstrumentToken(), currentVolume, fifteenMinSeries.getBarCount());
+                    
                     PriceVolumeSurgeIndicator.VolumeSurgeResult surge15min = priceVolumeSurgeIndicator.calculateVolumeSurge(
                         String.valueOf(tickDocument.getInstrumentToken()), FIFTEEN_MIN, currentVolume);
                     volume_15min_surge = surge15min.hasSurge();

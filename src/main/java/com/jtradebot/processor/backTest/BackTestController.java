@@ -1,7 +1,8 @@
 package com.jtradebot.processor.backTest;
 
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
-import com.jtradebot.processor.model.FlattenedIndicators;
+import com.jtradebot.processor.handler.KiteInstrumentHandler;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.zerodhatech.models.Tick;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
@@ -29,6 +30,7 @@ public class BackTestController {
     private final BackTestDataFactory backTestDataFactory;
     private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
     private final TickDataManager tickDataManager;
+    private final KiteInstrumentHandler kiteInstrumentHandler;
 
     @PostMapping("/init")
     public Map<String, Object> init(@RequestParam(required = true) String fromDate,
@@ -45,7 +47,7 @@ public class BackTestController {
                 log.info("Running SCALPING_FUTURE_VOLUME_SURGE strategy backtest from {} to {}", fromDate, toDate);
                 
                 // Get backtest data and process with new strategy
-                List<Long> instrumentTokens = List.of(256265L, 256265L); // Nifty50 and Nifty50Future tokens
+                List<Long> instrumentTokens = List.of(256265L, kiteInstrumentHandler.getNifty50FutureToken()); // Nifty50 and Nifty50Future tokens
                 Queue<Tick> tickQueue = backTestDataFactory.getBackTestData(source, parseDate(fromDate), parseDate(toDate), instrumentTokens);
                 
                 // Process all ticks with the new strategy

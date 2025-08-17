@@ -372,8 +372,8 @@ public class BacktestDataAnalysisService {
         // Count indicator satisfactions
         long emaSatisfied = dataPoints.stream()
                 .filter(dp -> dp.getFlattenedIndicators() != null)
-                .filter(dp -> dp.getFlattenedIndicators().getEma9_5min_gt_ema21_5min() != null && 
-                             dp.getFlattenedIndicators().getEma9_5min_gt_ema21_5min())
+                .filter(dp -> dp.getFlattenedIndicators().getEma5_5min_gt_ema34_5min() != null && 
+                             dp.getFlattenedIndicators().getEma5_5min_gt_ema34_5min())
                 .count();
         
         long rsiSatisfied = dataPoints.stream()

@@ -1,8 +1,8 @@
 package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
-import com.jtradebot.processor.model.FlattenedIndicators;
-import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.StrategyScore;
 import com.jtradebot.processor.service.ExitStrategyService;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
 import com.jtradebot.processor.repository.document.JtradeOrder;
@@ -80,6 +80,10 @@ public class ScalpingVolumeSurgeController {
         response.put("timeframes", configService.getFuturesignalTimeframes());
         response.put("indicators", new String[]{"EMA", "RSI", "Volume", "VWAP", "Support/Resistance"});
         response.put("entryConditions", new String[]{"Volume Surge", "EMA Crossover", "RSI Bullish/Bearish", "Price vs VWAP", "Support/Resistance"});
+        
+        // Add scenarios information
+        response.put("scenarios", configService.getScenarios());
+        response.put("categories", configService.getCategories());
         
         // Add current thresholds
         Map<String, Object> thresholds = new HashMap<>();

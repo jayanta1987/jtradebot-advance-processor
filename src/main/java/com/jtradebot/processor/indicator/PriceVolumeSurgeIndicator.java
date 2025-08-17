@@ -38,13 +38,33 @@ public class PriceVolumeSurgeIndicator {
             double averageVolume = calculateAverageVolume(barSeries, 20); // Last 20 bars
             double recentAverageVolume = calculateAverageVolume(barSeries, 5); // Last 5 bars
             
+            // Define minimum volume threshold
+            double MIN_AVERAGE_VOLUME = 1.0; // Minimum average volume to prevent division by very small numbers
+            
             // Log volume data for debugging
             log.debug("Volume Analysis - Instrument: {}, Timeframe: {}, Current: {}, Avg(20): {}, Avg(5): {}", 
                     instrumentToken, timeframe, currentVolume, averageVolume, recentAverageVolume);
             
-            // Calculate volume surge multiplier with safety checks
-            double volumeMultiplier = averageVolume > 0 ? currentVolume / averageVolume : 1.0;
-            double recentVolumeMultiplier = recentAverageVolume > 0 ? currentVolume / recentAverageVolume : 1.0;
+            // Log warning if average volumes are very low
+            if (averageVolume < MIN_AVERAGE_VOLUME || recentAverageVolume < MIN_AVERAGE_VOLUME) {
+                log.warn("Very low average volume detected - Instrument: {}, Timeframe: {}, Avg(20): {}, Avg(5): {} - Using default multiplier", 
+                        instrumentToken, timeframe, averageVolume, recentAverageVolume);
+            }
+            
+            // Calculate volume surge multiplier with safety checks and maximum cap
+            double volumeMultiplier = averageVolume > MIN_AVERAGE_VOLUME ? currentVolume / averageVolume : 1.0;
+            double recentVolumeMultiplier = recentAverageVolume > MIN_AVERAGE_VOLUME ? currentVolume / recentAverageVolume : 1.0;
+            
+            // Cap the volume multiplier to prevent extreme values (max 100x)
+            double MAX_VOLUME_MULTIPLIER = 100.0;
+            volumeMultiplier = Math.min(volumeMultiplier, MAX_VOLUME_MULTIPLIER);
+            recentVolumeMultiplier = Math.min(recentVolumeMultiplier, MAX_VOLUME_MULTIPLIER);
+            
+            // Log if capping was applied
+            if (volumeMultiplier >= MAX_VOLUME_MULTIPLIER || recentVolumeMultiplier >= MAX_VOLUME_MULTIPLIER) {
+                log.warn("Volume multiplier capped to {} - Instrument: {}, Timeframe: {}, Current: {}, Avg(20): {}, Avg(5): {}", 
+                        MAX_VOLUME_MULTIPLIER, instrumentToken, timeframe, currentVolume, averageVolume, recentAverageVolume);
+            }
             
             // Determine surge strength
             VolumeSurgeStrength strength = determineSurgeStrength(volumeMultiplier, recentVolumeMultiplier);

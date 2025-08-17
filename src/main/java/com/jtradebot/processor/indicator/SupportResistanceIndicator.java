@@ -1,9 +1,9 @@
 package com.jtradebot.processor.indicator;
 
 
-import com.jtradebot.processor.model.EmaIndicatorInfo;
-import com.jtradebot.processor.model.Resistance;
-import com.jtradebot.processor.model.Support;
+import com.jtradebot.processor.model.indicator.EmaIndicatorInfo;
+import com.jtradebot.processor.model.indicator.Resistance;
+import com.jtradebot.processor.model.indicator.Support;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.TrendEnum;

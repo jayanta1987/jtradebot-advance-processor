@@ -1,7 +1,7 @@
 package com.jtradebot.processor.config;
 
 
-import com.jtradebot.processor.model.IntraDayPreference;
+import com.jtradebot.processor.model.trading.IntraDayPreference;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

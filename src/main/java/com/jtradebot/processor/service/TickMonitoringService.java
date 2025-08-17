@@ -1,9 +1,9 @@
 package com.jtradebot.processor.service;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
-import com.jtradebot.processor.model.DynamicFlattenedIndicators;
-import com.jtradebot.processor.model.DynamicIndicatorConfig;
-import com.jtradebot.processor.model.StrategyScore;
+import com.jtradebot.processor.model.indicator.DynamicFlattenedIndicators;
+import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
+import com.jtradebot.processor.model.strategy.StrategyScore;
 import com.jtradebot.processor.repository.document.TickDocument;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;

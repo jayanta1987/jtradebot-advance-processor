@@ -10,8 +10,12 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 @Document(collection = "jtrade_orders")
 @Data
@@ -27,8 +31,8 @@ public class JtradeOrder {
     private String tradingSymbol;
     private Long instrumentToken;
     
-    private Date entryTime;
-    private Date exitTime;
+    private String entryTime;
+    private String exitTime;
     
     private Double entryPrice;
     private Double exitPrice;
@@ -49,8 +53,8 @@ public class JtradeOrder {
     private Double totalPoints;
     private Double totalProfit;
     
-    private Date lastUpdated;
-    private Date createdAt;
+    private String lastUpdated;
+    private String createdAt;
     
     private String comments;
     
@@ -63,6 +67,26 @@ public class JtradeOrder {
     // Entry Conditions - Store all conditions that were matched when order was created
     private List<String> entryConditions;
     
+    // Scenario-based Entry Information
+    private String entryScenarioName;
+    private String entryScenarioDescription;
+    private Double entryScenarioConfidence;
+    private Map<String, Integer> entryCategoryScores;
+    private Map<String, List<String>> entryMatchedConditions;
+    
+    // Profitable Trade Filter Information
+    private Boolean profitableTradeFilterEnabled;
+    private Boolean profitableTradeFilterPassed;
+    private String profitableTradeFilterRejectionReason;
+    private Double profitableTradeFilterQualityScore;
+    private Double profitableTradeFilterCandlestickScore;
+    private Double profitableTradeFilterVolumeSurgeMultiplier;
+    private Integer profitableTradeFilterOptionalConditionsCount;
+    private List<String> profitableTradeFilterPassedRequiredConditions;
+    private List<String> profitableTradeFilterFailedRequiredConditions;
+    private List<String> profitableTradeFilterPassedOptionalConditions;
+    private List<String> profitableTradeFilterFailedOptionalConditions;
+    
     // Helper methods
     public boolean isActive() {
         return "ACTIVE".equals(status);
@@ -72,16 +96,38 @@ public class JtradeOrder {
         return "EXITED".equals(status);
     }
     
-    public void markExited(ExitReasonEnum reason, Double exitPrice, Double exitIndexPrice) {
+    public void markExited(ExitReasonEnum reason, Double exitPrice, Double exitIndexPrice, Date exitTime) {
         this.status = "EXITED";
         this.exitReason = reason;
         this.exitPrice = exitPrice;
         this.exitIndexPrice = exitIndexPrice;
-        this.exitTime = new Date();
-        this.lastUpdated = new Date();
+        this.exitTime = formatDateToIST(exitTime);
+        this.lastUpdated = getCurrentISTTime();
+    }
+    
+    // Overloaded method for String exit time
+    public void markExited(ExitReasonEnum reason, Double exitPrice, Double exitIndexPrice, String exitTime) {
+        this.status = "EXITED";
+        this.exitReason = reason;
+        this.exitPrice = exitPrice;
+        this.exitIndexPrice = exitIndexPrice;
+        this.exitTime = exitTime;
+        this.lastUpdated = getCurrentISTTime();
     }
     
     public void updateLastUpdated() {
-        this.lastUpdated = new Date();
+        this.lastUpdated = getCurrentISTTime();
+    }
+    
+    // Utility methods for IST time formatting
+    private String formatDateToIST(Date date) {
+        if (date == null) return null;
+        ZonedDateTime istTime = date.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
+        return istTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"));
+    }
+    
+    private String getCurrentISTTime() {
+        ZonedDateTime istTime = ZonedDateTime.now(ZoneId.of("Asia/Kolkata"));
+        return istTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"));
     }
 }

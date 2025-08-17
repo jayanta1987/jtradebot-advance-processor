@@ -1,17 +1,16 @@
 package com.jtradebot.processor.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jtradebot.processor.model.*;
+import com.jtradebot.processor.config.DynamicStrategyConfigService;
+import com.jtradebot.processor.config.ScoringConfigurationService;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
+import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.service.ScalpingEntryService;
+import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -20,561 +19,655 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ScalpingEntryServiceImpl implements ScalpingEntryService {
 
-    private final ObjectMapper objectMapper;
+    private final DynamicStrategyConfigService configService;
+    private final ScoringConfigurationService scoringConfigService;
 
     @Override
-    public ScalpingEntryDecision evaluateCallEntry(DynamicFlattenedIndicators flattenedIndicators, 
-                                                 DynamicIndicatorConfig config, 
-                                                 double currentPrice, 
-                                                 LocalDateTime currentTime) {
-        log.info("Evaluating CALL entry for instrument: {} at price: {}", 
-                flattenedIndicators.getInstrumentToken(), currentPrice);
-        
+    public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators) {
         try {
-            // Load entry logic configuration
-            ScalpingEntryLogic entryLogic = loadEntryLogic("rules/scalping-entry-config.json");
-            if (entryLogic == null) {
-                return createRejectionDecision("CALL", "Failed to load entry logic configuration", currentPrice, currentTime);
+            // Step 1: Pre-calculate category counts for both CALL and PUT
+            Map<String, Integer> callCategoryCounts = calculateCategoryCounts(indicators, configService.getCallCategories());
+            Map<String, Integer> putCategoryCounts = calculateCategoryCounts(indicators, configService.getPutCategories());
+            
+            // Step 2: Pre-calculate quality score once (performance optimization)
+            double qualityScore = calculateQualityScore(indicators);
+            
+            // Step 3: Loop through scenarios and check their specific requirements
+            List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
+            List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
+            
+            for (ScalpingEntryConfig.Scenario scenario : scenarios) {
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore);
+                scenarioEvaluations.add(evaluation);
             }
             
-            // Get CALL strategy configuration
-            ScalpingEntryLogic.EntryConditions callConditions = entryLogic.getEntryConditions();
-            ScalpingEntryLogic.RiskManagement riskManagement = entryLogic.getRiskManagement();
-            ScalpingEntryLogic.EntryQuality entryQuality = entryLogic.getEntryQuality();
+            // Step 4: If any scenario matches, take entry
+            Optional<ScenarioEvaluation> bestScenario = scenarioEvaluations.stream()
+                    .filter(eval -> eval.isPassed())
+                    .max(Comparator.comparing(ScenarioEvaluation::getScore));
             
-            // Validate mandatory conditions
-            List<String> satisfiedMandatory = validateMandatoryConditions(flattenedIndicators, callConditions.getMandatoryConditions());
-            List<String> unsatisfiedMandatory = getUnsatisfiedConditions(callConditions.getMandatoryConditions(), satisfiedMandatory);
-            
-            if (satisfiedMandatory.size() < callConditions.getMinMandatoryCount()) {
-                String reason = String.format("Insufficient mandatory conditions: %d/%d satisfied", 
-                        satisfiedMandatory.size(), callConditions.getMinMandatoryCount());
-                return createRejectionDecision("CALL", reason, currentPrice, currentTime);
+            if (bestScenario.isPresent()) {
+                ScenarioEvaluation best = bestScenario.get();
+                // Removed verbose scenario found log
+                
+                return ScalpingEntryDecision.builder()
+                        .shouldEntry(true)
+                        .scenarioName(best.getScenarioName())
+                        .confidence(best.getScore())
+                        .qualityScore(qualityScore) // Use pre-calculated quality score
+                        .reason(best.getReason()) // Set the reason from scenario evaluation
+                        .riskManagement(best.getScenario().getRiskManagement())
+                        .categoryScores(best.getCategoryScores()) // Store actual scores used in evaluation
+                        .build();
+            } else {
+                // Only log when scenarios fail - removed verbose logging
+                return ScalpingEntryDecision.builder()
+                        .shouldEntry(false)
+                        .reason("No scenario passed the evaluation criteria")
+                        .build();
             }
             
-            // Validate optional conditions
-            List<String> satisfiedOptional = validateOptionalConditions(flattenedIndicators, callConditions.getOptionalConditions());
-            List<String> unsatisfiedOptional = getUnsatisfiedConditions(callConditions.getOptionalConditions(), satisfiedOptional);
-            
-            if (satisfiedOptional.size() < callConditions.getMinOptionalCount()) {
-                String reason = String.format("Insufficient optional conditions: %d/%d satisfied", 
-                        satisfiedOptional.size(), callConditions.getMinOptionalCount());
-                return createRejectionDecision("CALL", reason, currentPrice, currentTime);
-            }
-            
-            // Calculate confidence score
-            double confidenceScore = calculateCallConfidenceScore(flattenedIndicators, satisfiedMandatory, satisfiedOptional);
-            
-            if (confidenceScore < callConditions.getMinConfidenceScore()) {
-                String reason = String.format("Insufficient confidence score: %.2f < %.2f", 
-                        confidenceScore, callConditions.getMinConfidenceScore());
-                return createRejectionDecision("CALL", reason, currentPrice, currentTime);
-            }
-            
-            // Validate entry quality
-            ScalpingEntryDecision.EntryQualityScore qualityScore = calculateEntryQuality(flattenedIndicators, "CALL", entryQuality);
-            
-            if (qualityScore.getOverallScore() < 0.7) {
-                String reason = String.format("Poor entry quality: %.2f (Grade: %s)", 
-                        qualityScore.getOverallScore(), qualityScore.getQualityGrade());
-                return createRejectionDecision("CALL", reason, currentPrice, currentTime);
-            }
-            
-            // Calculate position size and risk levels
-            int positionSize = calculatePositionSize(100000, riskManagement.getMaxRiskPerTrade(), 
-                                                   riskManagement.getStopLossPoints(), currentPrice);
-            
-            StopLossTargetLevels levels = calculateStopLossTarget(currentPrice, "CALL", 
-                                                                riskManagement.getStopLossPoints(), 
-                                                                riskManagement.getTargetPoints());
-            
-            // Create entry decision
-            return ScalpingEntryDecision.builder()
-                    .strategyType("CALL")
-                    .shouldEnter(true)
-                    .entryPrice(currentPrice)
-                    .positionSize(positionSize)
-                    .stopLossPrice(levels.getStopLossPrice())
-                    .targetPrice(levels.getTargetPrice())
-                    .confidenceScore(confidenceScore)
-                    .entryReason(generateCallEntryReason(satisfiedMandatory, satisfiedOptional, confidenceScore, qualityScore))
-                    .entryTime(currentTime)
-                    .maxHoldingTimeMinutes(riskManagement.getMaxHoldingTimeMinutes())
-                    .useTrailingStop(riskManagement.isUseTrailingStop())
-                    .trailingStopPercentage(riskManagement.getTrailingStopPercentage())
-                    .useBreakEven(riskManagement.isUseBreakEven())
-                    .breakEvenTrigger(riskManagement.getBreakEvenTrigger())
-                    .satisfiedConditions(satisfiedMandatory)
-                    .unsatisfiedConditions(unsatisfiedMandatory)
-                    .entryQuality(qualityScore)
-                    .build();
-                    
         } catch (Exception e) {
-            log.error("Error evaluating CALL entry", e);
-            return createRejectionDecision("CALL", "Error during evaluation: " + e.getMessage(), currentPrice, currentTime);
-        }
-    }
-
-    @Override
-    public ScalpingEntryDecision evaluatePutEntry(DynamicFlattenedIndicators flattenedIndicators, 
-                                                DynamicIndicatorConfig config, 
-                                                double currentPrice, 
-                                                LocalDateTime currentTime) {
-        log.info("Evaluating PUT entry for instrument: {} at price: {}", 
-                flattenedIndicators.getInstrumentToken(), currentPrice);
-        
-        try {
-            // Load entry logic configuration
-            ScalpingEntryLogic entryLogic = loadEntryLogic("rules/scalping-entry-config.json");
-            if (entryLogic == null) {
-                return createRejectionDecision("PUT", "Failed to load entry logic configuration", currentPrice, currentTime);
-            }
-            
-            // Get PUT strategy configuration
-            ScalpingEntryLogic.EntryConditions putConditions = entryLogic.getEntryConditions();
-            ScalpingEntryLogic.RiskManagement riskManagement = entryLogic.getRiskManagement();
-            ScalpingEntryLogic.EntryQuality entryQuality = entryLogic.getEntryQuality();
-            
-            // Validate mandatory conditions
-            List<String> satisfiedMandatory = validateMandatoryConditions(flattenedIndicators, putConditions.getMandatoryConditions());
-            List<String> unsatisfiedMandatory = getUnsatisfiedConditions(putConditions.getMandatoryConditions(), satisfiedMandatory);
-            
-            if (satisfiedMandatory.size() < putConditions.getMinMandatoryCount()) {
-                String reason = String.format("Insufficient mandatory conditions: %d/%d satisfied", 
-                        satisfiedMandatory.size(), putConditions.getMinMandatoryCount());
-                return createRejectionDecision("PUT", reason, currentPrice, currentTime);
-            }
-            
-            // Validate optional conditions
-            List<String> satisfiedOptional = validateOptionalConditions(flattenedIndicators, putConditions.getOptionalConditions());
-            List<String> unsatisfiedOptional = getUnsatisfiedConditions(putConditions.getOptionalConditions(), satisfiedOptional);
-            
-            if (satisfiedOptional.size() < putConditions.getMinOptionalCount()) {
-                String reason = String.format("Insufficient optional conditions: %d/%d satisfied", 
-                        satisfiedOptional.size(), putConditions.getMinOptionalCount());
-                return createRejectionDecision("PUT", reason, currentPrice, currentTime);
-            }
-            
-            // Calculate confidence score
-            double confidenceScore = calculatePutConfidenceScore(flattenedIndicators, satisfiedMandatory, satisfiedOptional);
-            
-            if (confidenceScore < putConditions.getMinConfidenceScore()) {
-                String reason = String.format("Insufficient confidence score: %.2f < %.2f", 
-                        confidenceScore, putConditions.getMinConfidenceScore());
-                return createRejectionDecision("PUT", reason, currentPrice, currentTime);
-            }
-            
-            // Validate entry quality
-            ScalpingEntryDecision.EntryQualityScore qualityScore = calculateEntryQuality(flattenedIndicators, "PUT", entryQuality);
-            
-            if (qualityScore.getOverallScore() < 0.7) {
-                String reason = String.format("Poor entry quality: %.2f (Grade: %s)", 
-                        qualityScore.getOverallScore(), qualityScore.getQualityGrade());
-                return createRejectionDecision("PUT", reason, currentPrice, currentTime);
-            }
-            
-            // Calculate position size and risk levels
-            int positionSize = calculatePositionSize(100000, riskManagement.getMaxRiskPerTrade(), 
-                                                   riskManagement.getStopLossPoints(), currentPrice);
-            
-            StopLossTargetLevels levels = calculateStopLossTarget(currentPrice, "PUT", 
-                                                                riskManagement.getStopLossPoints(), 
-                                                                riskManagement.getTargetPoints());
-            
-            // Create entry decision
+            log.error("Error evaluating entry for tick: {}", tick.getInstrumentToken(), e);
             return ScalpingEntryDecision.builder()
-                    .strategyType("PUT")
-                    .shouldEnter(true)
-                    .entryPrice(currentPrice)
-                    .positionSize(positionSize)
-                    .stopLossPrice(levels.getStopLossPrice())
-                    .targetPrice(levels.getTargetPrice())
-                    .confidenceScore(confidenceScore)
-                    .entryReason(generatePutEntryReason(satisfiedMandatory, satisfiedOptional, confidenceScore, qualityScore))
-                    .entryTime(currentTime)
-                    .maxHoldingTimeMinutes(riskManagement.getMaxHoldingTimeMinutes())
-                    .useTrailingStop(riskManagement.isUseTrailingStop())
-                    .trailingStopPercentage(riskManagement.getTrailingStopPercentage())
-                    .useBreakEven(riskManagement.isUseBreakEven())
-                    .breakEvenTrigger(riskManagement.getBreakEvenTrigger())
-                    .satisfiedConditions(satisfiedMandatory)
-                    .unsatisfiedConditions(unsatisfiedMandatory)
-                    .entryQuality(qualityScore)
+                    .shouldEntry(false)
+                    .reason("Error during evaluation: " + e.getMessage())
                     .build();
-                    
-        } catch (Exception e) {
-            log.error("Error evaluating PUT entry", e);
-            return createRejectionDecision("PUT", "Error during evaluation: " + e.getMessage(), currentPrice, currentTime);
         }
     }
-
-    @Override
-    public int calculatePositionSize(double accountBalance, double riskPerTrade, 
-                                   double stopLossPoints, double currentPrice) {
-        double riskAmount = accountBalance * (riskPerTrade / 100.0);
-        double riskPerShare = stopLossPoints;
-        int positionSize = (int) (riskAmount / riskPerShare);
+    
+    /**
+     * Step 1: Calculate category counts for given indicators and categories
+     */
+    private Map<String, Integer> calculateCategoryCounts(FlattenedIndicators indicators, Map<String, List<String>> categories) {
+        Map<String, Integer> categoryCounts = new HashMap<>();
         
-        // Round down to nearest lot size (50 for Nifty)
-        positionSize = (positionSize / 50) * 50;
-        
-        // Ensure minimum position size
-        if (positionSize < 50) {
-            positionSize = 50;
-        }
-        
-        log.debug("Position size calculation: balance={}, risk={}%, stopLoss={}, size={}", 
-                accountBalance, riskPerTrade, stopLossPoints, positionSize);
-        
-        return positionSize;
-    }
-
-    @Override
-    public StopLossTargetLevels calculateStopLossTarget(double entryPrice, String strategyType, 
-                                                      double stopLossPoints, double targetPoints) {
-        double stopLossPrice, targetPrice;
-        
-        if ("CALL".equals(strategyType)) {
-            stopLossPrice = entryPrice - stopLossPoints;
-            targetPrice = entryPrice + targetPoints;
-        } else {
-            stopLossPrice = entryPrice + stopLossPoints;
-            targetPrice = entryPrice - targetPoints;
-        }
-        
-        double riskRewardRatio = targetPoints / stopLossPoints;
-        
-        return StopLossTargetLevels.builder()
-                .entryPrice(entryPrice)
-                .stopLossPrice(stopLossPrice)
-                .targetPrice(targetPrice)
-                .stopLossPoints(stopLossPoints)
-                .targetPoints(targetPoints)
-                .riskRewardRatio(riskRewardRatio)
-                .strategyType(strategyType)
-                .build();
-    }
-
-    @Override
-    public MarketConditionValidation validateMarketConditions(LocalDateTime currentTime, 
-                                                            double currentPrice, 
-                                                            double bidPrice, 
-                                                            double askPrice, 
-                                                            long volume) {
-        try {
-            ScalpingEntryLogic entryLogic = loadEntryLogic("rules/scalping-entry-config.json");
-            if (entryLogic == null) {
-                return MarketConditionValidation.builder()
-                        .isValid(false)
-                        .rejectionReason("Failed to load entry logic configuration")
-                        .validationTime(currentTime)
-                        .build();
-            }
+        for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
+            String categoryName = entry.getKey();
+            List<String> conditions = entry.getValue();
             
-            ScalpingEntryLogic.MarketConditions marketConditions = entryLogic.getMarketConditions();
-            
-            // Calculate spread
-            double spread = askPrice - bidPrice;
-            double spreadPercentage = (spread / currentPrice) * 100;
-            
-            // Check spread
-            if (spreadPercentage > marketConditions.getMaxSpreadPercentage()) {
-                return MarketConditionValidation.builder()
-                        .isValid(false)
-                        .spreadPercentage(spreadPercentage)
-                        .rejectionReason("Spread too high: " + String.format("%.2f%%", spreadPercentage))
-                        .validationTime(currentTime)
-                        .build();
-            }
-            
-            // Check volume
-            if (volume < marketConditions.getMinLiquidityThreshold()) {
-                return MarketConditionValidation.builder()
-                        .isValid(false)
-                        .volume(volume)
-                        .rejectionReason("Insufficient liquidity: " + volume)
-                        .validationTime(currentTime)
-                        .build();
-            }
-            
-            // Check time slots
-            LocalTime time = currentTime.toLocalTime();
-            for (String avoidSlot : marketConditions.getAvoidTimeSlots()) {
-                if (isInTimeSlot(time, avoidSlot)) {
-                    return MarketConditionValidation.builder()
-                            .isValid(false)
-                            .isAvoidTimeSlot(true)
-                            .rejectionReason("In avoid time slot: " + avoidSlot)
-                            .validationTime(currentTime)
-                            .build();
+            int satisfiedCount = 0;
+            for (String condition : conditions) {
+                if (evaluateCondition(condition, indicators)) {
+                    satisfiedCount++;
                 }
             }
+            categoryCounts.put(categoryName, satisfiedCount);
+        }
+        
+        return categoryCounts;
+    }
+    
+    private ScenarioEvaluation evaluateScenario(ScalpingEntryConfig.Scenario scenario, 
+                                               FlattenedIndicators indicators, 
+                                               Map<String, Integer> callCategoryCounts,
+                                               Map<String, Integer> putCategoryCounts,
+                                               double preCalculatedQualityScore) {
+        
+        ScenarioEvaluation evaluation = new ScenarioEvaluation();
+        evaluation.setScenarioName(scenario.getName());
+        evaluation.setScenario(scenario);
+        
+        ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
+        
+        // Check quality score requirement first (if specified)
+        boolean qualityScorePassed = true;
+        double qualityScore = preCalculatedQualityScore; // Use pre-calculated score
+        if (requirements.getMinQualityScore() != null) {
+            qualityScorePassed = qualityScore >= requirements.getMinQualityScore();
             
-            // Determine market session
-            String marketSession = determineMarketSession(time);
+            // Quality Score evaluation log - REMOVED
+        }
+        
+        // If scenario only requires quality score (no category requirements)
+        if (requirements.getMinQualityScore() != null && 
+            requirements.getEma_min_count() == null && 
+            requirements.getFutureAndVolume_min_count() == null && 
+            requirements.getCandlestick_min_count() == null && 
+            requirements.getMomentum_min_count() == null) {
             
-            return MarketConditionValidation.builder()
-                    .isValid(true)
-                    .marketSession(marketSession)
-                    .spreadPercentage(spreadPercentage)
-                    .volume(volume)
-                    .isLiquid(true)
-                    .validationTime(currentTime)
-                    .build();
-                    
-        } catch (Exception e) {
-            log.error("Error validating market conditions", e);
-            return MarketConditionValidation.builder()
-                    .isValid(false)
-                    .rejectionReason("Error during validation: " + e.getMessage())
-                    .validationTime(currentTime)
-                    .build();
-        }
-    }
-
-    @Override
-    public ScalpingEntryLogic loadEntryLogic(String configPath) {
-        try {
-            ClassPathResource resource = new ClassPathResource(configPath);
-            return objectMapper.readValue(resource.getInputStream(), ScalpingEntryLogic.class);
-        } catch (IOException e) {
-            log.error("Error loading entry logic configuration from: {}", configPath, e);
-            return null;
-        }
-    }
-
-    // Helper methods
-    private List<String> validateMandatoryConditions(DynamicFlattenedIndicators flattenedIndicators, 
-                                                   List<String> mandatoryConditions) {
-        return mandatoryConditions.stream()
-                .filter(condition -> {
-                    Boolean value = flattenedIndicators.getBooleanIndicator(condition);
-                    return value != null && value;
-                })
-                .collect(Collectors.toList());
-    }
-
-    private List<String> validateOptionalConditions(DynamicFlattenedIndicators flattenedIndicators, 
-                                                  List<String> optionalConditions) {
-        return optionalConditions.stream()
-                .filter(condition -> {
-                    Boolean value = flattenedIndicators.getBooleanIndicator(condition);
-                    return value != null && value;
-                })
-                .collect(Collectors.toList());
-    }
-
-    private List<String> getUnsatisfiedConditions(List<String> allConditions, List<String> satisfiedConditions) {
-        return allConditions.stream()
-                .filter(condition -> !satisfiedConditions.contains(condition))
-                .collect(Collectors.toList());
-    }
-
-    private double calculateCallConfidenceScore(DynamicFlattenedIndicators flattenedIndicators, 
-                                              List<String> satisfiedMandatory, 
-                                              List<String> satisfiedOptional) {
-        double baseScore = (double) satisfiedMandatory.size() / 8.0; // 8 mandatory conditions
-        double optionalBonus = (double) satisfiedOptional.size() / 6.0 * 0.2; // 20% bonus for optional
-        
-        // Volume surge bonus
-        Double volumeMultiplier = flattenedIndicators.getNumericIndicator("volume_5min_multiplier");
-        double volumeBonus = 0.0;
-        if (volumeMultiplier != null && volumeMultiplier > 3.0) {
-            volumeBonus = 0.1; // 10% bonus for strong volume
-        }
-        
-        // RSI strength bonus
-        Double rsiValue = flattenedIndicators.getNumericIndicator("rsi_5min_value");
-        double rsiBonus = 0.0;
-        if (rsiValue != null && rsiValue > 70) {
-            rsiBonus = 0.1; // 10% bonus for strong RSI
-        }
-        
-        return Math.min(1.0, baseScore + optionalBonus + volumeBonus + rsiBonus);
-    }
-
-    private double calculatePutConfidenceScore(DynamicFlattenedIndicators flattenedIndicators, 
-                                             List<String> satisfiedMandatory, 
-                                             List<String> satisfiedOptional) {
-        double baseScore = (double) satisfiedMandatory.size() / 8.0; // 8 mandatory conditions
-        double optionalBonus = (double) satisfiedOptional.size() / 6.0 * 0.2; // 20% bonus for optional
-        
-        // Volume surge bonus
-        Double volumeMultiplier = flattenedIndicators.getNumericIndicator("volume_5min_multiplier");
-        double volumeBonus = 0.0;
-        if (volumeMultiplier != null && volumeMultiplier > 3.0) {
-            volumeBonus = 0.1; // 10% bonus for strong volume
-        }
-        
-        // RSI strength bonus
-        Double rsiValue = flattenedIndicators.getNumericIndicator("rsi_5min_value");
-        double rsiBonus = 0.0;
-        if (rsiValue != null && rsiValue < 30) {
-            rsiBonus = 0.1; // 10% bonus for strong RSI
-        }
-        
-        return Math.min(1.0, baseScore + optionalBonus + volumeBonus + rsiBonus);
-    }
-
-    private ScalpingEntryDecision.EntryQualityScore calculateEntryQuality(DynamicFlattenedIndicators flattenedIndicators, 
-                                                                        String strategyType, 
-                                                                        ScalpingEntryLogic.EntryQuality entryQuality) {
-        // Volume quality
-        Double volumeMultiplier = flattenedIndicators.getNumericIndicator("volume_5min_multiplier");
-        double volumeScore = volumeMultiplier != null && volumeMultiplier >= entryQuality.getMinVolumeSurge() ? 1.0 : 0.5;
-        
-        // RSI quality
-        Double rsiValue = flattenedIndicators.getNumericIndicator("rsi_5min_value");
-        double rsiScore = 0.5;
-        if (rsiValue != null) {
-            if ("CALL".equals(strategyType) && rsiValue >= entryQuality.getMinRsiStrength()) {
-                rsiScore = 1.0;
-            } else if ("PUT".equals(strategyType) && rsiValue <= entryQuality.getMinRsiStrength()) {
-                rsiScore = 1.0;
-            }
-        }
-        
-        // Trend alignment
-        double trendScore = calculateTrendAlignmentScore(flattenedIndicators, strategyType);
-        
-        // Signal strength
-        double signalScore = calculateSignalStrengthScore(flattenedIndicators, strategyType);
-        
-        // Overall score
-        double overallScore = (volumeScore + rsiScore + trendScore + signalScore) / 4.0;
-        
-        // Determine grade
-        String grade = determineQualityGrade(overallScore);
-        String description = getQualityDescription(grade);
-        
-        return ScalpingEntryDecision.EntryQualityScore.builder()
-                .volumeScore(volumeScore)
-                .momentumScore(rsiScore)
-                .trendScore(trendScore)
-                .signalScore(signalScore)
-                .overallScore(overallScore)
-                .qualityGrade(grade)
-                .qualityDescription(description)
-                .build();
-    }
-
-    private double calculateTrendAlignmentScore(DynamicFlattenedIndicators flattenedIndicators, String strategyType) {
-        int alignedTimeframes = 0;
-        List<String> timeframes = Arrays.asList("1min", "5min", "15min");
-        
-        for (String timeframe : timeframes) {
-            String conditionKey = strategyType.equals("CALL") ? 
-                "ema_" + timeframe + "_crossover" : 
-                "ema_" + timeframe + "_crossdown";
+            evaluation.setPassed(qualityScorePassed);
+            evaluation.setScore(qualityScore);
+            evaluation.setReason(qualityScorePassed ? "Quality score requirement met" : 
+                               "Quality score " + qualityScore + " below threshold " + requirements.getMinQualityScore());
             
-            Boolean conditionMet = flattenedIndicators.getBooleanIndicator(conditionKey);
-            if (conditionMet != null && conditionMet) {
-                alignedTimeframes++;
-            }
+            return evaluation;
         }
         
-        return (double) alignedTimeframes / timeframes.size();
-    }
-
-    private double calculateSignalStrengthScore(DynamicFlattenedIndicators flattenedIndicators, String strategyType) {
-        // Count strong signals
-        int strongSignals = 0;
-        int totalSignals = 0;
+        // Evaluate category-based requirements
+        Map<String, Integer> categoryScores = new HashMap<>();
+        Map<String, List<String>> matchedConditions = new HashMap<>();
         
-        List<String> timeframes = Arrays.asList("1min", "5min", "15min");
+        // Determine market direction based on category strengths
+        int callTotalScore = callCategoryCounts.getOrDefault("ema", 0) + 
+                           callCategoryCounts.getOrDefault("futureAndVolume", 0) + 
+                           callCategoryCounts.getOrDefault("candlestick", 0) + 
+                           callCategoryCounts.getOrDefault("momentum", 0);
+        int putTotalScore = putCategoryCounts.getOrDefault("ema", 0) + 
+                          putCategoryCounts.getOrDefault("futureAndVolume", 0) + 
+                          putCategoryCounts.getOrDefault("candlestick", 0) + 
+                          putCategoryCounts.getOrDefault("momentum", 0);
         
-        for (String timeframe : timeframes) {
-            // Volume surge
-            Boolean volumeSurge = flattenedIndicators.getBooleanIndicator("volume_" + timeframe + "_surge");
-            if (volumeSurge != null && volumeSurge) {
-                strongSignals++;
-            }
-            totalSignals++;
-            
-            // Price action
-            String priceCondition = strategyType.equals("CALL") ? 
-                "price_" + timeframe + "_gt_vwap" : 
-                "price_" + timeframe + "_lt_vwap";
-            Boolean priceAction = flattenedIndicators.getBooleanIndicator(priceCondition);
-            if (priceAction != null && priceAction) {
-                strongSignals++;
-            }
-            totalSignals++;
+        boolean isCallDirection = callTotalScore >= putTotalScore;
+        
+        // Use only the appropriate category counts based on market direction
+        if (requirements.getEma_min_count() != null) {
+            int emaCount = isCallDirection ? callCategoryCounts.getOrDefault("ema", 0) : putCategoryCounts.getOrDefault("ema", 0);
+            categoryScores.put("ema", emaCount);
         }
         
-        return totalSignals > 0 ? (double) strongSignals / totalSignals : 0.0;
-    }
-
-    private String determineQualityGrade(double score) {
-        if (score >= 0.9) return "A";
-        if (score >= 0.8) return "B";
-        if (score >= 0.7) return "C";
-        if (score >= 0.6) return "D";
-        return "F";
-    }
-
-    private String getQualityDescription(String grade) {
-        switch (grade) {
-            case "A": return "Excellent entry conditions - High probability trade";
-            case "B": return "Good entry conditions - Above average probability";
-            case "C": return "Average entry conditions - Moderate probability";
-            case "D": return "Below average conditions - Lower probability";
-            case "F": return "Poor conditions - Avoid entry";
-            default: return "Unknown quality grade";
+        if (requirements.getFutureAndVolume_min_count() != null) {
+            int volumeCount = isCallDirection ? callCategoryCounts.getOrDefault("futureAndVolume", 0) : putCategoryCounts.getOrDefault("futureAndVolume", 0);
+            categoryScores.put("futureAndVolume", volumeCount);
         }
-    }
-
-    private ScalpingEntryDecision createRejectionDecision(String strategyType, String reason, 
-                                                        double currentPrice, LocalDateTime currentTime) {
-        return ScalpingEntryDecision.builder()
-                .strategyType(strategyType)
-                .shouldEnter(false)
-                .entryPrice(currentPrice)
-                .rejectionReason(reason)
-                .entryTime(currentTime)
-                .confidenceScore(0.0)
-                .build();
-    }
-
-    private String generateCallEntryReason(List<String> satisfiedMandatory, List<String> satisfiedOptional, 
-                                         double confidenceScore, ScalpingEntryDecision.EntryQualityScore qualityScore) {
-        return String.format("CALL entry approved. Confidence: %.2f, Quality: %s. " +
-                           "Mandatory conditions: %d/8, Optional: %d/6. " +
-                           "Key signals: %s", 
-                           confidenceScore, qualityScore.getQualityGrade(),
-                           satisfiedMandatory.size(), satisfiedOptional.size(),
-                           String.join(", ", satisfiedMandatory.subList(0, Math.min(3, satisfiedMandatory.size()))));
-    }
-
-    private String generatePutEntryReason(List<String> satisfiedMandatory, List<String> satisfiedOptional, 
-                                        double confidenceScore, ScalpingEntryDecision.EntryQualityScore qualityScore) {
-        return String.format("PUT entry approved. Confidence: %.2f, Quality: %s. " +
-                           "Mandatory conditions: %d/8, Optional: %d/6. " +
-                           "Key signals: %s", 
-                           confidenceScore, qualityScore.getQualityGrade(),
-                           satisfiedMandatory.size(), satisfiedOptional.size(),
-                           String.join(", ", satisfiedMandatory.subList(0, Math.min(3, satisfiedMandatory.size()))));
-    }
-
-    private boolean isInTimeSlot(LocalTime time, String timeSlot) {
-        try {
-            String[] parts = timeSlot.split("-");
-            LocalTime start = LocalTime.parse(parts[0], DateTimeFormatter.ofPattern("HH:mm"));
-            LocalTime end = LocalTime.parse(parts[1], DateTimeFormatter.ofPattern("HH:mm"));
-            return !time.isBefore(start) && !time.isAfter(end);
-        } catch (Exception e) {
-            log.warn("Error parsing time slot: {}", timeSlot, e);
-            return false;
+        
+        if (requirements.getCandlestick_min_count() != null) {
+            int candlestickCount = isCallDirection ? callCategoryCounts.getOrDefault("candlestick", 0) : putCategoryCounts.getOrDefault("candlestick", 0);
+            categoryScores.put("candlestick", candlestickCount);
         }
-    }
-
-    private String determineMarketSession(LocalTime time) {
-        if (time.isAfter(LocalTime.of(9, 15)) && time.isBefore(LocalTime.of(10, 0))) {
-            return "OPENING";
-        } else if (time.isAfter(LocalTime.of(15, 0)) && time.isBefore(LocalTime.of(15, 30))) {
-            return "CLOSING";
+        
+        if (requirements.getMomentum_min_count() != null) {
+            int momentumCount = isCallDirection ? callCategoryCounts.getOrDefault("momentum", 0) : putCategoryCounts.getOrDefault("momentum", 0);
+            categoryScores.put("momentum", momentumCount);
+        }
+        
+        // Check if all requirements are met
+        boolean categoryRequirementsPassed = true;
+        List<String> failedCategories = new ArrayList<>();
+        
+        if (requirements.getEma_min_count() != null && 
+            categoryScores.get("ema") < requirements.getEma_min_count()) {
+            categoryRequirementsPassed = false;
+            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + requirements.getEma_min_count());
+        }
+        
+        if (requirements.getFutureAndVolume_min_count() != null && 
+            categoryScores.get("futureAndVolume") < requirements.getFutureAndVolume_min_count()) {
+            categoryRequirementsPassed = false;
+            failedCategories.add("Volume: " + categoryScores.get("futureAndVolume") + "/" + requirements.getFutureAndVolume_min_count());
+        }
+        
+        if (requirements.getCandlestick_min_count() != null && 
+            categoryScores.get("candlestick") < requirements.getCandlestick_min_count()) {
+            categoryRequirementsPassed = false;
+            failedCategories.add("Candlestick: " + categoryScores.get("candlestick") + "/" + requirements.getCandlestick_min_count());
+        }
+        
+        if (requirements.getMomentum_min_count() != null && 
+            categoryScores.get("momentum") < requirements.getMomentum_min_count()) {
+            categoryRequirementsPassed = false;
+            failedCategories.add("Momentum: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_count());
+        }
+        
+        // Both quality score AND category requirements must be met
+        boolean passed = qualityScorePassed && categoryRequirementsPassed;
+        
+        // Category requirements debug logging - REMOVED
+        
+        // Final result debug logging - REMOVED
+        
+        // Calculate overall score
+        double score = calculateScenarioScore(categoryScores, requirements);
+        
+        evaluation.setPassed(passed);
+        evaluation.setScore(score);
+        evaluation.setCategoryScores(categoryScores);
+        evaluation.setMatchedConditions(matchedConditions);
+        
+        // Build comprehensive reason message
+        StringBuilder reason = new StringBuilder();
+        if (passed) {
+            reason.append("All requirements met");
         } else {
-            return "MID";
+            List<String> failures = new ArrayList<>();
+            if (!qualityScorePassed) {
+                failures.add("Quality score " + qualityScore + " below threshold " + requirements.getMinQualityScore());
+            }
+            if (!categoryRequirementsPassed) {
+                failures.add("Failed categories: " + String.join(", ", failedCategories));
+            }
+            reason.append(String.join("; ", failures));
         }
+        evaluation.setReason(reason.toString());
+        
+        return evaluation;
+    }
+    
+    private List<String> evaluateCategoryConditions(List<String> conditions, FlattenedIndicators indicators, String category) {
+        List<String> matchedConditions = new ArrayList<>();
+        
+        for (String condition : conditions) {
+            if (evaluateCondition(condition, indicators)) {
+                matchedConditions.add(condition);
+            }
+        }
+        
+        return matchedConditions;
+    }
+    
+    private boolean evaluateCondition(String condition, FlattenedIndicators indicators) {
+        try {
+            // This is a simplified condition evaluation
+            // In a real implementation, you would have more sophisticated logic
+            
+            // EMA conditions - check specific timeframe (EMA5 vs EMA34)
+            if (condition.equals("ema5_5min_gt_ema34_5min")) {
+                return Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min());
+            }
+            if (condition.equals("ema5_1min_gt_ema34_1min")) {
+                return Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min());
+            }
+            if (condition.equals("ema5_15min_gt_ema34_15min")) {
+                return Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min());
+            }
+            if (condition.equals("ema5_5min_lt_ema34_5min")) {
+                return Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min());
+            }
+            if (condition.equals("ema5_1min_lt_ema34_1min")) {
+                return Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min());
+            }
+            if (condition.equals("ema5_15min_lt_ema34_15min")) {
+                return Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min());
+            }
+        
+        // Volume conditions - check specific timeframe
+        if (condition.equals("volume_5min_surge")) {
+            return Boolean.TRUE.equals(indicators.getVolume_5min_surge());
+        }
+        if (condition.equals("volume_1min_surge")) {
+            return Boolean.TRUE.equals(indicators.getVolume_1min_surge());
+        }
+        if (condition.equals("volume_15min_surge")) {
+            return Boolean.TRUE.equals(indicators.getVolume_15min_surge());
+        }
+        
+        // VWAP conditions - check specific timeframe
+        if (condition.equals("price_gt_vwap_5min")) {
+            return Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min());
+        }
+        if (condition.equals("price_gt_vwap_1min")) {
+            return Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min());
+        }
+        if (condition.equals("price_gt_vwap_15min")) {
+            return Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min());
+        }
+        if (condition.equals("price_lt_vwap_5min")) {
+            return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min());
+        }
+        if (condition.equals("price_lt_vwap_1min")) {
+            return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min());
+        }
+        if (condition.equals("price_lt_vwap_15min")) {
+            return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min());
+        }
+        
+        // Support/Resistance conditions
+        if (condition.contains("price_above_resistance")) {
+            return Boolean.TRUE.equals(indicators.getPrice_above_resistance());
+        }
+        
+        if (condition.contains("price_below_support")) {
+            return Boolean.TRUE.equals(indicators.getPrice_below_support());
+        }
+        
+        // Candlestick conditions - check specific timeframe
+        if (condition.equals("green_candle_5min")) {
+            return Boolean.TRUE.equals(indicators.getGreen_candle_5min());
+        }
+        if (condition.equals("green_candle_1min")) {
+            return Boolean.TRUE.equals(indicators.getGreen_candle_1min());
+        }
+        if (condition.equals("red_candle_5min")) {
+            return Boolean.TRUE.equals(indicators.getRed_candle_5min());
+        }
+        if (condition.equals("red_candle_1min")) {
+            return Boolean.TRUE.equals(indicators.getRed_candle_1min());
+        }
+        if (condition.equals("long_body_5min")) {
+            return Boolean.TRUE.equals(indicators.getLong_body_5min());
+        }
+        if (condition.equals("long_body_1min")) {
+            return Boolean.TRUE.equals(indicators.getLong_body_1min());
+        }
+        if (condition.equals("bullish_engulfing_5min")) {
+            return Boolean.TRUE.equals(indicators.getBullish_engulfing_5min());
+        }
+        if (condition.equals("bullish_engulfing_1min")) {
+            return Boolean.TRUE.equals(indicators.getBullish_engulfing_1min());
+        }
+        if (condition.equals("bearish_engulfing_5min")) {
+            return Boolean.TRUE.equals(indicators.getBearish_engulfing_5min());
+        }
+        if (condition.equals("bearish_engulfing_1min")) {
+            return Boolean.TRUE.equals(indicators.getBearish_engulfing_1min());
+        }
+        if (condition.equals("bullish_morning_star_5min")) {
+            return Boolean.TRUE.equals(indicators.getBullish_morning_star_5min());
+        }
+        if (condition.equals("bullish_morning_star_1min")) {
+            return Boolean.TRUE.equals(indicators.getBullish_morning_star_1min());
+        }
+        if (condition.equals("bearish_evening_star_5min")) {
+            return Boolean.TRUE.equals(indicators.getBearish_evening_star_5min());
+        }
+        if (condition.equals("bearish_evening_star_1min")) {
+            return Boolean.TRUE.equals(indicators.getBearish_evening_star_1min());
+        }
+        if (condition.equals("hammer_5min")) {
+            return Boolean.TRUE.equals(indicators.getHammer_5min());
+        }
+        if (condition.equals("hammer_1min")) {
+            return Boolean.TRUE.equals(indicators.getHammer_1min());
+        }
+        if (condition.equals("shooting_star_5min")) {
+            return Boolean.TRUE.equals(indicators.getShooting_star_5min());
+        }
+        if (condition.equals("shooting_star_1min")) {
+            return Boolean.TRUE.equals(indicators.getShooting_star_1min());
+        }
+        
+        // RSI conditions - check specific timeframe
+        if (condition.equals("rsi_5min_gt_56")) {
+            return Boolean.TRUE.equals(indicators.getRsi_5min_gt_56());
+        }
+        if (condition.equals("rsi_1min_gt_56")) {
+            return Boolean.TRUE.equals(indicators.getRsi_1min_gt_56());
+        }
+        if (condition.equals("rsi_15min_gt_56")) {
+            return Boolean.TRUE.equals(indicators.getRsi_15min_gt_56());
+        }
+        if (condition.equals("rsi_5min_lt_44")) {
+            return Boolean.TRUE.equals(indicators.getRsi_5min_lt_44());
+        }
+        if (condition.equals("rsi_1min_lt_44")) {
+            return Boolean.TRUE.equals(indicators.getRsi_1min_lt_44());
+        }
+        if (condition.equals("rsi_15min_lt_44")) {
+            return Boolean.TRUE.equals(indicators.getRsi_15min_lt_44());
+        }
+        
+        return false; // Default to false for unknown conditions
+        } catch (Exception e) {
+            log.warn("Error evaluating condition '{}': {}", condition, e.getMessage());
+            return false; // Return false on any error
+        }
+    }
+    
+    private double calculateQualityScore(FlattenedIndicators indicators) {
+        try {
+            // Use dedicated scoring configuration from scoring-config.json
+            double score = 0.0;
+            
+            // Determine market direction based on dominant trend
+            boolean isCallDirection = determineCallDirection(indicators);
+            
+            if (isCallDirection) {
+                score = calculateCallQualityScore(indicators);
+            } else {
+                score = calculatePutQualityScore(indicators);
+            }
+            
+            // Cap at maximum quality score (from scoring-config.json)
+            double maxQualityScore = scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore();
+            return Math.min(score, maxQualityScore);
+        } catch (Exception e) {
+            log.warn("Error calculating quality score: {}", e.getMessage());
+            return 0.0; // Return 0 on any error
+        }
+    }
+    
+    private boolean determineCallDirection(FlattenedIndicators indicators) {
+        // Count bullish vs bearish signals to determine dominant direction
+        int bullishSignals = 0;
+        int bearishSignals = 0;
+        
+        // EMA signals
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishSignals++;
+        
+        // RSI signals
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) bearishSignals++;
+        
+        // Price action signals
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) bearishSignals++;
+        
+        return bullishSignals >= bearishSignals;
+    }
+    
+    private double calculateCallQualityScore(FlattenedIndicators indicators) {
+        // EMA Quality Score (CALL - bullish)
+        double emaScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) emaScore += scoringConfigService.getEmaQuality();
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) emaScore += scoringConfigService.getEmaQuality();
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) emaScore += scoringConfigService.getEmaQuality();
+        // Cap EMA score at 10
+        emaScore = Math.min(emaScore, 10.0);
+        
+        // RSI Quality Score (CALL - bullish)
+        double rsiScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) rsiScore += scoringConfigService.getRsiQuality();
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_56())) rsiScore += scoringConfigService.getRsiQuality();
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_56())) rsiScore += scoringConfigService.getRsiQuality();
+        // Cap RSI score at 10
+        rsiScore = Math.min(rsiScore, 10.0);
+        
+        // Volume Quality Score (same for both directions)
+        double volumeScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getVolume_5min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min();
+        if (Boolean.TRUE.equals(indicators.getVolume_1min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
+        if (Boolean.TRUE.equals(indicators.getVolume_15min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
+        // Cap volume score at 10
+        volumeScore = Math.min(volumeScore, 10.0);
+        
+        // Price Action Quality Score (CALL - bullish)
+        double priceActionScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getGreen_candle_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (Boolean.TRUE.equals(indicators.getGreen_candle_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (Boolean.TRUE.equals(indicators.getLong_body_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (Boolean.TRUE.equals(indicators.getLong_body_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) priceActionScore += scoringConfigService.getPriceActionQuality();
+        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) priceActionScore += scoringConfigService.getPriceActionQuality();
+        if (Boolean.TRUE.equals(indicators.getPrice_above_resistance())) priceActionScore += scoringConfigService.getPriceActionQuality();
+        // Cap price action score at 10
+        priceActionScore = Math.min(priceActionScore, 10.0);
+        
+        // Futuresignals Quality Score (CALL - bullish)
+        double futuresignalsScore = 0.0;
+        if (indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBullish()) {
+            futuresignalsScore = scoringConfigService.getFuturesignalQuality();
+        } else if (indicators.getFuturesignals() != null && 
+                   (indicators.getFuturesignals().getFiveMinBullishSurge() || indicators.getFuturesignals().getOneMinBullishSurge())) {
+            futuresignalsScore = scoringConfigService.getFuturesignalQuality() / 2.0;
+        }
+        // Cap futuresignals score at 10
+        futuresignalsScore = Math.min(futuresignalsScore, 10.0);
+        
+        // Momentum Quality Score (CALL - bullish)
+        double momentumScore = 0.0;
+        int bullishTimeframes = 0;
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) bullishTimeframes++;
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishTimeframes++;
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishTimeframes++;
+        
+        if (bullishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
+        else if (bullishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();
+        else if (bullishTimeframes == 1) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getSingleAlignment();
+        // Cap momentum score at 10
+        momentumScore = Math.min(momentumScore, 10.0);
+        
+        // Candlestick Quality Score (CALL - bullish patterns)
+        double candlestickScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getBullish_engulfing_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getBullish_engulfing_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getBullish_morning_star_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getBullish_morning_star_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getHammer_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (Boolean.TRUE.equals(indicators.getHammer_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
+        // Cap candlestick score at 10
+        candlestickScore = Math.min(candlestickScore, 10.0);
+        
+        // Calculate average of all component scores (0-10 range)
+        double totalScore = emaScore + rsiScore + volumeScore + priceActionScore + 
+                           futuresignalsScore + momentumScore + candlestickScore;
+        return totalScore / 7.0; // Average of 7 components
+    }
+    
+    private double calculatePutQualityScore(FlattenedIndicators indicators) {
+        // EMA Quality Score (PUT - bearish)
+        double emaScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) emaScore += scoringConfigService.getEmaQuality();
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) emaScore += scoringConfigService.getEmaQuality();
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) emaScore += scoringConfigService.getEmaQuality();
+        // Cap EMA score at 10
+        emaScore = Math.min(emaScore, 10.0);
+        
+        // RSI Quality Score (PUT - bearish)
+        double rsiScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) rsiScore += scoringConfigService.getRsiQuality();
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_44())) rsiScore += scoringConfigService.getRsiQuality();
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_44())) rsiScore += scoringConfigService.getRsiQuality();
+        // Cap RSI score at 10
+        rsiScore = Math.min(rsiScore, 10.0);
+        
+        // Volume Quality Score (same for both directions)
+        double volumeScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getVolume_5min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min();
+        if (Boolean.TRUE.equals(indicators.getVolume_1min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
+        if (Boolean.TRUE.equals(indicators.getVolume_15min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
+        // Cap volume score at 10
+        volumeScore = Math.min(volumeScore, 10.0);
+        
+        // Price Action Quality Score (PUT - bearish)
+        double priceActionScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getRed_candle_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (Boolean.TRUE.equals(indicators.getRed_candle_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (Boolean.TRUE.equals(indicators.getLong_body_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (Boolean.TRUE.equals(indicators.getLong_body_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) priceActionScore += scoringConfigService.getPriceActionQuality();
+        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) priceActionScore += scoringConfigService.getPriceActionQuality();
+        if (Boolean.TRUE.equals(indicators.getPrice_below_support())) priceActionScore += scoringConfigService.getPriceActionQuality();
+        // Cap price action score at 10
+        priceActionScore = Math.min(priceActionScore, 10.0);
+        
+        // Futuresignals Quality Score (PUT - bearish)
+        double futuresignalsScore = 0.0;
+        if (indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBearish()) {
+            futuresignalsScore = scoringConfigService.getFuturesignalQuality();
+        } else if (indicators.getFuturesignals() != null && 
+                   (indicators.getFuturesignals().getFiveMinBearishSurge() || indicators.getFuturesignals().getOneMinBearishSurge())) {
+            futuresignalsScore = scoringConfigService.getFuturesignalQuality() / 2.0;
+        }
+        // Cap futuresignals score at 10
+        futuresignalsScore = Math.min(futuresignalsScore, 10.0);
+        
+        // Momentum Quality Score (PUT - bearish)
+        double momentumScore = 0.0;
+        int bearishTimeframes = 0;
+        if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) bearishTimeframes++;
+        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishTimeframes++;
+        if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) bearishTimeframes++;
+        
+        if (bearishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
+        else if (bearishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();
+        else if (bearishTimeframes == 1) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getSingleAlignment();
+        // Cap momentum score at 10
+        momentumScore = Math.min(momentumScore, 10.0);
+        
+        // Candlestick Quality Score (PUT - bearish patterns)
+        double candlestickScore = 0.0;
+        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getBearish_evening_star_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getBearish_evening_star_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
+        if (Boolean.TRUE.equals(indicators.getShooting_star_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        if (Boolean.TRUE.equals(indicators.getShooting_star_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
+        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
+        // Cap candlestick score at 10
+        candlestickScore = Math.min(candlestickScore, 10.0);
+        
+        // Calculate average of all component scores (0-10 range)
+        double totalScore = emaScore + rsiScore + volumeScore + priceActionScore + 
+                           futuresignalsScore + momentumScore + candlestickScore;
+        return totalScore / 7.0; // Average of 7 components
+    }
+    
+    private double calculateScenarioScore(Map<String, Integer> categoryScores, 
+                                        ScalpingEntryConfig.ScenarioRequirements requirements) {
+        double totalScore = 0.0;
+        int totalRequirements = 0;
+        int totalPossible = 0;
+        
+        if (requirements.getEma_min_count() != null) {
+            int actualCount = categoryScores.getOrDefault("ema", 0);
+            totalScore += Math.min(actualCount, requirements.getEma_min_count());
+            totalRequirements += requirements.getEma_min_count();
+            totalPossible += 3; // 3 possible EMA conditions
+        }
+        
+        if (requirements.getFutureAndVolume_min_count() != null) {
+            int actualCount = categoryScores.getOrDefault("futureAndVolume", 0);
+            totalScore += Math.min(actualCount, requirements.getFutureAndVolume_min_count());
+            totalRequirements += requirements.getFutureAndVolume_min_count();
+            totalPossible += 7; // 7 possible Volume conditions
+        }
+        
+        if (requirements.getCandlestick_min_count() != null) {
+            int actualCount = categoryScores.getOrDefault("candlestick", 0);
+            totalScore += Math.min(actualCount, requirements.getCandlestick_min_count());
+            totalRequirements += requirements.getCandlestick_min_count();
+            totalPossible += 10; // 10 possible Candlestick conditions
+        }
+        
+        if (requirements.getMomentum_min_count() != null) {
+            int actualCount = categoryScores.getOrDefault("momentum", 0);
+            totalScore += Math.min(actualCount, requirements.getMomentum_min_count());
+            totalRequirements += requirements.getMomentum_min_count();
+            totalPossible += 3; // 3 possible Momentum conditions
+        }
+        
+        // Calculate percentage of requirements met
+        double requirementPercentage = totalRequirements > 0 ? (totalScore / totalRequirements) : 0.0;
+        
+        // Calculate percentage of total possible conditions met
+        double totalPercentage = totalPossible > 0 ? (totalScore / totalPossible) : 0.0;
+        
+        // Weighted score: 70% based on requirements met, 30% based on total conditions
+        return (requirementPercentage * 0.7 + totalPercentage * 0.3) * 10.0;
+    }
+    
+    // Helper class for scenario evaluation results
+    private static class ScenarioEvaluation {
+        private String scenarioName;
+        private ScalpingEntryConfig.Scenario scenario;
+        private boolean passed;
+        private double score;
+        private Map<String, Integer> categoryScores;
+        private Map<String, List<String>> matchedConditions;
+        private String reason;
+        
+        // Getters and setters
+        public String getScenarioName() { return scenarioName; }
+        public void setScenarioName(String scenarioName) { this.scenarioName = scenarioName; }
+        
+        public ScalpingEntryConfig.Scenario getScenario() { return scenario; }
+        public void setScenario(ScalpingEntryConfig.Scenario scenario) { this.scenario = scenario; }
+        
+        public boolean isPassed() { return passed; }
+        public void setPassed(boolean passed) { this.passed = passed; }
+        
+        public double getScore() { return score; }
+        public void setScore(double score) { this.score = score; }
+        
+        public Map<String, Integer> getCategoryScores() { return categoryScores; }
+        public void setCategoryScores(Map<String, Integer> categoryScores) { this.categoryScores = categoryScores; }
+        
+        public Map<String, List<String>> getMatchedConditions() { return matchedConditions; }
+        public void setMatchedConditions(Map<String, List<String>> matchedConditions) { this.matchedConditions = matchedConditions; }
+        
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
     }
 }
