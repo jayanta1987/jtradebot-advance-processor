@@ -395,10 +395,9 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
         MilestoneSystem.MilestoneResult result = milestoneSystem.processPrice(currentLTP, currentIndexPrice);
         
         if (result.isExitRequired()) {
-            // Update order with milestone information
-            order.setCurrentTargetMilestone(result.getCurrentTargetMilestone());
-            order.setTotalReleasedProfit(milestoneSystem.getTotalReleasedProfit());
-            order.setMilestoneHistory(milestoneSystem.getMilestoneHistory());
+            // Update order with milestone information (only in milestoneSystem object)
+            // Don't duplicate data at root level - keep it only in milestoneSystem
+            order.setMilestoneSystem(milestoneSystem);
             
             // Log milestone exit
             log.info("🎯 Milestone Exit - {} {} @ {} | Reason: {}, Profit: {}, Milestone: {}", 
@@ -408,9 +407,8 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             return true;
         }
         
-        // Update order with current milestone status
-        order.setCurrentTargetMilestone(result.getCurrentTargetMilestone());
-        order.setTotalReleasedProfit(milestoneSystem.getTotalReleasedProfit());
+        // Update order with current milestone status (only in milestoneSystem object)
+        order.setMilestoneSystem(milestoneSystem);
         
         return false;
     }
@@ -463,11 +461,9 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             // Initialize the milestone system
             milestoneSystem.initialize(order.getEntryPrice(), order.getEntryIndexPrice(), order.getOrderType());
             
-            // Set milestone system in order
+            // Set milestone system in order (only in milestoneSystem object)
             order.setMilestoneSystem(milestoneSystem);
-            order.setCurrentTargetMilestone(0);
-            order.setTotalReleasedProfit(0.0);
-            order.setMilestoneHistory(new ArrayList<>());
+            // Don't duplicate data at root level - keep it only in milestoneSystem
             
             log.info("🎯 Milestone system initialized for {} order - Milestone points: {}, Max SL: {}, Trailing: {}", 
                     order.getOrderType(), milestonePoints, maxStopLossPoints, trailingStopLoss);

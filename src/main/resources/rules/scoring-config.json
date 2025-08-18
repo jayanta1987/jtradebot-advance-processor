@@ -120,11 +120,11 @@
 
   "thresholdConfiguration": {
     "rsiThresholds": {
-      "callBullish": 56.0,
-      "putBearish": 44.0,
-      "overbought": 70.0,
-      "oversold": 30.0,
-      "tolerance": 0.1,
+      "callBullish": 60.0,
+      "putBearish": 40.0,
+      "overbought": 75.0,
+      "oversold": 25.0,
+      "tolerance": 0.05,
       "description": "RSI thresholds for different conditions"
     },
     "volumeThresholds": {

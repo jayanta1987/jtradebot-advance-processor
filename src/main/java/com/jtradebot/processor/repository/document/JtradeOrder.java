@@ -58,11 +58,8 @@ public class JtradeOrder {
     
     private String comments;
     
-    // Milestone System
+    // Milestone System (all milestone data stored in milestoneSystem object)
     private MilestoneSystem milestoneSystem;
-    private Integer currentTargetMilestone;
-    private Double totalReleasedProfit;
-    private List<String> milestoneHistory;
     
     // Entry Conditions - Store all conditions that were matched when order was created
     private List<String> entryConditions;

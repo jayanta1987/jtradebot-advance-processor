@@ -87,7 +87,7 @@ public class MilestoneSystem {
         // Set initial trailing stop loss
         updateTrailingStopLoss(entryPrice);
         
-        logMilestone("Milestone system initialized - Entry: {}, Target milestones: 5, 10, 15 points", entryPrice);
+        logMilestone("Milestone system initialized - Entry: %.2f, Target milestones: 5, 10, 15 points", entryPrice);
     }
     
     /**
@@ -141,7 +141,7 @@ public class MilestoneSystem {
                     .points(currentProfit)
                     .build();
             
-            logMilestone("Trailing stop loss hit at price: {}, profit: {}", trailingStopLossPrice, currentProfit);
+            logMilestone("Trailing stop loss hit at price: %.2f, profit: %.2f", trailingStopLossPrice, currentProfit);
             return trailingResult;
         }
         
@@ -157,7 +157,7 @@ public class MilestoneSystem {
                     .points(-maxStopLossPoints)
                     .build();
             
-            logMilestone("Initial stop loss hit at price: {}, profit: {}", currentPrice, currentProfit);
+            logMilestone("Initial stop loss hit at price: %.2f, profit: %.2f", currentPrice, currentProfit);
             return stopLossResult;
         }
         
@@ -189,7 +189,7 @@ public class MilestoneSystem {
                 double profitToRelease = milestone.getPoints();
                 totalReleasedProfit += profitToRelease;
                 
-                logMilestone("Target milestone {} hit at price: {}, profit: {}, released: {}", 
+                logMilestone("Target milestone %d hit at price: %.2f, profit: %.2f, released: %.2f", 
                         milestone.getMilestoneNumber(), currentPrice, currentProfit, profitToRelease);
                 
                 // If this is the final milestone (15 points), exit
@@ -257,8 +257,13 @@ public class MilestoneSystem {
      * Log milestone event
      */
     private void logMilestone(String message, Object... args) {
-        String logMessage = String.format(message, args);
-        milestoneHistory.add(logMessage);
+        try {
+            String logMessage = String.format(message, args);
+            milestoneHistory.add(logMessage);
+        } catch (Exception e) {
+            // Fallback if formatting fails
+            milestoneHistory.add(message + " - " + java.util.Arrays.toString(args));
+        }
     }
     
     /**

@@ -94,14 +94,14 @@
       "name": "SAFE_ENTRY_SIGNAL",
       "description": "Conservative entry with strong confirmations",
       "requirements": {
-        "minQualityScore": 7.5,
+        "minQualityScore": 8.0,
         "ema_min_count": 2,
         "futureAndVolume_min_count": 3,
         "candlestick_min_count": 3,
         "momentum_min_count": 2
       },
       "riskManagement": {
-        "stopLossPoints": 7,
+        "stopLossPoints": 7.5,
         "targetPoints": 15,
         "useTrailingStop": true
       }
