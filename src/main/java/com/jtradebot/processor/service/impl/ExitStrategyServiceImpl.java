@@ -538,22 +538,8 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             // Convert current time to IST
             ZonedDateTime currentISTTime = currentTime.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
             
-            // Debug time parsing
-            log.info("🔍 TIME DEBUG - Order: {}", order.getId());
-            log.info("   Entry time string: {}", order.getEntryTime());
-            log.info("   Parsed entry time: {}", entryTime);
-            log.info("   Current time: {}", currentTime);
-            log.info("   Current IST time: {}", currentISTTime);
-            log.info("   Entry time zone: {}", entryTime.getZone());
-            log.info("   Current time zone: {}", currentISTTime.getZone());
-            
             // Calculate duration in seconds
             long durationSeconds = java.time.Duration.between(entryTime, currentISTTime).getSeconds();
-            
-            // Debug logging to see time checks
-            log.info("🕐 TIME CHECK - Order: {}, Entry: {}, Current: {}, Duration: {} seconds, Max: {} seconds", 
-                    order.getId(), order.getEntryTime(), currentISTTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z")), 
-                    durationSeconds, maxHoldingTimeSeconds);
             
             if (durationSeconds >= maxHoldingTimeSeconds) {
                 log.info("⏰ Time-based exit triggered for order: {} - Duration: {} seconds (Max: {} seconds)", 

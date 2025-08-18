@@ -2,6 +2,7 @@ package com.jtradebot.processor.service.impl;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
+import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
@@ -26,28 +27,29 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
 
     @Override
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators) {
+        return evaluateEntry(tick, indicators, null);
+    }
+    
+    /**
+     * Evaluates entry conditions with optional pre-calculated quality score
+     */
+    public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore) {
         try {
-            // Step 0: Check flat market conditions first
-            if (configService.isFlatMarketFilteringEnabled()) {
-                boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
-                if (!isMarketSuitable) {
-                    MarketConditionAnalysisService.MarketConditionResult marketResult = 
-                        marketConditionAnalysisService.analyzeMarketCondition(tick, indicators);
-                    log.warn("🚫 FLAT MARKET FILTERING BLOCKED ENTRY - Instrument: {}, Price: {}, Reason: {}", 
-                        tick.getInstrumentToken(), tick.getLastTradedPrice(), marketResult.getReason());
-                    return ScalpingEntryDecision.builder()
-                            .shouldEntry(false)
-                            .reason("Flat market detected: " + marketResult.getReason())
-                            .build();
-                }
-            }
+            // Step 0 removed: we no longer hard-block on flat market; requirements are tightened per-scenario
             
             // Step 1: Pre-calculate category counts for both CALL and PUT
             Map<String, Integer> callCategoryCounts = calculateCategoryCounts(indicators, configService.getCallCategories());
             Map<String, Integer> putCategoryCounts = calculateCategoryCounts(indicators, configService.getPutCategories());
             
-            // Step 2: Pre-calculate quality score once (performance optimization)
-            double qualityScore = calculateQualityScore(indicators);
+            // Step 2: Use pre-calculated quality score or calculate if not provided
+            double qualityScore;
+            if (preCalculatedQualityScore != null) {
+                qualityScore = preCalculatedQualityScore;
+                log.info("🔍 QUALITY SCORE REUSED - Pre-calculated: {}", qualityScore);
+            } else {
+                qualityScore = calculateQualityScore(indicators);
+                log.info("🔍 QUALITY SCORE CALCULATED - New: {}", qualityScore);
+            }
             
             // Step 3: Loop through scenarios and check their specific requirements
             List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
@@ -80,6 +82,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
                 // Only log when scenarios fail - removed verbose logging
                 return ScalpingEntryDecision.builder()
                         .shouldEntry(false)
+                        .scenarioName("NO_SCENARIO_PASSED")
                         .reason("No scenario passed the evaluation criteria")
                         .build();
             }
@@ -197,42 +200,64 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             categoryScores.put("momentum", momentumCount);
         }
         
-        // Check if all requirements are met
-        boolean categoryRequirementsPassed = true;
-        List<String> failedCategories = new ArrayList<>();
-        
-        if (requirements.getEma_min_count() != null && 
-            categoryScores.get("ema") < requirements.getEma_min_count()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + requirements.getEma_min_count());
-        }
-        
-        if (requirements.getFutureAndVolume_min_count() != null && 
-            categoryScores.get("futureAndVolume") < requirements.getFutureAndVolume_min_count()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("Volume: " + categoryScores.get("futureAndVolume") + "/" + requirements.getFutureAndVolume_min_count());
-        }
-        
-        if (requirements.getCandlestick_min_count() != null && 
-            categoryScores.get("candlestick") < requirements.getCandlestick_min_count()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("Candlestick: " + categoryScores.get("candlestick") + "/" + requirements.getCandlestick_min_count());
-        }
-        
-        if (requirements.getMomentum_min_count() != null && 
-            categoryScores.get("momentum") < requirements.getMomentum_min_count()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("Momentum: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_count());
-        }
-        
-        // Check flat market filtering requirements
+        // Check flat market filtering requirements first
         boolean flatMarketFilterPassed = true;
+        ScalpingEntryConfig.ScenarioRequirements adjustedRequirements = requirements;
+        boolean requirementsAdjusted = false;
+        
         if (requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
             boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
             if (!isMarketSuitable) {
-                flatMarketFilterPassed = false;
-                failedCategories.add("Flat market filter: Market conditions unsuitable");
+                // Instead of blocking, adjust requirements for flat market - Made more restrictive
+                adjustedRequirements = adjustRequirementsForFlatMarket(requirements);
+                requirementsAdjusted = true;
+                
+                // Additional flat market restrictions using configuration
+                FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
+                double minQualityScore = config.getThresholds().getFlatMarketAdjustments().getMinQualityScore();
+                
+                if (preCalculatedQualityScore < minQualityScore) {
+                    log.debug("Flat market detected - Quality score {} below flat market threshold {}", 
+                             preCalculatedQualityScore, minQualityScore);
+                    evaluation.setPassed(false);
+                    evaluation.setScore(0.0);
+                    evaluation.setReason("Flat market detected - Quality score " + preCalculatedQualityScore + 
+                                       " below flat market threshold " + minQualityScore);
+                    return evaluation;
+                }
             }
+        }
+        
+        // Check if all requirements are met (using adjusted requirements for flat market)
+        boolean categoryRequirementsPassed = true;
+        List<String> failedCategories = new ArrayList<>();
+        
+        if (adjustedRequirements.getEma_min_count() != null && 
+            categoryScores.get("ema") < adjustedRequirements.getEma_min_count()) {
+            categoryRequirementsPassed = false;
+            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
+            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + adjustedRequirements.getEma_min_count() + adjustmentNote);
+        }
+        
+        if (adjustedRequirements.getFutureAndVolume_min_count() != null && 
+            categoryScores.get("futureAndVolume") < adjustedRequirements.getFutureAndVolume_min_count()) {
+            categoryRequirementsPassed = false;
+            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
+            failedCategories.add("FV: " + categoryScores.get("futureAndVolume") + "/" + adjustedRequirements.getFutureAndVolume_min_count() + adjustmentNote);
+        }
+        
+        if (adjustedRequirements.getCandlestick_min_count() != null && 
+            categoryScores.get("candlestick") < adjustedRequirements.getCandlestick_min_count()) {
+            categoryRequirementsPassed = false;
+            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
+            failedCategories.add("CS: " + categoryScores.get("candlestick") + "/" + adjustedRequirements.getCandlestick_min_count() + adjustmentNote);
+        }
+        
+        if (adjustedRequirements.getMomentum_min_count() != null && 
+            categoryScores.get("momentum") < adjustedRequirements.getMomentum_min_count()) {
+            categoryRequirementsPassed = false;
+            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
+            failedCategories.add("M: " + categoryScores.get("momentum") + "/" + adjustedRequirements.getMomentum_min_count() + adjustmentNote);
         }
         
         // Check directional strength requirement
@@ -249,7 +274,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         
         // Check confidence score threshold from scoring config
         boolean confidenceScorePassed = true;
-        double confidenceScore = calculateScenarioScore(categoryScores, requirements);
+        double confidenceScore = calculateScenarioScore(categoryScores, adjustedRequirements);
         double minConfidenceThreshold = scoringConfigService.getMinConfidenceScore();
         
         if (minConfidenceThreshold > 0) {
@@ -263,12 +288,26 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         // All three requirements must be met: quality score, category requirements, and confidence score
         boolean passed = qualityScorePassed && categoryRequirementsPassed && confidenceScorePassed;
         
-        // Category requirements debug logging - REMOVED
-        
-        // Final result debug logging - REMOVED
+        // Add detailed debug logging
+        if (!passed) {
+            log.info("🔍 SCENARIO EVALUATION FAILED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
+                scenario.getName(), qualityScorePassed, categoryRequirementsPassed, confidenceScorePassed);
+            if (!qualityScorePassed) {
+                log.info("  ❌ Quality Score: {} < {}", preCalculatedQualityScore, minQualityThreshold);
+            }
+            if (!categoryRequirementsPassed) {
+                log.info("  ❌ Category Requirements: {}", String.join(", ", failedCategories));
+            }
+            if (!confidenceScorePassed) {
+                log.info("  ❌ Confidence Score: {} < {}", confidenceScore, minConfidenceThreshold);
+            }
+        } else {
+            log.info("✅ SCENARIO EVALUATION PASSED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
+                scenario.getName(), qualityScorePassed, categoryRequirementsPassed, confidenceScorePassed);
+        }
         
         // Calculate overall score
-        double score = calculateScenarioScore(categoryScores, requirements);
+        double score = calculateScenarioScore(categoryScores, adjustedRequirements);
         
         evaluation.setPassed(passed);
         evaluation.setScore(score);
@@ -279,6 +318,9 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         StringBuilder reason = new StringBuilder();
         if (passed) {
             reason.append("All requirements met");
+            if (requirementsAdjusted) {
+                reason.append(" (flat market adjusted)");
+            }
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
@@ -291,6 +333,9 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
                 failures.add("Confidence score " + confidenceScore + " below threshold " + minConfidenceThreshold);
             }
             reason.append(String.join("; ", failures));
+            if (requirementsAdjusted) {
+                reason.append(" (flat market adjusted)");
+            }
         }
         evaluation.setReason(reason.toString());
         
@@ -501,11 +546,15 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             
             // Apply quality threshold from scoring config
             double minQualityThreshold = scoringConfigService.getMinQualityScore();
+            log.info("🔍 QUALITY SCORE CALCULATION - Raw Score: {}, Min Threshold: {}, Direction: {}", 
+                score, minQualityThreshold, isCallDirection ? "CALL" : "PUT");
+            
             if (score < minQualityThreshold) {
                 log.debug("Quality score {} below threshold {}, reducing to 0", score, minQualityThreshold);
                 score = 0.0;
             }
             
+            log.info("🔍 QUALITY SCORE FINAL - Final Score: {}", score);
             return score;
         } catch (Exception e) {
             log.warn("Error calculating quality score: {}", e.getMessage());
@@ -766,5 +815,44 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         
         public String getReason() { return reason; }
         public void setReason(String reason) { this.reason = reason; }
+    }
+    
+    /**
+     * Adjust scenario requirements for flat market conditions
+     * Increases minimum count requirements using configuration
+     */
+    private ScalpingEntryConfig.ScenarioRequirements adjustRequirementsForFlatMarket(
+            ScalpingEntryConfig.ScenarioRequirements originalRequirements) {
+        
+        ScalpingEntryConfig.ScenarioRequirements adjusted = new ScalpingEntryConfig.ScenarioRequirements();
+        
+        // Get configuration
+        FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
+        int categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
+        
+        // Copy all original values
+        adjusted.setEma_min_count(originalRequirements.getEma_min_count());
+        adjusted.setFutureAndVolume_min_count(originalRequirements.getFutureAndVolume_min_count());
+        adjusted.setCandlestick_min_count(originalRequirements.getCandlestick_min_count());
+        adjusted.setMomentum_min_count(originalRequirements.getMomentum_min_count());
+        adjusted.setMinQualityScore(originalRequirements.getMinQualityScore());
+        adjusted.setFlatMarketFilter(originalRequirements.getFlatMarketFilter());
+        adjusted.setMinDirectionalStrength(originalRequirements.getMinDirectionalStrength());
+        
+        // Increase minimum counts using configuration
+        if (adjusted.getEma_min_count() != null) {
+            adjusted.setEma_min_count(adjusted.getEma_min_count() + categoryIncrement);
+        }
+        if (adjusted.getFutureAndVolume_min_count() != null) {
+            adjusted.setFutureAndVolume_min_count(adjusted.getFutureAndVolume_min_count() + categoryIncrement);
+        }
+        if (adjusted.getCandlestick_min_count() != null) {
+            adjusted.setCandlestick_min_count(adjusted.getCandlestick_min_count() + categoryIncrement);
+        }
+        if (adjusted.getMomentum_min_count() != null) {
+            adjusted.setMomentum_min_count(adjusted.getMomentum_min_count() + categoryIncrement);
+        }
+        
+        return adjusted;
     }
 }

@@ -262,8 +262,20 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // Get flattened indicators
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Use new scenario-based entry evaluation
-            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
+            // Calculate quality score once to avoid duplicate calculations
+            EntryQuality callQuality = evaluateCallEntryQuality(indicators, tick);
+            EntryQuality putQuality = evaluatePutEntryQuality(indicators, tick);
+            
+            // Use the dominant quality score (same logic as TickProcessService)
+            boolean isCallDominant = callQuality.getQualityScore() > putQuality.getQualityScore();
+            double qualityScore = isCallDominant ? callQuality.getQualityScore() : putQuality.getQualityScore();
+            
+            log.info("🔍 QUALITY SCORE UNIFIED - Call: {}, Put: {}, Dominant: {}, Final: {}", 
+                callQuality.getQualityScore(), putQuality.getQualityScore(), 
+                isCallDominant ? "CALL" : "PUT", qualityScore);
+            
+            // Use new scenario-based entry evaluation with pre-calculated quality score
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators, qualityScore);
             
             if (decision.isShouldEntry()) {
                 log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 

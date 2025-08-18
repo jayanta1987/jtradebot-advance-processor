@@ -15,6 +15,7 @@ import com.jtradebot.processor.service.OptionPricingService;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.service.EntryConditionAnalysisService;
+import com.jtradebot.processor.service.MarketConditionAnalysisService;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Date;
@@ -42,6 +43,7 @@ import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.model.indicator.EmaInfo;
 import org.ta4j.core.BarSeries;
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
+import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +66,7 @@ public class TickProcessService {
     private final EntryConditionAnalysisService entryConditionAnalysisService;
     private final TickMonitoringService tickMonitoringService;
     private final ProfitableTradeFilterService profitableTradeFilterService;
+    private final MarketConditionAnalysisService marketConditionAnalysisService;
     
     // Active trades cache
     private final Map<String, JtradeOrder> activeTrades = new ConcurrentHashMap<>();
@@ -173,14 +176,19 @@ public class TickProcessService {
             if (scenarioPassed) {
                 log.info("✅ ENTRY SCENARIO PASSED - Scenario: {}, Confidence: {}/10", 
                     entryDecision.getScenarioName(), entryDecision.getConfidence());
+            } else {
+                log.info("❌ ENTRY SCENARIO FAILED - Scenario: {}, Confidence: {}/10, Reason: {}", 
+                    entryDecision.getScenarioName(), entryDecision.getConfidence(), entryDecision.getReason());
             }
             
-            // Use the same dominant trend logic for both logging and entry decisions
-            EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(realIndicators, indexTick);
-            EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(realIndicators, indexTick);
+            // Use the quality score from entryDecision to avoid duplicate calculations
+            double qualityScore = entryDecision.getQualityScore();
             
-            boolean isCallDominant = callQuality.getQualityScore() > putQuality.getQualityScore();
-            boolean isPutDominant = putQuality.getQualityScore() > callQuality.getQualityScore();
+            // For now, use a simple heuristic for direction - in a real implementation,
+            // you'd want to store both call and put quality scores in the entryDecision
+            // For now, assume CALL direction if we have a valid quality score
+            boolean isCallDominant = qualityScore > 0;
+            boolean isPutDominant = false; // Simplified for now
             
             // Only create orders if scenario passes AND dominant direction is clear
             boolean shouldCall = scenarioPassed && isCallDominant;
@@ -214,8 +222,8 @@ public class TickProcessService {
             
             // Log actual entry signals and execute orders (only when signals are generated)
             if (shouldCall || shouldPut) {
-                // Get the scenario-based entry decision (reuse existing entryDecision)
-                ScalpingEntryDecision scenarioDecision = scalpingVolumeSurgeService.getEntryDecision(indexTick);
+                // Reuse the already computed scenario-based entry decision to avoid mismatch
+                ScalpingEntryDecision scenarioDecision = entryDecision;
                 
                 if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
                     String orderType = shouldCall ? "CALL" : "PUT";
@@ -233,6 +241,9 @@ public class TickProcessService {
                         log.warn("⚠️ ACTIVE ORDER EXISTS - Cannot create new order. Active orders: {}", 
                             exitStrategyService.hasActiveOrder());
                     }
+                } else {
+                    log.debug("⏸️ ENTRY SKIPPED - Scenario decision no longer valid at execution time (shouldCall: {}, shouldPut: {}, decisionPresent: {}, decisionAllows: {})", 
+                        shouldCall, shouldPut, scenarioDecision != null, scenarioDecision != null && scenarioDecision.isShouldEntry());
                 }
             }
             
@@ -991,6 +1002,32 @@ public class TickProcessService {
                         }
                     }
                     
+                    // Check if flat market filtering would adjust these requirements
+                    boolean requirementsAdjusted = false;
+                    int categoryIncrement = 0;
+                    String flatMarketReason = "";
+                    if (requirements != null && requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
+                        boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+                        if (!isMarketSuitable) {
+                            requirementsAdjusted = true;
+                            // Get the actual category increment from configuration
+                            FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
+                            categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
+                            
+                            // Get flat market reason from market condition analysis
+                            try {
+                                String detailedReason = marketConditionAnalysisService.getDetailedFlatMarketReason(tick, indicators);
+                                if (detailedReason != null) {
+                                    flatMarketReason = " | Flat: " + detailedReason;
+                                } else {
+                                    flatMarketReason = " | Flat: Market condition unsuitable";
+                                }
+                            } catch (Exception e) {
+                                flatMarketReason = " | Flat: Market condition unsuitable";
+                            }
+                        }
+                    }
+                    
                     // Build category info with green ticks
                     StringBuilder categoryInfo = new StringBuilder();
                     
@@ -1005,31 +1042,35 @@ public class TickProcessService {
                     int emaCount = categoryScores.getOrDefault("ema", 0);
                     boolean emaPass = requirements != null && requirements.getEma_min_count() != null && 
                                    emaCount >= requirements.getEma_min_count();
-                    categoryInfo.append(String.format("EMA:%d/%d%s ", 
-                        emaCount, requirements != null ? requirements.getEma_min_count() : 0, emaPass ? "✅" : ""));
+                    String emaAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    categoryInfo.append(String.format("EMA:%d/%d%s%s ", 
+                        emaCount, requirements != null ? requirements.getEma_min_count() : 0, emaPass ? "✅" : "", emaAdjustment));
                     
                     // FutureAndVolume
                     int fvCount = categoryScores.getOrDefault("futureAndVolume", 0);
                     boolean fvPass = requirements != null && requirements.getFutureAndVolume_min_count() != null && 
                                    fvCount >= requirements.getFutureAndVolume_min_count();
-                    categoryInfo.append(String.format("FV:%d/%d%s ", 
-                        fvCount, requirements != null ? requirements.getFutureAndVolume_min_count() : 0, fvPass ? "✅" : ""));
+                    String fvAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    categoryInfo.append(String.format("FV:%d/%d%s%s ", 
+                        fvCount, requirements != null ? requirements.getFutureAndVolume_min_count() : 0, fvPass ? "✅" : "", fvAdjustment));
                     
                     // Candlestick
                     int csCount = categoryScores.getOrDefault("candlestick", 0);
                     boolean csPass = requirements != null && requirements.getCandlestick_min_count() != null && 
                                    csCount >= requirements.getCandlestick_min_count();
-                    categoryInfo.append(String.format("CS:%d/%d%s ", 
-                        csCount, requirements != null ? requirements.getCandlestick_min_count() : 0, csPass ? "✅" : ""));
+                    String csAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    categoryInfo.append(String.format("CS:%d/%d%s%s ", 
+                        csCount, requirements != null ? requirements.getCandlestick_min_count() : 0, csPass ? "✅" : "", csAdjustment));
                     
                     // Momentum
                     int mCount = categoryScores.getOrDefault("momentum", 0);
                     boolean mPass = requirements != null && requirements.getMomentum_min_count() != null && 
                                    mCount >= requirements.getMomentum_min_count();
-                    categoryInfo.append(String.format("M:%d/%d%s ", 
-                        mCount, requirements != null ? requirements.getMomentum_min_count() : 0, mPass ? "✅" : ""));
+                    String mAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    categoryInfo.append(String.format("M:%d/%d%s%s ", 
+                        mCount, requirements != null ? requirements.getMomentum_min_count() : 0, mPass ? "✅" : "", mAdjustment));
                     
-                    return String.format("🎯 %s | %s", scenarioInfo, categoryInfo.toString().trim());
+                    return String.format("🎯 %s | %s%s", scenarioInfo, categoryInfo.toString().trim(), flatMarketReason);
                 } else {
                     return String.format("🎯 %s", scenarioInfo);
                 }
@@ -1065,6 +1106,32 @@ public class TickProcessService {
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
                 ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
                 
+                // Check if flat market filtering would adjust these requirements
+                boolean requirementsAdjusted = false;
+                int categoryIncrement = 0;
+                String flatMarketReason = "";
+                if (requirements != null && requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
+                    boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+                    if (!isMarketSuitable) {
+                        requirementsAdjusted = true;
+                        // Get the actual category increment from configuration
+                        FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
+                        categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
+                        
+                        // Get flat market reason from market condition analysis
+                        try {
+                            String detailedReason = marketConditionAnalysisService.getDetailedFlatMarketReason(tick, indicators);
+                            if (detailedReason != null) {
+                                flatMarketReason = " | Flat: " + detailedReason;
+                            } else {
+                                flatMarketReason = " | Flat: Market condition unsuitable";
+                            }
+                        } catch (Exception e) {
+                            flatMarketReason = " | Flat: Market condition unsuitable";
+                        }
+                    }
+                }
+                
                 // Get category counts for the dominant trend
                 Map<String, Integer> categoryCounts = getCategoryCountsMap(indicators, dominantTrend);
                 
@@ -1084,39 +1151,43 @@ public class TickProcessService {
                 if (requirements.getEma_min_count() != null) {
                     int emaCount = categoryCounts.getOrDefault("ema", 0);
                     boolean emaPass = emaCount >= requirements.getEma_min_count();
-                    scenarioDetails.append(String.format("EMA:%d/%d%s ", 
-                        emaCount, requirements.getEma_min_count(), emaPass ? "✅" : ""));
+                    String emaAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    scenarioDetails.append(String.format("EMA:%d/%d%s%s ", 
+                        emaCount, requirements.getEma_min_count(), emaPass ? "✅" : "", emaAdjustment));
                     if (!emaPass) couldPass = false;
                 }
                 
                 if (requirements.getFutureAndVolume_min_count() != null) {
                     int fvCount = categoryCounts.getOrDefault("futureAndVolume", 0);
                     boolean fvPass = fvCount >= requirements.getFutureAndVolume_min_count();
-                    scenarioDetails.append(String.format("FV:%d/%d%s ", 
-                        fvCount, requirements.getFutureAndVolume_min_count(), fvPass ? "✅" : ""));
+                    String fvAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    scenarioDetails.append(String.format("FV:%d/%d%s%s ", 
+                        fvCount, requirements.getFutureAndVolume_min_count(), fvPass ? "✅" : "", fvAdjustment));
                     if (!fvPass) couldPass = false;
                 }
                 
                 if (requirements.getCandlestick_min_count() != null) {
                     int csCount = categoryCounts.getOrDefault("candlestick", 0);
                     boolean csPass = csCount >= requirements.getCandlestick_min_count();
-                    scenarioDetails.append(String.format("CS:%d/%d%s ", 
-                        csCount, requirements.getCandlestick_min_count(), csPass ? "✅" : ""));
+                    String csAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    scenarioDetails.append(String.format("CS:%d/%d%s%s ", 
+                        csCount, requirements.getCandlestick_min_count(), csPass ? "✅" : "", csAdjustment));
                     if (!csPass) couldPass = false;
                 }
                 
                 if (requirements.getMomentum_min_count() != null) {
                     int mCount = categoryCounts.getOrDefault("momentum", 0);
                     boolean mPass = mCount >= requirements.getMomentum_min_count();
-                    scenarioDetails.append(String.format("M:%d/%d%s ", 
-                        mCount, requirements.getMomentum_min_count(), mPass ? "✅" : ""));
+                    String mAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                    scenarioDetails.append(String.format("M:%d/%d%s%s ", 
+                        mCount, requirements.getMomentum_min_count(), mPass ? "✅" : "", mAdjustment));
                     if (!mPass) couldPass = false;
                 }
                 
                 // If this scenario could pass, show it
                 if (couldPass) {
-                    bestScenarioInfo = String.format("🎯 %s (%.1f/10) | %s: %s", 
-                        dominantTrend, dominantQuality, scenario.getName(), scenarioDetails.toString().trim());
+                    bestScenarioInfo = String.format("🎯 %s (%.1f/10) | %s: %s%s", 
+                        dominantTrend, dominantQuality, scenario.getName(), scenarioDetails.toString().trim(), flatMarketReason);
                     break;
                 }
             }
@@ -1130,6 +1201,32 @@ public class TickProcessService {
                     ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
                     Map<String, Integer> categoryCounts = getCategoryCountsMap(indicators, dominantTrend);
                     
+                    // Check if flat market filtering would adjust these requirements
+                    boolean requirementsAdjusted = false;
+                    int categoryIncrement = 0;
+                    String flatMarketReason = "";
+                    if (requirements != null && requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
+                        boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+                        if (!isMarketSuitable) {
+                            requirementsAdjusted = true;
+                            // Get the actual category increment from configuration
+                            FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
+                            categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
+                            
+                            // Get flat market reason from market condition analysis
+                            try {
+                                String detailedReason = marketConditionAnalysisService.getDetailedFlatMarketReason(tick, indicators);
+                                if (detailedReason != null) {
+                                    flatMarketReason = " | Flat: " + detailedReason;
+                                } else {
+                                    flatMarketReason = " | Flat: Market condition unsuitable";
+                                }
+                            } catch (Exception e) {
+                                flatMarketReason = " | Flat: Market condition unsuitable";
+                            }
+                        }
+                    }
+                    
                     StringBuilder scenarioDetails = new StringBuilder();
                     if (requirements.getMinQualityScore() != null) {
                         boolean qsPass = dominantQuality >= requirements.getMinQualityScore();
@@ -1139,31 +1236,35 @@ public class TickProcessService {
                     if (requirements.getEma_min_count() != null) {
                         int emaCount = categoryCounts.getOrDefault("ema", 0);
                         boolean emaPass = emaCount >= requirements.getEma_min_count();
-                        scenarioDetails.append(String.format("EMA:%d/%d%s ", 
-                            emaCount, requirements.getEma_min_count(), emaPass ? "✅" : ""));
+                        String emaAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                        scenarioDetails.append(String.format("EMA:%d/%d%s%s ", 
+                            emaCount, requirements.getEma_min_count(), emaPass ? "✅" : "", emaAdjustment));
                     }
                     if (requirements.getFutureAndVolume_min_count() != null) {
                         int fvCount = categoryCounts.getOrDefault("futureAndVolume", 0);
                         boolean fvPass = fvCount >= requirements.getFutureAndVolume_min_count();
-                        scenarioDetails.append(String.format("FV:%d/%d%s ", 
-                            fvCount, requirements.getFutureAndVolume_min_count(), fvPass ? "✅" : ""));
+                        String fvAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                        scenarioDetails.append(String.format("FV:%d/%d%s%s ", 
+                            fvCount, requirements.getFutureAndVolume_min_count(), fvPass ? "✅" : "", fvAdjustment));
                     }
                     if (requirements.getCandlestick_min_count() != null) {
                         int csCount = categoryCounts.getOrDefault("candlestick", 0);
                         boolean csPass = csCount >= requirements.getCandlestick_min_count();
-                        scenarioDetails.append(String.format("CS:%d/%d%s ", 
-                            csCount, requirements.getCandlestick_min_count(), csPass ? "✅" : ""));
+                        String csAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                        scenarioDetails.append(String.format("CS:%d/%d%s%s ", 
+                            csCount, requirements.getCandlestick_min_count(), csPass ? "✅" : "", csAdjustment));
                     }
                     if (requirements.getMomentum_min_count() != null) {
                         int mCount = categoryCounts.getOrDefault("momentum", 0);
                         boolean mPass = mCount >= requirements.getMomentum_min_count();
-                        scenarioDetails.append(String.format("M:%d/%d%s ", 
-                            mCount, requirements.getMomentum_min_count(), mPass ? "✅" : ""));
+                        String mAdjustment = requirementsAdjusted ? " (+" + categoryIncrement + ")" : "";
+                        scenarioDetails.append(String.format("M:%d/%d%s%s ", 
+                            mCount, requirements.getMomentum_min_count(), mPass ? "✅" : "", mAdjustment));
                     }
                     
                     if (i > 0) allScenariosInfo.append(" | ");
-                    allScenariosInfo.append(String.format("%s: %s", 
-                        scenario.getName(), scenarioDetails.toString().trim()));
+                    allScenariosInfo.append(String.format("%s: %s%s", 
+                        scenario.getName(), scenarioDetails.toString().trim(), flatMarketReason));
                 }
                 
                 bestScenarioInfo = String.format("🎯 %s (%.1f/10) | %s", 

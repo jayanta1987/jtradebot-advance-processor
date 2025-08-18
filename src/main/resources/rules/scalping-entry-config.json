@@ -16,7 +16,7 @@
       "maxProfitPerDayPercentage": 30.0
     },
     "tradeSettings": {
-      "maxTradeHoldingTimeInSec": 10
+      "maxTradeHoldingTimeInSec": 300
     }
   },
   "futuresignalsConfig": {
@@ -29,12 +29,41 @@
     "enabled": true,
     "description": "Filter to prevent entries in flat or non-directional markets",
     "requirements": {
-      "minCandleBodyRatio": 0.3,
-      "minPriceRange": 20.0,
-      "minVolumeMultiplier": 1.2,
-      "minDirectionalStrength": 0.4,
+      "minDirectionalStrength": 0.3,
       "maxConsecutiveDoji": 2,
-      "maxConsecutiveSpinningTop": 3
+      "maxConsecutiveSpinningTop": 3,
+      "maxConsecutiveSmallCandles": 6
+    },
+    "thresholds": {
+      "volatilityScore": {
+        "lowThreshold": 0.3,
+        "veryLowThreshold": 0.1
+      },
+      "directionalStrength": {
+        "veryLowThreshold": 0.2
+      },
+      "comprehensiveChecks": {
+        "emaAlignmentScore": 0.3,
+        "volumeConsistencyScore": 0.3,
+        "priceActionScore": 0.4,
+        "overallScore": 0.3
+      },
+      "flatMarketAdjustments": {
+        "categoryIncrement": 1,
+        "minQualityScore": 7.0
+      },
+      "volumeConsistency": {
+        "minVolumeMultiplier": 1.2,
+        "requiredVolumeSignals": 1
+      }
+    },
+    "atrSettings": {
+      "period": 14,
+      "minATR": 20.0
+    },
+    "lookbackSettings": {
+      "candleAnalysis": 10,
+      "volatilityAnalysis": 10
     }
   },
   "callCategories": {
@@ -106,7 +135,7 @@
       "name": "SAFE_ENTRY_SIGNAL",
       "description": "Conservative entry with strong confirmations using scoring config thresholds",
       "requirements": {
-        "minQualityScore": 7.5,
+        "minQualityScore": 7.4,
         "ema_min_count": 2,
         "futureAndVolume_min_count": 3,
         "candlestick_min_count": 3,
