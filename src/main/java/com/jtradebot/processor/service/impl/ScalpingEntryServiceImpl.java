@@ -5,6 +5,7 @@ import com.jtradebot.processor.config.ScoringConfigurationService;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.service.MarketConditionAnalysisService;
 import com.jtradebot.processor.service.ScalpingEntryService;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
@@ -21,10 +22,26 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
 
     private final DynamicStrategyConfigService configService;
     private final ScoringConfigurationService scoringConfigService;
+    private final MarketConditionAnalysisService marketConditionAnalysisService;
 
     @Override
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators) {
         try {
+            // Step 0: Check flat market conditions first
+            if (configService.isFlatMarketFilteringEnabled()) {
+                boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+                if (!isMarketSuitable) {
+                    MarketConditionAnalysisService.MarketConditionResult marketResult = 
+                        marketConditionAnalysisService.analyzeMarketCondition(tick, indicators);
+                    log.warn("🚫 FLAT MARKET FILTERING BLOCKED ENTRY - Instrument: {}, Price: {}, Reason: {}", 
+                        tick.getInstrumentToken(), tick.getLastTradedPrice(), marketResult.getReason());
+                    return ScalpingEntryDecision.builder()
+                            .shouldEntry(false)
+                            .reason("Flat market detected: " + marketResult.getReason())
+                            .build();
+                }
+            }
+            
             // Step 1: Pre-calculate category counts for both CALL and PUT
             Map<String, Integer> callCategoryCounts = calculateCategoryCounts(indicators, configService.getCallCategories());
             Map<String, Integer> putCategoryCounts = calculateCategoryCounts(indicators, configService.getPutCategories());
@@ -37,7 +54,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
             
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
-                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore);
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore, tick);
                 scenarioEvaluations.add(evaluation);
             }
             
@@ -102,7 +119,8 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
                                                FlattenedIndicators indicators, 
                                                Map<String, Integer> callCategoryCounts,
                                                Map<String, Integer> putCategoryCounts,
-                                               double preCalculatedQualityScore) {
+                                               double preCalculatedQualityScore,
+                                               Tick tick) {
         
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
         evaluation.setScenarioName(scenario.getName());
@@ -113,10 +131,18 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         // Check quality score requirement first (if specified)
         boolean qualityScorePassed = true;
         double qualityScore = preCalculatedQualityScore; // Use pre-calculated score
-        if (requirements.getMinQualityScore() != null) {
-            qualityScorePassed = qualityScore >= requirements.getMinQualityScore();
+        
+        // Use scoring config threshold if scenario doesn't specify one
+        double minQualityThreshold = requirements.getMinQualityScore() != null ? 
+            requirements.getMinQualityScore() : scoringConfigService.getMinQualityScore();
+        
+        if (minQualityThreshold > 0) {
+            qualityScorePassed = qualityScore >= minQualityThreshold;
             
-            // Quality Score evaluation log - REMOVED
+            if (!qualityScorePassed) {
+                log.debug("Quality score {} below threshold {} for scenario {}", 
+                    qualityScore, minQualityThreshold, scenario.getName());
+            }
         }
         
         // If scenario only requires quality score (no category requirements)
@@ -129,7 +155,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             evaluation.setPassed(qualityScorePassed);
             evaluation.setScore(qualityScore);
             evaluation.setReason(qualityScorePassed ? "Quality score requirement met" : 
-                               "Quality score " + qualityScore + " below threshold " + requirements.getMinQualityScore());
+                               "Quality score " + qualityScore + " below threshold " + minQualityThreshold);
             
             return evaluation;
         }
@@ -199,8 +225,43 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             failedCategories.add("Momentum: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_count());
         }
         
-        // Both quality score AND category requirements must be met
-        boolean passed = qualityScorePassed && categoryRequirementsPassed;
+        // Check flat market filtering requirements
+        boolean flatMarketFilterPassed = true;
+        if (requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
+            boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+            if (!isMarketSuitable) {
+                flatMarketFilterPassed = false;
+                failedCategories.add("Flat market filter: Market conditions unsuitable");
+            }
+        }
+        
+        // Check directional strength requirement
+        if (requirements.getMinDirectionalStrength() != null) {
+            double directionalStrength = marketConditionAnalysisService.calculateDirectionalStrength(tick, indicators);
+            if (directionalStrength < requirements.getMinDirectionalStrength()) {
+                categoryRequirementsPassed = false;
+                failedCategories.add("Directional strength: " + String.format("%.2f", directionalStrength) + 
+                                   "/" + requirements.getMinDirectionalStrength());
+            }
+        }
+        
+
+        
+        // Check confidence score threshold from scoring config
+        boolean confidenceScorePassed = true;
+        double confidenceScore = calculateScenarioScore(categoryScores, requirements);
+        double minConfidenceThreshold = scoringConfigService.getMinConfidenceScore();
+        
+        if (minConfidenceThreshold > 0) {
+            confidenceScorePassed = confidenceScore >= minConfidenceThreshold;
+            if (!confidenceScorePassed) {
+                log.debug("Confidence score {} below threshold {} for scenario {}", 
+                    confidenceScore, minConfidenceThreshold, scenario.getName());
+            }
+        }
+        
+        // All three requirements must be met: quality score, category requirements, and confidence score
+        boolean passed = qualityScorePassed && categoryRequirementsPassed && confidenceScorePassed;
         
         // Category requirements debug logging - REMOVED
         
@@ -221,10 +282,13 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
-                failures.add("Quality score " + qualityScore + " below threshold " + requirements.getMinQualityScore());
+                failures.add("Quality score " + qualityScore + " below threshold " + minQualityThreshold);
             }
             if (!categoryRequirementsPassed) {
                 failures.add("Failed categories: " + String.join(", ", failedCategories));
+            }
+            if (!confidenceScorePassed) {
+                failures.add("Confidence score " + confidenceScore + " below threshold " + minConfidenceThreshold);
             }
             reason.append(String.join("; ", failures));
         }
@@ -270,15 +334,39 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
                 return Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min());
             }
         
-        // Volume conditions - check specific timeframe
+        // Volume conditions - check specific timeframe using thresholds from scoring config
         if (condition.equals("volume_5min_surge")) {
-            return Boolean.TRUE.equals(indicators.getVolume_5min_surge());
+            boolean hasVolumeSurge = Boolean.TRUE.equals(indicators.getVolume_5min_surge());
+            Double volumeMultiplier = indicators.getVolume_surge_multiplier();
+            
+            // Check if volume multiplier meets the minimum threshold from scoring config
+            if (hasVolumeSurge && volumeMultiplier != null) {
+                double minVolumeMultiplier = scoringConfigService.getSurgeMultiplier();
+                return volumeMultiplier >= minVolumeMultiplier;
+            }
+            return hasVolumeSurge;
         }
         if (condition.equals("volume_1min_surge")) {
-            return Boolean.TRUE.equals(indicators.getVolume_1min_surge());
+            boolean hasVolumeSurge = Boolean.TRUE.equals(indicators.getVolume_1min_surge());
+            Double volumeMultiplier = indicators.getVolume_surge_multiplier();
+            
+            // Check if volume multiplier meets the minimum threshold from scoring config
+            if (hasVolumeSurge && volumeMultiplier != null) {
+                double minVolumeMultiplier = scoringConfigService.getSurgeMultiplier();
+                return volumeMultiplier >= minVolumeMultiplier;
+            }
+            return hasVolumeSurge;
         }
         if (condition.equals("volume_15min_surge")) {
-            return Boolean.TRUE.equals(indicators.getVolume_15min_surge());
+            boolean hasVolumeSurge = Boolean.TRUE.equals(indicators.getVolume_15min_surge());
+            Double volumeMultiplier = indicators.getVolume_surge_multiplier();
+            
+            // Check if volume multiplier meets the minimum threshold from scoring config
+            if (hasVolumeSurge && volumeMultiplier != null) {
+                double minVolumeMultiplier = scoringConfigService.getSurgeMultiplier();
+                return volumeMultiplier >= minVolumeMultiplier;
+            }
+            return hasVolumeSurge;
         }
         
         // VWAP conditions - check specific timeframe
@@ -366,7 +454,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             return Boolean.TRUE.equals(indicators.getShooting_star_1min());
         }
         
-        // RSI conditions - check specific timeframe
+        // RSI conditions - check specific timeframe using thresholds from scoring config
         if (condition.equals("rsi_5min_gt_56")) {
             return Boolean.TRUE.equals(indicators.getRsi_5min_gt_56());
         }
@@ -409,7 +497,16 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             
             // Cap at maximum quality score (from scoring-config.json)
             double maxQualityScore = scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore();
-            return Math.min(score, maxQualityScore);
+            score = Math.min(score, maxQualityScore);
+            
+            // Apply quality threshold from scoring config
+            double minQualityThreshold = scoringConfigService.getMinQualityScore();
+            if (score < minQualityThreshold) {
+                log.debug("Quality score {} below threshold {}, reducing to 0", score, minQualityThreshold);
+                score = 0.0;
+            }
+            
+            return score;
         } catch (Exception e) {
             log.warn("Error calculating quality score: {}", e.getMessage());
             return 0.0; // Return 0 on any error

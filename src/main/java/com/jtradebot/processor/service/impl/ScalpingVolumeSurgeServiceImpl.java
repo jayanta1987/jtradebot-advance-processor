@@ -89,7 +89,6 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 .check15Min(configService.isCallCheck15Min())
                 .stopLossPercentage(configService.getCallStopLossPercentage())
                 .targetPercentage(configService.getCallTargetPercentage())
-                .maxHoldingTimeMinutes(configService.getCallMaxHoldingTimeMinutes())
                 .build();
         
         putRule = ScalpingVolumeSurgePutRule.builder()
@@ -110,7 +109,6 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 .check15Min(configService.isPutCheck15Min())
                 .stopLossPercentage(configService.getPutStopLossPercentage())
                 .targetPercentage(configService.getPutTargetPercentage())
-                .maxHoldingTimeMinutes(configService.getPutMaxHoldingTimeMinutes())
                 .build();
         
         log.info("Strategy rules initialized from JSON configuration");

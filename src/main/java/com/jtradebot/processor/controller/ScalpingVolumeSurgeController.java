@@ -128,8 +128,6 @@ public class ScalpingVolumeSurgeController {
         
         // Add exit strategy configuration
         Map<String, Object> exitConfig = new HashMap<>();
-        exitConfig.put("callMaxHoldingTimeMinutes", configService.getCallMaxHoldingTimeMinutes());
-        exitConfig.put("putMaxHoldingTimeMinutes", configService.getPutMaxHoldingTimeMinutes());
         exitConfig.put("callStopLossPercentage", configService.getCallStopLossPercentage());
         exitConfig.put("putStopLossPercentage", configService.getPutStopLossPercentage());
         exitConfig.put("callTargetPercentage", configService.getCallTargetPercentage());

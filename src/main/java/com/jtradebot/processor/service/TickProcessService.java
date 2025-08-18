@@ -169,6 +169,12 @@ public class TickProcessService {
             // If scenario passes, determine market direction to decide order type
             boolean scenarioPassed = entryDecision.isShouldEntry();
             
+            // Debug entry decisions (only log success to reduce noise)
+            if (scenarioPassed) {
+                log.info("✅ ENTRY SCENARIO PASSED - Scenario: {}, Confidence: {}/10", 
+                    entryDecision.getScenarioName(), entryDecision.getConfidence());
+            }
+            
             // Use the same dominant trend logic for both logging and entry decisions
             EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(realIndicators, indexTick);
             EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(realIndicators, indexTick);
@@ -224,7 +230,8 @@ public class TickProcessService {
                             orderType, scenarioDecision.getScenarioName(), scenarioDecision.getConfidence());
                         createTradeOrder(indexTick, shouldCall ? "CALL_BUY" : "PUT_BUY");
                     } else {
-                        // Removed verbose active order warning
+                        log.warn("⚠️ ACTIVE ORDER EXISTS - Cannot create new order. Active orders: {}", 
+                            exitStrategyService.hasActiveOrder());
                     }
                 }
             }

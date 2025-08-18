@@ -16,7 +16,7 @@
       "maxProfitPerDayPercentage": 30.0
     },
     "tradeSettings": {
-      "maxTradeHoldingTimeInSec": 150
+      "maxTradeHoldingTimeInSec": 10
     }
   },
   "futuresignalsConfig": {
@@ -24,6 +24,18 @@
       "1min",
       "5min"
     ]
+  },
+  "flatMarketFiltering": {
+    "enabled": true,
+    "description": "Filter to prevent entries in flat or non-directional markets",
+    "requirements": {
+      "minCandleBodyRatio": 0.3,
+      "minPriceRange": 20.0,
+      "minVolumeMultiplier": 1.2,
+      "minDirectionalStrength": 0.4,
+      "maxConsecutiveDoji": 2,
+      "maxConsecutiveSpinningTop": 3
+    }
   },
   "callCategories": {
     "ema": [
@@ -92,18 +104,19 @@
   "scenarios": [
     {
       "name": "SAFE_ENTRY_SIGNAL",
-      "description": "Conservative entry with strong confirmations",
+      "description": "Conservative entry with strong confirmations using scoring config thresholds",
       "requirements": {
-        "minQualityScore": 8.0,
+        "minQualityScore": 7.5,
         "ema_min_count": 2,
         "futureAndVolume_min_count": 3,
         "candlestick_min_count": 3,
-        "momentum_min_count": 2
+        "momentum_min_count": 2,
+        "flatMarketFilter": true
       },
       "riskManagement": {
         "stopLossPoints": 7.5,
         "targetPoints": 15,
-        "useTrailingStop": true
+        "milestonePoints": 5.0
       }
     }
   ],

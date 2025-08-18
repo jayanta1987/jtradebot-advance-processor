@@ -5,6 +5,7 @@ import com.jtradebot.processor.config.ScoringConfigurationService;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.service.impl.ScalpingEntryServiceImpl;
+import com.jtradebot.processor.service.MarketConditionAnalysisService;
 import com.zerodhatech.models.Tick;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,13 +31,16 @@ class ScalpingEntryServiceTest {
     private ScoringConfigurationService scoringConfigService;
     
     @Mock
+    private MarketConditionAnalysisService marketConditionAnalysisService;
+    
+    @Mock
     private Tick tick;
     
     private ScalpingEntryService scalpingEntryService;
     
     @BeforeEach
     void setUp() {
-        scalpingEntryService = new ScalpingEntryServiceImpl(configService, scoringConfigService);
+        scalpingEntryService = new ScalpingEntryServiceImpl(configService, scoringConfigService, marketConditionAnalysisService);
         
         // Mock scoring configuration service methods
         when(scoringConfigService.getEmaQuality()).thenReturn(5.0);
@@ -60,6 +64,18 @@ class ScalpingEntryServiceTest {
         when(mockCandlestickQuality.getMediumReliability()).thenReturn(2.0);
         when(mockCandlestickQuality.getLowReliability()).thenReturn(1.0);
         when(mockCandlestickQuality.getMaxScore()).thenReturn(10.0);
+        
+        // Mock MomentumQuality
+        ScoringConfigurationService.MomentumQuality mockMomentumQuality = mock(ScoringConfigurationService.MomentumQuality.class);
+        when(mockQualityScoring.getMomentumQuality()).thenReturn(mockMomentumQuality);
+        when(mockMomentumQuality.getPerfectAlignment()).thenReturn(10.0);
+        when(mockMomentumQuality.getMajorityAlignment()).thenReturn(7.0);
+        when(mockMomentumQuality.getSingleAlignment()).thenReturn(3.0);
+        
+        // Mock market condition analysis service
+        when(marketConditionAnalysisService.isMarketConditionSuitable(any(), any())).thenReturn(true);
+        when(marketConditionAnalysisService.calculateDirectionalStrength(any(), any())).thenReturn(0.8);
+        when(marketConditionAnalysisService.analyzeCandleCharacteristics(any(), any())).thenReturn(createMockCandleAnalysis());
     }
     
     @Test
@@ -249,6 +265,22 @@ class ScalpingEntryServiceTest {
         indicators.setHammer_1min(true);
         
         return indicators;
+    }
+    
+    private MarketConditionAnalysisService.CandleAnalysisResult createMockCandleAnalysis() {
+        MarketConditionAnalysisService.CandleAnalysisResult result = new MarketConditionAnalysisService.CandleAnalysisResult();
+        result.setCandleHeight(25.0);
+        result.setBodyRatio(0.6);
+        result.setDoji(false);
+        result.setSpinningTop(false);
+        result.setSmallBody(false);
+        result.setLongBody(true);
+        result.setConsecutiveSmallCandles(0);
+        result.setConsecutiveDoji(0);
+        result.setConsecutiveSpinningTop(0);
+        result.setAverageCandleHeight(20.0);
+        result.setAverageBodyRatio(0.5);
+        return result;
     }
     
     private com.jtradebot.processor.model.strategy.ScalpingEntryConfig.Scenario createQualityScoreScenario() {

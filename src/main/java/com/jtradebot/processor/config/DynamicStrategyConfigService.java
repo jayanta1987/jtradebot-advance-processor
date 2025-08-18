@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.indicator.DynamicIndicatorConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ProfitableTradeFilterConfig;
+import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -76,6 +77,16 @@ public class DynamicStrategyConfigService {
     
     public ProfitableTradeFilterConfig getProfitableTradeFilterConfig() {
         return profitableTradeFilterConfig;
+    }
+    
+    // Flat Market Filtering Configuration Methods
+    public FlatMarketFilteringConfig getFlatMarketFilteringConfig() {
+        return scalpingEntryConfig.getFlatMarketFiltering();
+    }
+    
+    public boolean isFlatMarketFilteringEnabled() {
+        return scalpingEntryConfig.getFlatMarketFiltering() != null && 
+               scalpingEntryConfig.getFlatMarketFiltering().isEnabled();
     }
     
     // New Scenario-based Methods
@@ -188,26 +199,22 @@ public class DynamicStrategyConfigService {
                 .orElse(20.0);
     }
     
-    public int getCallMaxHoldingTimeMinutes() {
-        return 3; // Default value
-    }
+
     
     public double getCallMilestonePoints() {
-        return 5.0; // Default milestone points
+        // Get from first scenario that has risk management
+        return scalpingEntryConfig.getScenarios().stream()
+                .filter(scenario -> scenario.getRiskManagement() != null && scenario.getRiskManagement().getMilestonePoints() != null)
+                .findFirst()
+                .map(scenario -> scenario.getRiskManagement().getMilestonePoints())
+                .orElse(5.0); // Default 5.0 points if not configured
     }
     
     public double getCallMaxStopLossPoints() {
         return getCallStopLossPoints();
     }
     
-    public boolean isCallTrailingStopLoss() {
-        // Get from first scenario that has risk management
-        return scalpingEntryConfig.getScenarios().stream()
-                .filter(scenario -> scenario.getRiskManagement() != null && scenario.getRiskManagement().getUseTrailingStop() != null)
-                .findFirst()
-                .map(scenario -> scenario.getRiskManagement().getUseTrailingStop())
-                .orElse(true);
-    }
+
     
     public boolean isCallCheck1Min() {
         return scalpingEntryConfig.getFuturesignalsConfig().getEnabledTimeframes().contains("1min");
@@ -262,9 +269,7 @@ public class DynamicStrategyConfigService {
         return getCallStopLossPoints(); // Same as call for now
     }
     
-    public int getPutMaxHoldingTimeMinutes() {
-        return getCallMaxHoldingTimeMinutes(); // Same as call for now
-    }
+
     
     public double getPutMilestonePoints() {
         return 5.0; // Default milestone points
@@ -274,9 +279,7 @@ public class DynamicStrategyConfigService {
         return getPutStopLossPoints();
     }
     
-    public boolean isPutTrailingStopLoss() {
-        return isCallTrailingStopLoss(); // Same as call for now
-    }
+
     
     public boolean isPutCheck1Min() {
         return isCallCheck1Min(); // Same as call for now
@@ -340,9 +343,7 @@ public class DynamicStrategyConfigService {
         return 1.0; // Default value
     }
     
-    public boolean isUseTrailingStop() {
-        return isCallTrailingStopLoss();
-    }
+
     
     public double getTrailingStopPercentage() {
         return 0.2; // Default value

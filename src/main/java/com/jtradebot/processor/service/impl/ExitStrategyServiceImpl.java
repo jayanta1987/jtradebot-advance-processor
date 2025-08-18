@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service.impl;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
+import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.MilestoneSystem;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.time.LocalDateTime;
 
 @Service
 @Slf4j
@@ -34,6 +36,7 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
     private final JtradeOrderRepository jtradeOrderRepository;
     private final OptionPricingService optionPricingService;
     private final DynamicStrategyConfigService configService;
+    private final TradingConfigurationService tradingConfigurationService;
     private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
     
     // In-memory storage for active orders
@@ -287,6 +290,9 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             // Calculate current LTP based on index movement
             Double currentLTP = calculateCurrentLTP(order, currentIndexPrice);
             
+            // Log that we're checking exits for this order
+            log.info("🔍 Checking exits for order: {} - Entry time: {}", order.getId(), order.getEntryTime());
+            
             // Check all exit conditions including time-based and strategy-based
             if (shouldExitOrder(order, currentLTP, currentIndexPrice) || 
                 shouldExitBasedOnTime(order, tick.getTickTimestamp()) || 
@@ -447,15 +453,15 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
                 configService.getCallMilestonePoints() : configService.getPutMilestonePoints();
             double maxStopLossPoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ? 
                 configService.getCallMaxStopLossPoints() : configService.getPutMaxStopLossPoints();
-            boolean trailingStopLoss = order.getOrderType() == OrderTypeEnum.CALL_BUY ? 
-                configService.isCallTrailingStopLoss() : configService.isPutTrailingStopLoss();
+            double totalTargetPoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
+                configService.getCallTargetPoints() : configService.getPutTargetPoints();
             
             // Create milestone system
             MilestoneSystem milestoneSystem = MilestoneSystem.builder()
                     .enabled(true)
                     .milestonePoints(milestonePoints)
                     .maxStopLossPoints(maxStopLossPoints)
-                    .trailingStopLoss(trailingStopLoss)
+                    .totalTargetPoints(totalTargetPoints)
                     .build();
             
             // Initialize the milestone system
@@ -465,8 +471,8 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
             order.setMilestoneSystem(milestoneSystem);
             // Don't duplicate data at root level - keep it only in milestoneSystem
             
-            log.info("🎯 Milestone system initialized for {} order - Milestone points: {}, Max SL: {}, Trailing: {}", 
-                    order.getOrderType(), milestonePoints, maxStopLossPoints, trailingStopLoss);
+            log.info("🎯 Milestone system initialized for {} order - Milestone step: {}, Max SL: {}, Total Target: {}", 
+                    order.getOrderType(), milestonePoints, maxStopLossPoints, totalTargetPoints);
             
         } catch (Exception e) {
             log.error("Error initializing milestone system for order: {}", order.getId(), e);
@@ -516,34 +522,48 @@ public class ExitStrategyServiceImpl implements ExitStrategyService {
      */
     private boolean shouldExitBasedOnTime(JtradeOrder order, Date currentTime) {
         if (order.getEntryTime() == null) {
+            log.warn("Entry time is null for order: {}", order.getId());
             return false;
         }
         
-        // Get max holding time from configuration
-        int maxHoldingTimeMinutes = order.getOrderType() == OrderTypeEnum.CALL_BUY ? 
-            configService.getCallMaxHoldingTimeMinutes() : 
-            configService.getPutMaxHoldingTimeMinutes();
+        // Get max holding time from tradeSettings configuration (in seconds)
+        long maxHoldingTimeSeconds = tradingConfigurationService.getMaxTradeHoldingTimeInSec();
         
         try {
-            // Parse the IST entry time string
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z");
-            ZonedDateTime entryTime = ZonedDateTime.parse(order.getEntryTime(), formatter);
+            // Parse entry time with literal IST and assign Asia/Kolkata zone explicitly
+            DateTimeFormatter entryFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss 'IST'");
+            LocalDateTime entryLocal = LocalDateTime.parse(order.getEntryTime(), entryFormatter);
+            ZonedDateTime entryTime = entryLocal.atZone(ZoneId.of("Asia/Kolkata"));
             
             // Convert current time to IST
             ZonedDateTime currentISTTime = currentTime.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
             
-            // Calculate duration in minutes
-            long durationMinutes = java.time.Duration.between(entryTime, currentISTTime).toMinutes();
+            // Debug time parsing
+            log.info("🔍 TIME DEBUG - Order: {}", order.getId());
+            log.info("   Entry time string: {}", order.getEntryTime());
+            log.info("   Parsed entry time: {}", entryTime);
+            log.info("   Current time: {}", currentTime);
+            log.info("   Current IST time: {}", currentISTTime);
+            log.info("   Entry time zone: {}", entryTime.getZone());
+            log.info("   Current time zone: {}", currentISTTime.getZone());
             
-            if (durationMinutes >= maxHoldingTimeMinutes) {
-                log.info("Time-based exit triggered for order: {} - Duration: {} minutes (Max: {})", 
-                        order.getId(), durationMinutes, maxHoldingTimeMinutes);
+            // Calculate duration in seconds
+            long durationSeconds = java.time.Duration.between(entryTime, currentISTTime).getSeconds();
+            
+            // Debug logging to see time checks
+            log.info("🕐 TIME CHECK - Order: {}, Entry: {}, Current: {}, Duration: {} seconds, Max: {} seconds", 
+                    order.getId(), order.getEntryTime(), currentISTTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z")), 
+                    durationSeconds, maxHoldingTimeSeconds);
+            
+            if (durationSeconds >= maxHoldingTimeSeconds) {
+                log.info("⏰ Time-based exit triggered for order: {} - Duration: {} seconds (Max: {} seconds)", 
+                        order.getId(), durationSeconds, maxHoldingTimeSeconds);
                 return true;
             }
             
             return false;
         } catch (Exception e) {
-            log.error("Error parsing entry time for order: {} - Entry time: {}", order.getId(), order.getEntryTime(), e);
+            log.error("❌ Error parsing entry time for order: {} - Entry time: {}", order.getId(), order.getEntryTime(), e);
             return false; // Don't exit if we can't parse the time
         }
     }
