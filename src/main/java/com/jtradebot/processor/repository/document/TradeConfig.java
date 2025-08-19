@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
 @Data
-@Document(collection = "tradeConfig")
+@Document(collection = "advance_trade_config")
 @ToString
 public class TradeConfig {
     @MongoId

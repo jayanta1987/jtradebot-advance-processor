@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
+import com.jtradebot.processor.repository.InstrumentRepository;
 
 @RestController
 @RequestMapping("/connection")
@@ -27,6 +30,7 @@ public class KiteConnectController {
     private final KiteSetupHandler kiteSetupHandler;
     private final AwsSecretHandler awsSecretHandler;
     private final TickSetupService tickSetupService;
+    private final InstrumentRepository instrumentRepository;
 
     @Value("${aws.kite.api-secret}")
     private String kiteApiSecret;
@@ -113,10 +117,131 @@ public class KiteConnectController {
     }
 
     @PostMapping("/subscribeToken")
-    public Map<String, String> subscribeToken(@RequestParam String token) {
+    public Map<String, String> subscribeToken(@RequestBody Map<String, String> request) {
         Map<String, String> response = new HashMap<>();
-        kiteSetupHandler.subscribeToken(token);
-        response.put("message", "Token subscribed successfully");
+        try {
+            String token = request.get("token");
+            kiteSetupHandler.subscribeToken(token);
+            response.put("message", "Token subscribed successfully");
+        } catch (Exception e) {
+            response.put("message", "Failed to subscribe token: " + e.getMessage());
+        }
+        return response;
+    }
+
+    @GetMapping("/checkOptionInstruments")
+    public Map<String, Object> checkOptionInstruments() {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            // Find Nifty option instruments (sorted by expiry ascending)
+            List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = 
+                instrumentRepository.findByNameAndInstrumentTypeAndSegmentOrderByExpiryAsc("NIFTY", "OPT", "NFO-OPT");
+            
+            // Get unique expiry dates sorted by actual date (not string)
+            List<String> uniqueExpiries = niftyOptions.stream()
+                .map(com.jtradebot.processor.repository.document.Instrument::getExpiry)
+                .distinct()
+                .sorted((expiry1, expiry2) -> {
+                    try {
+                        java.time.LocalDate date1 = java.time.LocalDate.parse(expiry1, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                        java.time.LocalDate date2 = java.time.LocalDate.parse(expiry2, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                        return date1.compareTo(date2);
+                    } catch (Exception e) {
+                        return expiry1.compareTo(expiry2); // fallback to string comparison
+                    }
+                })
+                .collect(java.util.stream.Collectors.toList());
+            
+            response.put("totalNiftyOptions", niftyOptions.size());
+            response.put("uniqueExpiries", uniqueExpiries);
+            response.put("nextAvailableExpiry", uniqueExpiries.isEmpty() ? "None" : uniqueExpiries.get(0));
+            
+            // Show first 10 options from next available expiry
+            List<Map<String, Object>> sampleOptions = niftyOptions.stream()
+                .limit(10)
+                .map(instrument -> {
+                    Map<String, Object> option = new HashMap<>();
+                    option.put("tradingSymbol", instrument.getTradingSymbol());
+                    option.put("instrumentToken", instrument.getInstrumentToken());
+                    option.put("strike", instrument.getStrike());
+                    option.put("expiry", instrument.getExpiry());
+                    return option;
+                })
+                .collect(java.util.stream.Collectors.toList());
+            
+            response.put("sampleOptions", sampleOptions);
+            response.put("message", "Option instruments check completed");
+            
+        } catch (Exception e) {
+            response.put("message", "Failed to check option instruments: " + e.getMessage());
+            response.put("error", e.toString());
+        }
+        return response;
+    }
+
+    @GetMapping("/checkNextAvailableExpiry")
+    public Map<String, Object> checkNextAvailableExpiry() {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            // Get only Nifty option instruments with minimal processing
+            List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = instrumentRepository.findAll().stream()
+                .filter(instrument -> "NIFTY".equals(instrument.getName()) && 
+                        ("CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
+                .collect(java.util.stream.Collectors.toList());
+            
+            // Find next available expiry (earliest date)
+            String nextExpiry = niftyOptions.stream()
+                .map(com.jtradebot.processor.repository.document.Instrument::getExpiry)
+                .distinct()
+                .min((expiry1, expiry2) -> {
+                    try {
+                        java.time.LocalDate date1 = java.time.LocalDate.parse(expiry1, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                        java.time.LocalDate date2 = java.time.LocalDate.parse(expiry2, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                        return date1.compareTo(date2);
+                    } catch (Exception e) {
+                        return expiry1.compareTo(expiry2);
+                    }
+                })
+                .orElse("None");
+            
+            response.put("nextAvailableExpiry", nextExpiry);
+            
+            // Get only sample options for the next expiry (limit 5 for speed)
+            List<Map<String, Object>> sampleOptions = new ArrayList<>();
+            if (!"None".equals(nextExpiry)) {
+                sampleOptions = niftyOptions.stream()
+                    .filter(instrument -> nextExpiry.equals(instrument.getExpiry()))
+                    .limit(5) // Only process 5 options for speed
+                    .map(instrument -> {
+                        Map<String, Object> option = new HashMap<>();
+                        option.put("tradingSymbol", instrument.getTradingSymbol());
+                        option.put("instrumentToken", instrument.getInstrumentToken());
+                        option.put("strike", instrument.getStrike());
+                        option.put("expiry", instrument.getExpiry());
+                        option.put("instrumentType", instrument.getInstrumentType());
+                        
+                        // Get LTP for this option using Kite Connect API
+                        try {
+                            String instrumentToken = String.valueOf(instrument.getInstrumentToken());
+                            double ltp = kiteConnect.getLTP(new String[]{instrumentToken}).get(instrumentToken).lastPrice;
+                            option.put("ltp", ltp);
+                        } catch (KiteException | Exception e) {
+                            option.put("ltp", "Error: " + e.getMessage());
+                        }
+                        
+                        return option;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+            }
+            
+            response.put("sampleOptions", sampleOptions);
+            response.put("sampleOptionsCount", sampleOptions.size());
+            response.put("message", "Next available expiry found: " + nextExpiry);
+            
+        } catch (Exception e) {
+            response.put("message", "Failed to check next available expiry: " + e.getMessage());
+            response.put("error", e.toString());
+        }
         return response;
     }
 

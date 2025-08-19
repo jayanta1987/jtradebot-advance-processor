@@ -262,6 +262,25 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // Get flattened indicators
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
+            return getEntryDecision(tick, indicators);
+            
+        } catch (Exception e) {
+            log.error("Error getting entry decision for tick: {}", tick.getInstrumentToken(), e);
+            return ScalpingEntryDecision.builder()
+                    .shouldEntry(false)
+                    .reason("Error during evaluation: " + e.getMessage())
+                    .build();
+        }
+    }
+    
+    @Override
+    public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators) {
+        try {
+            String instrumentToken = String.valueOf(tick.getInstrumentToken());
+            
+            // Use the passed indicators instead of recalculating
+            // FlattenedIndicators indicators = getFlattenedIndicators(tick);
+            
             // Calculate quality score once to avoid duplicate calculations
             EntryQuality callQuality = evaluateCallEntryQuality(indicators, tick);
             EntryQuality putQuality = evaluatePutEntryQuality(indicators, tick);
@@ -270,7 +289,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             boolean isCallDominant = callQuality.getQualityScore() > putQuality.getQualityScore();
             double qualityScore = isCallDominant ? callQuality.getQualityScore() : putQuality.getQualityScore();
             
-            log.info("🔍 QUALITY SCORE UNIFIED - Call: {}, Put: {}, Dominant: {}, Final: {}", 
+            log.debug("🔍 QUALITY SCORE UNIFIED - Call: {}, Put: {}, Dominant: {}, Final: {}", 
                 callQuality.getQualityScore(), putQuality.getQualityScore(), 
                 isCallDominant ? "CALL" : "PUT", qualityScore);
             

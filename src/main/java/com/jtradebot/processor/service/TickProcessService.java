@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Optional;
 import com.jtradebot.processor.model.strategy.StrategyScore;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
@@ -44,6 +45,10 @@ import com.jtradebot.processor.model.indicator.EmaInfo;
 import org.ta4j.core.BarSeries;
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
+import org.springframework.core.env.Environment;
+import com.zerodhatech.kiteconnect.KiteConnect;
+import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
+import com.zerodhatech.models.Quote;
 
 @Service
 @RequiredArgsConstructor
@@ -67,6 +72,9 @@ public class TickProcessService {
     private final TickMonitoringService tickMonitoringService;
     private final ProfitableTradeFilterService profitableTradeFilterService;
     private final MarketConditionAnalysisService marketConditionAnalysisService;
+    private final LiveOptionPricingService liveOptionPricingService;
+    private final Environment environment;
+    private final KiteConnect kiteConnect;
     
     // Active trades cache
     private final Map<String, JtradeOrder> activeTrades = new ConcurrentHashMap<>();
@@ -74,11 +82,11 @@ public class TickProcessService {
     @Value("${jtradebot.strategy.enable-scalping-volume-surge:true}")
     private boolean enableScalpingVolumeSurge;
 
-    public void processLiveTicks(List<Tick> ticks) {
+    public void processLiveTicks(List<Tick> ticks) throws KiteException {
         processLiveTicks(ticks, false);
     }
     
-    public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) {
+    public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) throws KiteException {
         // IGNORE IF MARKET NOT STARTED YET (unless backtesting)
         if (!skipMarketHoursCheck && !DateTimeHandler.isMarketOpen()) {
             log.info("Market not started yet. Skipping tick processing. Current time: {}", new Date());
@@ -137,11 +145,21 @@ public class TickProcessService {
             String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
             Tick futureTick = tickDataManager.getLastTick(niftyFutureToken);
             
+            // 🔥 OPTIMIZATION: Calculate indicators ONCE per tick to avoid redundant calculations
+            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(indexTick);
+            
+            // 🔥 OPTIMIZATION: Calculate market condition analysis ONCE per tick to avoid redundant calculations
+            boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(indexTick, indicators);
+            String detailedFlatMarketReason = null;
+            if (!isMarketSuitable) {
+                detailedFlatMarketReason = marketConditionAnalysisService.getDetailedFlatMarketReason(indexTick, indicators);
+            }
+            
             // 🔥 REAL ENTRY LOGIC - This is what actually matters for trading
-            logRealEntryLogic(indexTick);
+            logRealEntryLogic(indexTick, indicators, isMarketSuitable, detailedFlatMarketReason);
             
             // 📊 Collect backtest data
-            backtestDataCollectorService.collectTickData(indexTick);
+            //backtestDataCollectorService.collectTickData(indexTick);
             
             // Check and process exits for existing orders
             checkAndProcessExits(indexTick);
@@ -150,7 +168,11 @@ public class TickProcessService {
             processEntrySignals(indexTick);
             
             // Update live P&L for active trades (using index tick for price data)
-            updateLivePnL(indexTick);
+            try {
+                updateLivePnL(indexTick);
+            } catch (KiteException e) {
+                log.error("Error updating live P&L: {}", e.getMessage());
+            }
             
         } catch (Exception e) {
             log.error("Error processing tick with SCALPING_FUTURE_VOLUME_SURGE strategy for index instrument: {}", indexTick.getInstrumentToken(), e);
@@ -160,13 +182,17 @@ public class TickProcessService {
     /**
      * Log the REAL entry logic from ScalpingVolumeSurgeService - CONCISE ONE-LINER
      */
-    private void logRealEntryLogic(Tick indexTick) {
+    private void logRealEntryLogic(Tick indexTick, FlattenedIndicators indicators, boolean isMarketSuitable, String detailedFlatMarketReason) {
         try {
-            // Get the REAL indicators - future data will be fetched from map when needed
-            FlattenedIndicators realIndicators = scalpingVolumeSurgeService.getFlattenedIndicators(indexTick);
+            // Use the passed indicators instead of recalculating
+            FlattenedIndicators realIndicators = indicators;
             
             // Use NEW scenario-based entry logic instead of old StrategyScore approach
-            ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(indexTick);
+            ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(indexTick, indicators);
+            
+            // 🔥 OPTIMIZATION: Calculate entry quality scores ONCE to avoid redundant calculations
+            EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, indexTick);
+            EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, indexTick);
             
             // Check entry conditions using the new scenario-based logic
             // If scenario passes, determine market direction to decide order type
@@ -176,10 +202,8 @@ public class TickProcessService {
             if (scenarioPassed) {
                 log.info("✅ ENTRY SCENARIO PASSED - Scenario: {}, Confidence: {}/10", 
                     entryDecision.getScenarioName(), entryDecision.getConfidence());
-            } else {
-                log.info("❌ ENTRY SCENARIO FAILED - Scenario: {}, Confidence: {}/10, Reason: {}", 
-                    entryDecision.getScenarioName(), entryDecision.getConfidence(), entryDecision.getReason());
             }
+            // Removed failed scenario logging to reduce noise
             
             // Use the quality score from entryDecision to avoid duplicate calculations
             double qualityScore = entryDecision.getQualityScore();
@@ -208,7 +232,7 @@ public class TickProcessService {
             String entryProximity = getEntryProximity(realIndicators, indexTick);
             
             // Get trend and conditions info
-            String trendInfo = getTrendAndConditionsInfo(entryDecision, realIndicators, indexTick);
+            String trendInfo = getTrendAndConditionsInfo(entryDecision, realIndicators, indexTick, isMarketSuitable, detailedFlatMarketReason, callQuality, putQuality);
             
             // LOG: Show trend analysis with category conditions and market direction
             // Add market direction info to all logs using dominant trend logic with colors
@@ -236,7 +260,11 @@ public class TickProcessService {
                         // 🔥 EXECUTE ORDER
                         log.info("🎯 EXECUTING {} ORDER - Scenario: {}, Confidence: {}/10", 
                             orderType, scenarioDecision.getScenarioName(), scenarioDecision.getConfidence());
-                        createTradeOrder(indexTick, shouldCall ? "CALL_BUY" : "PUT_BUY");
+                        try {
+                            createTradeOrder(indexTick, shouldCall ? "CALL_BUY" : "PUT_BUY", entryDecision, indicators, callQuality, putQuality);
+                        } catch (KiteException e) {
+                            log.error("Error creating trade order: {}", e.getMessage());
+                        }
                     } else {
                         log.warn("⚠️ ACTIVE ORDER EXISTS - Cannot create new order. Active orders: {}", 
                             exitStrategyService.hasActiveOrder());
@@ -653,7 +681,7 @@ public class TickProcessService {
     /**
      * Update live P&L for active trades
      */
-    private void updateLivePnL(Tick tick) {
+    private void updateLivePnL(Tick tick) throws KiteException {
         try {
             // Get active order from ExitStrategyService (global check)
             List<JtradeOrder> activeOrders = exitStrategyService.getActiveOrders();
@@ -663,36 +691,45 @@ public class TickProcessService {
             
             JtradeOrder activeOrder = activeOrders.get(0); // Get the first active order
             
-            // Get current Nifty index price (not future price)
-            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
-            Tick niftyTick = tickDataManager.getLastTick(niftyToken);
-            if (niftyTick == null) {
-                log.warn("No Nifty index data available for P&L calculation");
-                return;
+            double currentOptionPrice;
+            double currentIndexPrice;
+            
+            // Check if we're in live profile and have real option instrument token
+            if (isLiveProfile() && activeOrder.getInstrumentToken() != null && activeOrder.getInstrumentToken() > 0) {
+                // Get real option LTP for live profile using Kite Connect API
+                String instrumentToken = String.valueOf(activeOrder.getInstrumentToken());
+                currentOptionPrice = kiteConnect.getLTP(new String[]{instrumentToken}).get(instrumentToken).lastPrice;
+                
+                // Get current Nifty index price for reference
+                String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+                Tick niftyTick = tickDataManager.getLastTick(niftyToken);
+                currentIndexPrice = niftyTick != null ? niftyTick.getLastTradedPrice() : activeOrder.getEntryIndexPrice();
+                
+                log.debug("🎯 USING REAL OPTION LTP FROM KITE API - Token: {}, Symbol: {}, LTP: {}, Index: {}", 
+                        activeOrder.getInstrumentToken(), activeOrder.getTradingSymbol(), currentOptionPrice, currentIndexPrice);
+            } else {
+                // Use calculated option price for local profile or when no real instrument token
+                String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+                Tick niftyTick = tickDataManager.getLastTick(niftyToken);
+                if (niftyTick == null) {
+                    log.warn("No Nifty index data available for P&L calculation");
+                    return;
+                }
+                
+                currentIndexPrice = niftyTick.getLastTradedPrice();
+                double entryIndexPrice = activeOrder.getEntryIndexPrice();
+                double entryOptionPrice = activeOrder.getEntryPrice();
+                
+                // Calculate current option price based on index movement
+                currentOptionPrice = optionPricingService.calculateCurrentLTP(entryOptionPrice, entryIndexPrice, currentIndexPrice, activeOrder.getOrderType());
+                
+                log.debug("📊 USING CALCULATED OPTION PRICE - Entry: {}, Current: {}, Index: {}", 
+                        entryOptionPrice, currentOptionPrice, currentIndexPrice);
             }
             
-            double currentIndexPrice = niftyTick.getLastTradedPrice();
-            double entryIndexPrice = activeOrder.getEntryIndexPrice();
             double entryOptionPrice = activeOrder.getEntryPrice();
-            
-            // Calculate current option price based on index movement
-            double currentOptionPrice = optionPricingService.calculateCurrentLTP(entryOptionPrice, entryIndexPrice, currentIndexPrice, activeOrder.getOrderType());
-            
-            // Debug logging for P&L calculation
-            // Removed verbose P&L debug log
-            
-            double points = 0.0;
-            double pnl = 0.0;
-            
-            if (OrderTypeEnum.CALL_BUY.equals(activeOrder.getOrderType())) {
-                points = currentOptionPrice - entryOptionPrice;
-                pnl = points * activeOrder.getQuantity();
-            } else if (OrderTypeEnum.PUT_BUY.equals(activeOrder.getOrderType())) {
-                // For PUT: use same calculation as CALL (current - entry)
-                // This will give negative points when index goes up (PUT loses)
-                points = currentOptionPrice - entryOptionPrice;
-                pnl = points * activeOrder.getQuantity();
-            }
+            double points = currentOptionPrice - entryOptionPrice;
+            double pnl = points * activeOrder.getQuantity();
             
             // Simplified live P&L log (only points and P&L)
             String orderTypeDisplay = OrderTypeEnum.CALL_BUY.equals(activeOrder.getOrderType()) ? "CALL" : "PUT";
@@ -705,31 +742,27 @@ public class TickProcessService {
     }
     
     /**
+     * Check if we're in live profile
+     */
+    private boolean isLiveProfile() {
+        String[] activeProfiles = environment.getActiveProfiles();
+        for (String profile : activeProfiles) {
+            if ("live".equals(profile)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
      * Create a new trade order and save to DB
      */
-    private void createTradeOrder(Tick tick, String orderType) {
+    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, EntryQuality callQuality, EntryQuality putQuality) throws KiteException {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             
-            // Get current Nifty index price (not future price) for option pricing
-            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
-            Tick niftyTick = tickDataManager.getLastTick(niftyToken);
-            if (niftyTick == null) {
-                log.error("No Nifty index data available for order creation");
-                return;
-            }
-            
-            double currentIndexPrice = niftyTick.getLastTradedPrice(); // Use Nifty index price, not future price
-            
-            // Capture all conditions that led to this order entry
-            List<String> entryConditions = entryConditionAnalysisService.captureEntryConditions(tick, orderType);
-            
-            // Calculate option entry price (1% of index price as premium)
-            Double optionEntryPrice = optionPricingService.calculateEntryPrice(currentIndexPrice);
-            if (optionEntryPrice == null) {
-                log.error("Failed to calculate option entry price for index: {}", currentIndexPrice);
-                return;
-            }
+            // Capture all conditions that led to this order entry (reuse entryDecision)
+            List<String> entryConditions = entryConditionAnalysisService.captureEntryConditions(tick, orderType, entryDecision, indicators);
             
             // For scalping, use point-based targets from JSON configuration
             double stopLossPoints, targetPoints;
@@ -742,36 +775,70 @@ public class TickProcessService {
                 targetPoints = configService.getPutTargetPoints();
             }
             
-            // Calculate stop loss and target prices directly (point-based, not percentage-based)
-            Double stopLossPrice, targetPrice;
+            // Try to get live option pricing first (for live profile)
+            Optional<LiveOptionPricingService.LiveOptionPricingInfo> livePricing = liveOptionPricingService.getLiveOptionPricing(orderType);
             
-            // For both CALL and PUT orders, profit is based on option price movement
-            // When option price goes up = profit, when it goes down = loss
-            stopLossPrice = optionEntryPrice - stopLossPoints;  // Stop loss below entry for both
-            targetPrice = optionEntryPrice + targetPoints;      // Target above entry for both
+            Double optionEntryPrice, stopLossPrice, targetPrice;
+            String optionSymbol;
+            Long optionInstrumentToken;
+            double currentIndexPrice;
             
-            // Ensure prices don't go below 0
-            stopLossPrice = Math.max(stopLossPrice, 0.0);
-            targetPrice = Math.max(targetPrice, 0.0);
+            if (livePricing.isPresent()) {
+                // Use live option pricing
+                LiveOptionPricingService.LiveOptionPricingInfo pricingInfo = livePricing.get();
+                optionEntryPrice = pricingInfo.getOptionLTP();
+                stopLossPrice = Math.max(0.0, optionEntryPrice - stopLossPoints);
+                targetPrice = optionEntryPrice + targetPoints;
+                optionSymbol = pricingInfo.getOptionInstrument().getTradingSymbol();
+                optionInstrumentToken = pricingInfo.getOptionInstrument().getInstrumentToken();
+                currentIndexPrice = pricingInfo.getNiftyIndexPrice();
+                
+                log.info("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {}", 
+                        optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice);
+            } else {
+                // Fallback to placeholder pricing (for local profile or when live pricing fails)
+                String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+                Tick niftyTick = tickDataManager.getLastTick(niftyToken);
+                if (niftyTick == null) {
+                    log.error("No Nifty index data available for order creation");
+                    return;
+                }
+                
+                currentIndexPrice = niftyTick.getLastTradedPrice();
+                
+                // Calculate option entry price (1% of index price as premium)
+                optionEntryPrice = optionPricingService.calculateEntryPrice(currentIndexPrice);
+                if (optionEntryPrice == null) {
+                    log.error("Failed to calculate option entry price for index: {}", currentIndexPrice);
+                    return;
+                }
+                
+                // Calculate stop loss and target prices directly (point-based, not percentage-based)
+                stopLossPrice = Math.max(0.0, optionEntryPrice - stopLossPoints);
+                targetPrice = optionEntryPrice + targetPoints;
+                
+                // Use placeholder option symbols since we're analyzing with index/future tokens
+                optionSymbol = "CALL_BUY".equals(orderType) ? "TEST_OPTION_CE" : "TEST_OPTION_PE";
+                optionInstrumentToken = 0L; // No instrument token (using placeholder symbols)
+                
+                log.info("📊 USING PLACEHOLDER PRICING - Index: {}, Premium: {} (1% of index)", 
+                        currentIndexPrice, optionEntryPrice);
+            }
             
             if (stopLossPrice == null || targetPrice == null) {
                 log.error("Failed to calculate stop loss or target price for option");
                 return;
             }
             
-            // Get scenario information for the entry
-            ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(tick);
-            
-            // Use placeholder option symbols since we're analyzing with index/future tokens
-            String optionSymbol = "CALL_BUY".equals(orderType) ? "TEST_OPTION_CE" : "TEST_OPTION_PE";
+            // Use the passed entryDecision (no need to recalculate)
             
             JtradeOrder order;
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
                 // Create order with scenario information
                 order = exitStrategyService.createOrderEntryWithScenario(
                     OrderTypeEnum.valueOf(orderType),
-                    optionSymbol, // Placeholder option symbol
-                    0L, // No instrument token (using placeholder symbols)
+                    optionSymbol,
+                    optionInstrumentToken,
                     optionEntryPrice, // Option entry price (premium)
                     currentIndexPrice, // Entry index price (Nifty level)
                     stopLossPrice,
@@ -788,8 +855,8 @@ public class TickProcessService {
                 // Fallback to regular order creation if no scenario info
                 order = exitStrategyService.createOrderEntry(
                     OrderTypeEnum.valueOf(orderType),
-                    optionSymbol, // Placeholder option symbol
-                    0L, // No instrument token (using placeholder symbols)
+                    optionSymbol,
+                    optionInstrumentToken,
                     optionEntryPrice, // Option entry price (premium)
                     currentIndexPrice, // Entry index price (Nifty level)
                     stopLossPrice,
@@ -804,7 +871,7 @@ public class TickProcessService {
                 order.setEntryConditions(entryConditions);
                 
                 // Store profitable trade filter information
-                storeProfitableTradeFilterInfo(order, tick, orderType);
+                storeProfitableTradeFilterInfo(order, tick, orderType, indicators, callQuality, putQuality);
                 
                 // Add to active trades cache for P&L tracking
                 addActiveTrade(instrumentToken, order);
@@ -828,12 +895,19 @@ public class TickProcessService {
                         log.info("✅ MATCHED CONDITIONS - {}", order.getEntryMatchedConditions());
                     }
                 }
-                log.info("🎯 OPTION PRICE LEVELS - Entry: {}, StopLoss: {} (-{} points), Target: {} (+{} points) - Same logic for CALL/PUT", 
-                        optionEntryPrice, stopLossPrice, stopLossPoints,
-                        targetPrice, targetPoints);
-                log.info("📊 INDEX LEVELS - Entry Index: {}, Option Premium: {} (1% of index)", 
-                        currentIndexPrice, optionEntryPrice);
-                log.info("🔍 ANALYSIS - Using index/future tokens for strategy, placeholder option symbols for orders (no instrument token)");
+                if (livePricing.isPresent()) {
+                    log.info("🎯 LIVE OPTION PRICE LEVELS - Entry: {}, StopLoss: {} (-{} points), Target: {} (+{} points)", 
+                            optionEntryPrice, stopLossPrice, stopLossPoints, targetPrice, targetPoints);
+                    log.info("📊 LIVE INDEX LEVELS - Entry Index: {}, Option Premium: {} (real LTP)", 
+                            currentIndexPrice, optionEntryPrice);
+                    log.info("🔍 ANALYSIS - Using real option instruments with live pricing for live profile");
+                } else {
+                    log.info("🎯 PLACEHOLDER OPTION PRICE LEVELS - Entry: {}, StopLoss: {} (-{} points), Target: {} (+{} points)", 
+                            optionEntryPrice, stopLossPrice, stopLossPoints, targetPrice, targetPoints);
+                    log.info("📊 PLACEHOLDER INDEX LEVELS - Entry Index: {}, Option Premium: {} (1% of index)", 
+                            currentIndexPrice, optionEntryPrice);
+                    log.info("🔍 ANALYSIS - Using placeholder option symbols for local profile or when live pricing fails");
+                }
                 log.info("💾 ORDER SAVED TO DATABASE - ID: {}", order.getId());
             } else {
                 log.warn("❌ Failed to create trade order - may already have active trade or ExitStrategyService returned null");
@@ -890,10 +964,10 @@ public class TickProcessService {
     /**
      * Store profitable trade filter information in the order
      */
-    private void storeProfitableTradeFilterInfo(JtradeOrder order, Tick tick, String orderType) {
+    private void storeProfitableTradeFilterInfo(JtradeOrder order, Tick tick, String orderType, FlattenedIndicators indicators, EntryQuality callQuality, EntryQuality putQuality) {
         try {
-            // Get flattened indicators
-            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
+            // Use the passed indicators instead of recalculating
+            // FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
             
             if (indicators == null) {
                 order.setProfitableTradeFilterEnabled(false);
@@ -912,12 +986,12 @@ public class TickProcessService {
                 return;
             }
             
-            // Get entry quality
+            // 🔥 OPTIMIZATION: Use passed entry quality instead of recalculating
             EntryQuality entryQuality;
             if ("CALL_BUY".equals(orderType)) {
-                entryQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
+                entryQuality = callQuality;
             } else {
-                entryQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
+                entryQuality = putQuality;
             }
             
             // Evaluate profitable trade filter
@@ -980,7 +1054,7 @@ public class TickProcessService {
     /**
      * Get trend and entry conditions info for simplified logging - aligned with actual entry logic
      */
-    private String getTrendAndConditionsInfo(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Tick tick) {
+    private String getTrendAndConditionsInfo(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, String detailedFlatMarketReason, EntryQuality callQuality, EntryQuality putQuality) {
         try {
             // Use scenario information from entry decision
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
@@ -1007,7 +1081,7 @@ public class TickProcessService {
                     int categoryIncrement = 0;
                     String flatMarketReason = "";
                     if (requirements != null && requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
-                        boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+                        // Use the passed market condition analysis instead of recalculating
                         if (!isMarketSuitable) {
                             requirementsAdjusted = true;
                             // Get the actual category increment from configuration
@@ -1015,14 +1089,10 @@ public class TickProcessService {
                             categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
                             
                             // Get flat market reason from market condition analysis
-                            try {
-                                String detailedReason = marketConditionAnalysisService.getDetailedFlatMarketReason(tick, indicators);
-                                if (detailedReason != null) {
-                                    flatMarketReason = " | Flat: " + detailedReason;
-                                } else {
-                                    flatMarketReason = " | Flat: Market condition unsuitable";
-                                }
-                            } catch (Exception e) {
+                            // Use the passed detailed flat market reason
+                            if (detailedFlatMarketReason != null) {
+                                flatMarketReason = " | Flat: " + detailedFlatMarketReason;
+                            } else {
                                 flatMarketReason = " | Flat: Market condition unsuitable";
                             }
                         }
@@ -1076,7 +1146,7 @@ public class TickProcessService {
                 }
             } else {
                 // Show scenario-based evaluation when no scenario is triggered
-                String evaluation = getScenarioBasedEvaluation(indicators, tick);
+                String evaluation = getScenarioBasedEvaluation(indicators, tick, isMarketSuitable, detailedFlatMarketReason, callQuality, putQuality);
                 // Add market direction info to non-entry logs as well
                 return evaluation;
             }
@@ -1089,12 +1159,9 @@ public class TickProcessService {
     /**
      * Get scenario-based evaluation showing which scenarios are being checked and their requirements
      */
-    private String getScenarioBasedEvaluation(FlattenedIndicators indicators, Tick tick) {
+    private String getScenarioBasedEvaluation(FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, String detailedFlatMarketReason, EntryQuality callQuality, EntryQuality putQuality) {
         try {
-            // Get dominant trend first
-            EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
-            EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
-            
+            // 🔥 OPTIMIZATION: Use passed quality scores instead of recalculating
             String dominantTrend = callQuality.getQualityScore() > putQuality.getQualityScore() ? "CALL" : "PUT";
             double dominantQuality = Math.max(callQuality.getQualityScore(), putQuality.getQualityScore());
             
@@ -1111,7 +1178,7 @@ public class TickProcessService {
                 int categoryIncrement = 0;
                 String flatMarketReason = "";
                 if (requirements != null && requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
-                    boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+                    // Use the passed market condition analysis instead of recalculating
                     if (!isMarketSuitable) {
                         requirementsAdjusted = true;
                         // Get the actual category increment from configuration
@@ -1119,14 +1186,10 @@ public class TickProcessService {
                         categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
                         
                         // Get flat market reason from market condition analysis
-                        try {
-                            String detailedReason = marketConditionAnalysisService.getDetailedFlatMarketReason(tick, indicators);
-                            if (detailedReason != null) {
-                                flatMarketReason = " | Flat: " + detailedReason;
-                            } else {
-                                flatMarketReason = " | Flat: Market condition unsuitable";
-                            }
-                        } catch (Exception e) {
+                        // Use the passed detailed flat market reason
+                        if (detailedFlatMarketReason != null) {
+                            flatMarketReason = " | Flat: " + detailedFlatMarketReason;
+                        } else {
                             flatMarketReason = " | Flat: Market condition unsuitable";
                         }
                     }
@@ -1206,7 +1269,7 @@ public class TickProcessService {
                     int categoryIncrement = 0;
                     String flatMarketReason = "";
                     if (requirements != null && requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
-                        boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+                        // Use the passed market condition analysis instead of recalculating
                         if (!isMarketSuitable) {
                             requirementsAdjusted = true;
                             // Get the actual category increment from configuration
@@ -1214,14 +1277,10 @@ public class TickProcessService {
                             categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
                             
                             // Get flat market reason from market condition analysis
-                            try {
-                                String detailedReason = marketConditionAnalysisService.getDetailedFlatMarketReason(tick, indicators);
-                                if (detailedReason != null) {
-                                    flatMarketReason = " | Flat: " + detailedReason;
-                                } else {
-                                    flatMarketReason = " | Flat: Market condition unsuitable";
-                                }
-                            } catch (Exception e) {
+                            // Use the passed detailed flat market reason
+                            if (detailedFlatMarketReason != null) {
+                                flatMarketReason = " | Flat: " + detailedFlatMarketReason;
+                            } else {
                                 flatMarketReason = " | Flat: Market condition unsuitable";
                             }
                         }

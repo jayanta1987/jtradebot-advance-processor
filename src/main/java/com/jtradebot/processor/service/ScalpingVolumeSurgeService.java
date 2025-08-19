@@ -74,4 +74,12 @@ public interface ScalpingVolumeSurgeService {
      */
     com.jtradebot.processor.model.strategy.ScalpingEntryDecision getEntryDecision(Tick tick);
 
+    /**
+     * Gets the scenario-based entry decision with full details (optimized version)
+     * @param tick The current tick data
+     * @param indicators Pre-calculated flattened indicators to avoid recalculation
+     * @return ScalpingEntryDecision object with scenario information
+     */
+    com.jtradebot.processor.model.strategy.ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators);
+
 }

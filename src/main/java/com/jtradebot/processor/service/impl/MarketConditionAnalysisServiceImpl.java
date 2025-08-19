@@ -241,11 +241,38 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
             double minATR = atrSettings.getMinATR();
             double minPriceRange = config.getRequirements().getMinPriceRange();
             
-            // Calculate volatility score
-            double atrScore = Math.min(atr / minATR, 1.0);
-            double rangeScore = Math.min(priceRange / minPriceRange, 1.0);
+            // Validate inputs to prevent NaN
+            if (Double.isNaN(atr) || Double.isInfinite(atr) || atr < 0) {
+                atr = 0.0;
+            }
+            if (Double.isNaN(minATR) || Double.isInfinite(minATR) || minATR <= 0) {
+                minATR = 0.1; // Default minimum value
+            }
+            if (Double.isNaN(priceRange) || Double.isInfinite(priceRange) || priceRange < 0) {
+                priceRange = 0.0;
+            }
+            if (Double.isNaN(minPriceRange) || Double.isInfinite(minPriceRange) || minPriceRange <= 0) {
+                minPriceRange = 0.1; // Default minimum value
+            }
+            
+            // Calculate volatility score with safety checks
+            double atrScore = minATR > 0 ? Math.min(atr / minATR, 1.0) : 0.0;
+            double rangeScore = minPriceRange > 0 ? Math.min(priceRange / minPriceRange, 1.0) : 0.0;
+            
+            // Validate scores
+            if (Double.isNaN(atrScore) || Double.isInfinite(atrScore)) {
+                atrScore = 0.0;
+            }
+            if (Double.isNaN(rangeScore) || Double.isInfinite(rangeScore)) {
+                rangeScore = 0.0;
+            }
             
             double volatilityScore = (atrScore + rangeScore) / 2.0;
+            
+            // Final validation
+            if (Double.isNaN(volatilityScore) || Double.isInfinite(volatilityScore)) {
+                volatilityScore = 0.0;
+            }
             
             return Math.min(volatilityScore, 1.0);
             
@@ -261,8 +288,22 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
             double minCandleBodyRatio = configService.getFlatMarketFilteringConfig()
                 .getRequirements().getMinCandleBodyRatio();
             
-            // Calculate body ratio score
-            double bodyRatioScore = Math.min(candleAnalysis.getBodyRatio() / minCandleBodyRatio, 1.0);
+            // Validate inputs to prevent NaN
+            double bodyRatio = candleAnalysis.getBodyRatio();
+            if (Double.isNaN(bodyRatio) || Double.isInfinite(bodyRatio) || bodyRatio < 0) {
+                bodyRatio = 0.0;
+            }
+            if (Double.isNaN(minCandleBodyRatio) || Double.isInfinite(minCandleBodyRatio) || minCandleBodyRatio <= 0) {
+                minCandleBodyRatio = 0.1; // Default minimum value
+            }
+            
+            // Calculate body ratio score with safety check
+            double bodyRatioScore = minCandleBodyRatio > 0 ? Math.min(bodyRatio / minCandleBodyRatio, 1.0) : 0.0;
+            
+            // Validate bodyRatioScore
+            if (Double.isNaN(bodyRatioScore) || Double.isInfinite(bodyRatioScore)) {
+                bodyRatioScore = 0.0;
+            }
             
             // Penalize for small candles
             double smallCandlePenalty = 0.0;
@@ -272,6 +313,11 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
             
             // Calculate final score
             double score = bodyRatioScore - smallCandlePenalty;
+            
+            // Final validation
+            if (Double.isNaN(score) || Double.isInfinite(score)) {
+                score = 0.0;
+            }
             
             return Math.max(score, 0.0);
             
@@ -336,7 +382,7 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
                 }
                 
                 String reasonMessage = String.join("; ", reasons);
-                log.info("🔍 FLAT MARKET DETECTED - Reasons: {}", reasonMessage);
+                log.debug("🔍 FLAT MARKET DETECTED - Reasons: {}", reasonMessage);
             }
             
             return isFlat;
@@ -349,6 +395,17 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
 
     private double calculateOverallScore(double directionalStrength, double volatilityScore, double candleSizeScore) {
         try {
+            // Validate inputs to prevent NaN
+            if (Double.isNaN(directionalStrength) || Double.isInfinite(directionalStrength)) {
+                directionalStrength = 0.0;
+            }
+            if (Double.isNaN(volatilityScore) || Double.isInfinite(volatilityScore)) {
+                volatilityScore = 0.0;
+            }
+            if (Double.isNaN(candleSizeScore) || Double.isInfinite(candleSizeScore)) {
+                candleSizeScore = 0.0;
+            }
+            
             // Weight the components
             double directionalWeight = 0.4;
             double volatilityWeight = 0.3;
@@ -357,6 +414,11 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
             double overallScore = (directionalStrength * directionalWeight) + 
                                 (volatilityScore * volatilityWeight) + 
                                 (candleSizeScore * candleSizeWeight);
+            
+            // Validate final result
+            if (Double.isNaN(overallScore) || Double.isInfinite(overallScore)) {
+                overallScore = 0.0;
+            }
             
             return Math.min(overallScore, 1.0);
             

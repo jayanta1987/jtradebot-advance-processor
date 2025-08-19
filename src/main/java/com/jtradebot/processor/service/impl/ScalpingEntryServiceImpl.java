@@ -45,10 +45,8 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             double qualityScore;
             if (preCalculatedQualityScore != null) {
                 qualityScore = preCalculatedQualityScore;
-                log.info("🔍 QUALITY SCORE REUSED - Pre-calculated: {}", qualityScore);
             } else {
                 qualityScore = calculateQualityScore(indicators);
-                log.info("🔍 QUALITY SCORE CALCULATED - New: {}", qualityScore);
             }
             
             // Step 3: Loop through scenarios and check their specific requirements
@@ -290,19 +288,19 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         
         // Add detailed debug logging
         if (!passed) {
-            log.info("🔍 SCENARIO EVALUATION FAILED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
+            log.debug("🔍 SCENARIO EVALUATION FAILED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
                 scenario.getName(), qualityScorePassed, categoryRequirementsPassed, confidenceScorePassed);
             if (!qualityScorePassed) {
-                log.info("  ❌ Quality Score: {} < {}", preCalculatedQualityScore, minQualityThreshold);
+                log.debug("  ❌ Quality Score: {} < {}", preCalculatedQualityScore, minQualityThreshold);
             }
             if (!categoryRequirementsPassed) {
-                log.info("  ❌ Category Requirements: {}", String.join(", ", failedCategories));
+                log.debug("  ❌ Category Requirements: {}", String.join(", ", failedCategories));
             }
             if (!confidenceScorePassed) {
-                log.info("  ❌ Confidence Score: {} < {}", confidenceScore, minConfidenceThreshold);
+                log.debug("  ❌ Confidence Score: {} < {}", confidenceScore, minConfidenceThreshold);
             }
         } else {
-            log.info("✅ SCENARIO EVALUATION PASSED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
+            log.debug("✅ SCENARIO EVALUATION PASSED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
                 scenario.getName(), qualityScorePassed, categoryRequirementsPassed, confidenceScorePassed);
         }
         
