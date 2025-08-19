@@ -112,20 +112,48 @@ public class LiveOptionPricingService {
         Optional<LiveOptionPricingInfo> pricingInfo = getLiveOptionPricing(orderType);
         return pricingInfo.map(info -> info.getOptionLTP() + targetPoints);
     }
+    
+    /**
+     * Get current price for a specific order (profile-aware)
+     * @param instrumentToken The instrument token of the order
+     * @return Current price from KiteConnect (live profile) or calculated price (local profile)
+     */
+    public Double getCurrentPrice(Long instrumentToken) {
+        try {
+            if (isLiveProfile() && instrumentToken != null && instrumentToken > 0) {
+                // Get real option LTP for live profile using Kite Connect API
+                String token = String.valueOf(instrumentToken);
+                double realLTP = kiteConnect.getLTP(new String[]{token}).get(token).lastPrice;
+                
+                log.debug("🎯 REAL OPTION LTP FROM KITE API - Token: {}, LTP: {}", instrumentToken, realLTP);
+                return realLTP;
+            } else {
+                // For local profile, return null to indicate calculated price should be used
+                log.debug("📊 LOCAL PROFILE - Using calculated price for token: {}", instrumentToken);
+                return null;
+            }
+        } catch (KiteException e) {
+            log.error("KiteException getting current price for token: {}", instrumentToken, e);
+            return null; // Fallback to calculated price
+        } catch (Exception e) {
+            log.error("Error getting current price for token: {}", instrumentToken, e);
+            return null; // Fallback to calculated price
+        }
+    }
 
     /**
      * Check if we're in live profile
      */
     private boolean isLiveProfile() {
         String[] activeProfiles = environment.getActiveProfiles();
-        log.info("🔍 PROFILE CHECK - Active profiles: {}", String.join(", ", activeProfiles));
+        log.debug("🔍 PROFILE CHECK - Active profiles: {}", String.join(", ", activeProfiles));
         for (String profile : activeProfiles) {
             if ("live".equals(profile)) {
-                log.info("✅ LIVE PROFILE DETECTED");
+                log.debug("✅ LIVE PROFILE DETECTED");
                 return true;
             }
         }
-        log.info("❌ LIVE PROFILE NOT DETECTED");
+        log.debug("❌ LIVE PROFILE NOT DETECTED");
         return false;
     }
 

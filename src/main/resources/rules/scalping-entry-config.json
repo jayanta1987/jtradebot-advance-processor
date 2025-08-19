@@ -16,7 +16,7 @@
       "maxProfitPerDayPercentage": 30.0
     },
     "tradeSettings": {
-      "maxTradeHoldingTimeInSec": 300
+      "maxTradeHoldingTimeInSec": 100
     }
   },
   "futuresignalsConfig": {
@@ -29,24 +29,24 @@
     "enabled": true,
     "description": "Filter to prevent entries in flat or non-directional markets",
     "requirements": {
-      "minDirectionalStrength": 0.3,
+      "minDirectionalStrength": 0.35,
       "maxConsecutiveDoji": 2,
-      "maxConsecutiveSpinningTop": 3,
-      "maxConsecutiveSmallCandles": 6
+      "maxConsecutiveSpinningTop": 2,
+      "maxConsecutiveSmallCandles": 5
     },
     "thresholds": {
       "volatilityScore": {
-        "lowThreshold": 0.3,
-        "veryLowThreshold": 0.1
+        "lowThreshold": 0.35,
+        "veryLowThreshold": 0.15
       },
       "directionalStrength": {
-        "veryLowThreshold": 0.2
+        "veryLowThreshold": 0.25
       },
       "comprehensiveChecks": {
-        "emaAlignmentScore": 0.3,
-        "volumeConsistencyScore": 0.3,
-        "priceActionScore": 0.4,
-        "overallScore": 0.3
+        "emaAlignmentScore": 0.35,
+        "volumeConsistencyScore": 0.35,
+        "priceActionScore": 0.45,
+        "overallScore": 0.35
       },
       "flatMarketAdjustments": {
         "categoryIncrement": 2,

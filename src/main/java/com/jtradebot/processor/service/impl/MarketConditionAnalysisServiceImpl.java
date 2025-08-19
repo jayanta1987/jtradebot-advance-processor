@@ -19,7 +19,10 @@ import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.num.DecimalNum;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
@@ -595,7 +598,7 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
                 }
                 
                 String reasonMessage = String.join("; ", failedChecks);
-                log.info("🔍 COMPREHENSIVE FLAT MARKET CHECK FAILED - Reasons: {}", reasonMessage);
+                log.debug("🔍 COMPREHENSIVE FLAT MARKET CHECK FAILED - Reasons: {}", reasonMessage);
             }
             
             return isComprehensiveSuitable;
@@ -681,75 +684,308 @@ public class MarketConditionAnalysisServiceImpl implements MarketConditionAnalys
     public String getDetailedFlatMarketReason(Tick tick, FlattenedIndicators indicators) {
         try {
             MarketConditionResult result = analyzeMarketCondition(tick, indicators);
-            if (!result.isFlatMarket()) {
-                return null; // Not a flat market
-            }
             
             // Get configuration
             FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
             FlatMarketFilteringConfig.Requirements requirements = config.getRequirements();
             FlatMarketFilteringConfig.Thresholds thresholds = config.getThresholds();
             
-            List<String> reasons = new ArrayList<>();
+            List<String> details = new ArrayList<>();
             
-            // Check directional strength
-            if (result.getDirectionalStrength() < requirements.getMinDirectionalStrength()) {
-                reasons.add(String.format("Dir:%.2f<%.2f", 
-                    result.getDirectionalStrength(), requirements.getMinDirectionalStrength()));
-            }
+            // Build structured market condition details
+            Map<String, Object> marketDetails = new HashMap<>();
             
-            // Check volatility
-            if (result.getVolatilityScore() < thresholds.getVolatilityScore().getLowThreshold()) {
-                reasons.add(String.format("Vol:%.2f<%.2f", 
-                    result.getVolatilityScore(), thresholds.getVolatilityScore().getLowThreshold()));
-            }
+            // Basic scores
+            marketDetails.put("directionalStrength", Math.round(result.getDirectionalStrength() * 100.0) / 100.0);
+            marketDetails.put("volatilityScore", Math.round(result.getVolatilityScore() * 100.0) / 100.0);
+            marketDetails.put("overallScore", Math.round(result.getOverallScore() * 100.0) / 100.0);
             
-            // Check candle analysis
+            // Candle analysis details
             CandleAnalysisResult candleAnalysis = result.getCandleAnalysis();
             if (candleAnalysis != null) {
-                if (candleAnalysis.getConsecutiveDoji() > requirements.getMaxConsecutiveDoji()) {
-                    reasons.add(String.format("Doji:%d>%d", 
-                        candleAnalysis.getConsecutiveDoji(), requirements.getMaxConsecutiveDoji()));
-                }
-                if (candleAnalysis.getConsecutiveSpinningTop() > requirements.getMaxConsecutiveSpinningTop()) {
-                    reasons.add(String.format("Spin:%d>%d", 
-                        candleAnalysis.getConsecutiveSpinningTop(), requirements.getMaxConsecutiveSpinningTop()));
-                }
-                if (candleAnalysis.getConsecutiveSmallCandles() > requirements.getMaxConsecutiveSmallCandles()) {
-                    reasons.add(String.format("Small:%d>%d", 
-                        candleAnalysis.getConsecutiveSmallCandles(), requirements.getMaxConsecutiveSmallCandles()));
-                }
+                marketDetails.put("candleHeight", Math.round(candleAnalysis.getCandleHeight() * 100.0) / 100.0);
+                marketDetails.put("bodyRatio", Math.round(candleAnalysis.getBodyRatio() * 100.0) / 100.0);
+                marketDetails.put("isLongBody", candleAnalysis.isLongBody());
+                marketDetails.put("isDoji", candleAnalysis.isDoji());
+                marketDetails.put("consecutiveDoji", candleAnalysis.getConsecutiveDoji());
+                marketDetails.put("consecutiveSpinningTop", candleAnalysis.getConsecutiveSpinningTop());
+                marketDetails.put("consecutiveSmallCandles", candleAnalysis.getConsecutiveSmallCandles());
             }
             
-            // Check comprehensive scores
+            // Volume surge multiplier
+            if (indicators.getVolume_surge_multiplier() != null) {
+                marketDetails.put("volumeSurgeMultiplier", Math.round(indicators.getVolume_surge_multiplier() * 100.0) / 100.0);
+            }
+            
+            // Comprehensive scores
             double emaAlignmentScore = calculateEmaAlignmentScore(indicators);
             double volumeConsistencyScore = calculateVolumeConsistencyScore(indicators);
             double priceActionScore = calculatePriceActionScore(indicators);
             
+            marketDetails.put("emaAlignmentScore", Math.round(emaAlignmentScore * 100.0) / 100.0);
+            marketDetails.put("volumeConsistencyScore", Math.round(volumeConsistencyScore * 100.0) / 100.0);
+            marketDetails.put("priceActionScore", Math.round(priceActionScore * 100.0) / 100.0);
+            
+            // Add matching status information
+            FlatMarketFilteringConfig.ComprehensiveChecks comprehensiveChecksStruct = thresholds.getComprehensiveChecks();
+            
+            // Basic scores matching status
+            boolean directionalOkStruct = result.getDirectionalStrength() >= requirements.getMinDirectionalStrength();
+            boolean volatilityOkStruct = result.getVolatilityScore() >= thresholds.getVolatilityScore().getLowThreshold();
+            boolean overallOkStruct = result.getOverallScore() >= comprehensiveChecksStruct.getOverallScore();
+            
+            marketDetails.put("directionalStrengthOk", directionalOkStruct);
+            marketDetails.put("volatilityScoreOk", volatilityOkStruct);
+            marketDetails.put("overallScoreOk", overallOkStruct);
+            
+            // Comprehensive scores matching status
+            boolean emaOkStruct = emaAlignmentScore >= comprehensiveChecksStruct.getEmaAlignmentScore();
+            boolean volumeConsistencyOkStruct = volumeConsistencyScore >= comprehensiveChecksStruct.getVolumeConsistencyScore();
+            boolean priceActionOkStruct = priceActionScore >= comprehensiveChecksStruct.getPriceActionScore();
+            
+            marketDetails.put("emaAlignmentOk", emaOkStruct);
+            marketDetails.put("volumeConsistencyOk", volumeConsistencyOkStruct);
+            marketDetails.put("priceActionOk", priceActionOkStruct);
+            
+            // Candle pattern matching status
+            if (candleAnalysis != null) {
+                boolean dojiOkStruct = candleAnalysis.getConsecutiveDoji() <= requirements.getMaxConsecutiveDoji();
+                boolean spinOkStruct = candleAnalysis.getConsecutiveSpinningTop() <= requirements.getMaxConsecutiveSpinningTop();
+                boolean smallOkStruct = candleAnalysis.getConsecutiveSmallCandles() <= requirements.getMaxConsecutiveSmallCandles();
+                
+                marketDetails.put("consecutiveDojiOk", dojiOkStruct);
+                marketDetails.put("consecutiveSpinningTopOk", spinOkStruct);
+                marketDetails.put("consecutiveSmallCandlesOk", smallOkStruct);
+            }
+            
+            // Market condition status - use the same logic as isMarketConditionSuitable
+            boolean isActuallySuitableStruct = isMarketConditionSuitable(tick, indicators);
+            marketDetails.put("isFlatMarket", !isActuallySuitableStruct);
+            marketDetails.put("isMarketSuitable", isActuallySuitableStruct);
+            
+            // If it's a flat market, add the reasons why
+            if (!isActuallySuitableStruct) {
+                List<String> flatMarketReasons = new ArrayList<>();
+                flatMarketReasons.add("FLAT_MARKET:");
+                
+                // Check directional strength
+                if (result.getDirectionalStrength() < requirements.getMinDirectionalStrength()) {
+                    flatMarketReasons.add(String.format("Dir:%.2f<%.2f", 
+                        result.getDirectionalStrength(), requirements.getMinDirectionalStrength()));
+                }
+                
+                // Check volatility
+                if (result.getVolatilityScore() < thresholds.getVolatilityScore().getLowThreshold()) {
+                    flatMarketReasons.add(String.format("Vol:%.2f<%.2f", 
+                        result.getVolatilityScore(), thresholds.getVolatilityScore().getLowThreshold()));
+                }
+                
+                // Check candle analysis
+                if (candleAnalysis != null) {
+                    if (candleAnalysis.getConsecutiveDoji() > requirements.getMaxConsecutiveDoji()) {
+                        flatMarketReasons.add(String.format("Doji:%d>%d", 
+                            candleAnalysis.getConsecutiveDoji(), requirements.getMaxConsecutiveDoji()));
+                    }
+                    if (candleAnalysis.getConsecutiveSpinningTop() > requirements.getMaxConsecutiveSpinningTop()) {
+                        flatMarketReasons.add(String.format("Spin:%d>%d", 
+                            candleAnalysis.getConsecutiveSpinningTop(), requirements.getMaxConsecutiveSpinningTop()));
+                    }
+                    if (candleAnalysis.getConsecutiveSmallCandles() > requirements.getMaxConsecutiveSmallCandles()) {
+                        flatMarketReasons.add(String.format("Small:%d>%d", 
+                            candleAnalysis.getConsecutiveSmallCandles(), requirements.getMaxConsecutiveSmallCandles()));
+                    }
+                }
+                
+                if (emaAlignmentScore < comprehensiveChecksStruct.getEmaAlignmentScore()) {
+                    flatMarketReasons.add(String.format("EMA:%.2f<%.2f", 
+                        emaAlignmentScore, comprehensiveChecksStruct.getEmaAlignmentScore()));
+                }
+                if (volumeConsistencyScore < comprehensiveChecksStruct.getVolumeConsistencyScore()) {
+                    flatMarketReasons.add(String.format("VolCons:%.2f<%.2f", 
+                        volumeConsistencyScore, comprehensiveChecksStruct.getVolumeConsistencyScore()));
+                }
+                if (priceActionScore < comprehensiveChecksStruct.getPriceActionScore()) {
+                    flatMarketReasons.add(String.format("Price:%.2f<%.2f", 
+                        priceActionScore, comprehensiveChecksStruct.getPriceActionScore()));
+                }
+                if (result.getOverallScore() < comprehensiveChecksStruct.getOverallScore()) {
+                    flatMarketReasons.add(String.format("Overall:%.2f<%.2f", 
+                        result.getOverallScore(), comprehensiveChecksStruct.getOverallScore()));
+                }
+                
+                marketDetails.put("flatMarketReasons", flatMarketReasons);
+            }
+            
+            // Convert to string for backward compatibility with matching status
+            List<String> stringDetails = new ArrayList<>();
+            
+            // Basic scores with matching status
+            boolean directionalOk = result.getDirectionalStrength() >= requirements.getMinDirectionalStrength();
+            boolean volatilityOk = result.getVolatilityScore() >= thresholds.getVolatilityScore().getLowThreshold();
+            boolean overallOk = result.getOverallScore() >= thresholds.getComprehensiveChecks().getOverallScore();
+            
+            stringDetails.add(String.format("D:%.1f%s", result.getDirectionalStrength(), directionalOk ? "✅" : "❌"));
+            stringDetails.add(String.format("V:%.1f%s", result.getVolatilityScore(), volatilityOk ? "✅" : "❌"));
+            stringDetails.add(String.format("O:%.1f%s", result.getOverallScore(), overallOk ? "✅" : "❌"));
+            
+            // Candle analysis with matching status
+            if (candleAnalysis != null) {
+                stringDetails.add(String.format("CH:%.1f", candleAnalysis.getCandleHeight()));
+                stringDetails.add(String.format("BR:%.1f", candleAnalysis.getBodyRatio()));
+                if (candleAnalysis.isLongBody()) stringDetails.add("LB");
+                if (candleAnalysis.isDoji()) stringDetails.add("DJ");
+                
+                // Candle pattern matching status
+                boolean dojiOk = candleAnalysis.getConsecutiveDoji() <= requirements.getMaxConsecutiveDoji();
+                boolean spinOk = candleAnalysis.getConsecutiveSpinningTop() <= requirements.getMaxConsecutiveSpinningTop();
+                boolean smallOk = candleAnalysis.getConsecutiveSmallCandles() <= requirements.getMaxConsecutiveSmallCandles();
+                
+                if (candleAnalysis.getConsecutiveDoji() > 0) {
+                    stringDetails.add(String.format("Doji:%d%s", candleAnalysis.getConsecutiveDoji(), dojiOk ? "✅" : "❌"));
+                }
+                if (candleAnalysis.getConsecutiveSpinningTop() > 0) {
+                    stringDetails.add(String.format("Spin:%d%s", candleAnalysis.getConsecutiveSpinningTop(), spinOk ? "✅" : "❌"));
+                }
+                if (candleAnalysis.getConsecutiveSmallCandles() > 0) {
+                    stringDetails.add(String.format("Small:%d%s", candleAnalysis.getConsecutiveSmallCandles(), smallOk ? "✅" : "❌"));
+                }
+            }
+            
+            // Volume surge multiplier
+            if (indicators.getVolume_surge_multiplier() != null) {
+                stringDetails.add(String.format("VS:%.1fx", indicators.getVolume_surge_multiplier()));
+            }
+            
+            // Comprehensive scores with matching status
             FlatMarketFilteringConfig.ComprehensiveChecks comprehensiveChecks = thresholds.getComprehensiveChecks();
+            boolean emaOk = emaAlignmentScore >= comprehensiveChecks.getEmaAlignmentScore();
+            boolean volumeConsistencyOk = volumeConsistencyScore >= comprehensiveChecks.getVolumeConsistencyScore();
+            boolean priceActionOk = priceActionScore >= comprehensiveChecks.getPriceActionScore();
             
-            if (emaAlignmentScore < comprehensiveChecks.getEmaAlignmentScore()) {
-                reasons.add(String.format("EMA:%.2f<%.2f", 
-                    emaAlignmentScore, comprehensiveChecks.getEmaAlignmentScore()));
-            }
-            if (volumeConsistencyScore < comprehensiveChecks.getVolumeConsistencyScore()) {
-                reasons.add(String.format("VolCons:%.2f<%.2f", 
-                    volumeConsistencyScore, comprehensiveChecks.getVolumeConsistencyScore()));
-            }
-            if (priceActionScore < comprehensiveChecks.getPriceActionScore()) {
-                reasons.add(String.format("Price:%.2f<%.2f", 
-                    priceActionScore, comprehensiveChecks.getPriceActionScore()));
-            }
-            if (result.getOverallScore() < comprehensiveChecks.getOverallScore()) {
-                reasons.add(String.format("Overall:%.2f<%.2f", 
-                    result.getOverallScore(), comprehensiveChecks.getOverallScore()));
+            stringDetails.add(String.format("E:%.1f%s", emaAlignmentScore, emaOk ? "✅" : "❌"));
+            stringDetails.add(String.format("VC:%.1f%s", volumeConsistencyScore, volumeConsistencyOk ? "✅" : "❌"));
+            stringDetails.add(String.format("P:%.1f%s", priceActionScore, priceActionOk ? "✅" : "❌"));
+            
+            // Show flat market status based on the same logic as isMarketConditionSuitable
+            boolean isActuallySuitable = isMarketConditionSuitable(tick, indicators);
+            if (isActuallySuitable) {
+                stringDetails.add("MARKET_OK:✅");
+            } else {
+                stringDetails.add("FLAT_MARKET:❌");
             }
             
-            return String.join(",", reasons);
+            return String.join(",", stringDetails);
             
         } catch (Exception e) {
             log.error("Error getting detailed flat market reason: {}", e.getMessage());
             return "Error";
         }
     }
+    
+    @Override
+    public Map<String, Object> getStructuredMarketConditionDetails(Tick tick, FlattenedIndicators indicators) {
+        try {
+            MarketConditionResult result = analyzeMarketCondition(tick, indicators);
+            
+            FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
+            FlatMarketFilteringConfig.Requirements requirements = config.getRequirements();
+            FlatMarketFilteringConfig.Thresholds thresholds = config.getThresholds();
+            
+            Map<String, Object> marketDetails = new HashMap<>();
+            
+            // Basic scores
+            marketDetails.put("directionalStrength", Math.round(result.getDirectionalStrength() * 100.0) / 100.0);
+            marketDetails.put("volatilityScore", Math.round(result.getVolatilityScore() * 100.0) / 100.0);
+            marketDetails.put("overallScore", Math.round(result.getOverallScore() * 100.0) / 100.0);
+            
+            // Candle analysis details
+            CandleAnalysisResult candleAnalysis = result.getCandleAnalysis();
+            if (candleAnalysis != null) {
+                marketDetails.put("candleHeight", Math.round(candleAnalysis.getCandleHeight() * 100.0) / 100.0);
+                marketDetails.put("bodyRatio", Math.round(candleAnalysis.getBodyRatio() * 100.0) / 100.0);
+                marketDetails.put("isLongBody", candleAnalysis.isLongBody());
+                marketDetails.put("isDoji", candleAnalysis.isDoji());
+                marketDetails.put("consecutiveDoji", candleAnalysis.getConsecutiveDoji());
+                marketDetails.put("consecutiveSpinningTop", candleAnalysis.getConsecutiveSpinningTop());
+                marketDetails.put("consecutiveSmallCandles", candleAnalysis.getConsecutiveSmallCandles());
+            }
+            
+            // Volume surge multiplier
+            if (indicators.getVolume_surge_multiplier() != null) {
+                marketDetails.put("volumeSurgeMultiplier", Math.round(indicators.getVolume_surge_multiplier() * 100.0) / 100.0);
+            }
+            
+            // Comprehensive scores
+            double emaAlignmentScore = calculateEmaAlignmentScore(indicators);
+            double volumeConsistencyScore = calculateVolumeConsistencyScore(indicators);
+            double priceActionScore = calculatePriceActionScore(indicators);
+            
+            marketDetails.put("emaAlignmentScore", Math.round(emaAlignmentScore * 100.0) / 100.0);
+            marketDetails.put("volumeConsistencyScore", Math.round(volumeConsistencyScore * 100.0) / 100.0);
+            marketDetails.put("priceActionScore", Math.round(priceActionScore * 100.0) / 100.0);
+            
+            // If it's a flat market, add the reasons why
+            if (result.isFlatMarket()) {
+                List<String> flatMarketReasons = new ArrayList<>();
+                flatMarketReasons.add("FLAT_MARKET:");
+                
+                // Check directional strength
+                if (result.getDirectionalStrength() < requirements.getMinDirectionalStrength()) {
+                    flatMarketReasons.add(String.format("Dir:%.2f<%.2f", 
+                        result.getDirectionalStrength(), requirements.getMinDirectionalStrength()));
+                }
+                
+                // Check volatility
+                if (result.getVolatilityScore() < thresholds.getVolatilityScore().getLowThreshold()) {
+                    flatMarketReasons.add(String.format("Vol:%.2f<%.2f", 
+                        result.getVolatilityScore(), thresholds.getVolatilityScore().getLowThreshold()));
+                }
+                
+                // Check candle analysis
+                if (candleAnalysis != null) {
+                    if (candleAnalysis.getConsecutiveDoji() > requirements.getMaxConsecutiveDoji()) {
+                        flatMarketReasons.add(String.format("Doji:%d>%d", 
+                            candleAnalysis.getConsecutiveDoji(), requirements.getMaxConsecutiveDoji()));
+                    }
+                    if (candleAnalysis.getConsecutiveSpinningTop() > requirements.getMaxConsecutiveSpinningTop()) {
+                        flatMarketReasons.add(String.format("Spin:%d>%d", 
+                            candleAnalysis.getConsecutiveSpinningTop(), requirements.getMaxConsecutiveSpinningTop()));
+                    }
+                    if (candleAnalysis.getConsecutiveSmallCandles() > requirements.getMaxConsecutiveSmallCandles()) {
+                        flatMarketReasons.add(String.format("Small:%d>%d", 
+                            candleAnalysis.getConsecutiveSmallCandles(), requirements.getMaxConsecutiveSmallCandles()));
+                    }
+                }
+                
+                FlatMarketFilteringConfig.ComprehensiveChecks comprehensiveChecks = thresholds.getComprehensiveChecks();
+                
+                if (emaAlignmentScore < comprehensiveChecks.getEmaAlignmentScore()) {
+                    flatMarketReasons.add(String.format("EMA:%.2f<%.2f", 
+                        emaAlignmentScore, comprehensiveChecks.getEmaAlignmentScore()));
+                }
+                if (volumeConsistencyScore < comprehensiveChecks.getVolumeConsistencyScore()) {
+                    flatMarketReasons.add(String.format("VolCons:%.2f<%.2f", 
+                        volumeConsistencyScore, comprehensiveChecks.getVolumeConsistencyScore()));
+                }
+                if (priceActionScore < comprehensiveChecks.getPriceActionScore()) {
+                    flatMarketReasons.add(String.format("Price:%.2f<%.2f", 
+                        priceActionScore, comprehensiveChecks.getPriceActionScore()));
+                }
+                if (result.getOverallScore() < comprehensiveChecks.getOverallScore()) {
+                    flatMarketReasons.add(String.format("Overall:%.2f<%.2f", 
+                        result.getOverallScore(), comprehensiveChecks.getOverallScore()));
+                }
+                
+                marketDetails.put("flatMarketReasons", flatMarketReasons);
+            }
+            
+            return marketDetails;
+            
+        } catch (Exception e) {
+            log.error("Error getting structured market condition details: {}", e.getMessage());
+            return new HashMap<>();
+        }
+    }
+    
+
 }

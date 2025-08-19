@@ -82,4 +82,23 @@ public interface ScalpingVolumeSurgeService {
      */
     com.jtradebot.processor.model.strategy.ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators);
 
+    /**
+     * Gets the scenario-based entry decision with full details (fully optimized version)
+     * 🔥 OPTIMIZATION: Accepts pre-calculated market condition to avoid redundant calls
+     * @param tick The current tick data
+     * @param indicators Pre-calculated flattened indicators to avoid recalculation
+     * @param preCalculatedMarketCondition Pre-calculated market condition to avoid redundant calls
+     * @return ScalpingEntryDecision object with scenario information
+     */
+    com.jtradebot.processor.model.strategy.ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, Boolean preCalculatedMarketCondition);
+
+    /**
+     * Gets the scenario-based entry decision for standalone usage (when market condition is not pre-calculated)
+     * This method will calculate market condition internally when needed
+     * @param tick The current tick data
+     * @param indicators Pre-calculated flattened indicators to avoid recalculation
+     * @return ScalpingEntryDecision object with scenario information
+     */
+    com.jtradebot.processor.model.strategy.ScalpingEntryDecision getEntryDecisionStandalone(Tick tick, FlattenedIndicators indicators);
+
 }

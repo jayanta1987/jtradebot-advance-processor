@@ -27,13 +27,21 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
 
     @Override
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators) {
-        return evaluateEntry(tick, indicators, null);
+        return evaluateEntry(tick, indicators, null, null);
     }
     
     /**
      * Evaluates entry conditions with optional pre-calculated quality score
      */
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore) {
+        return evaluateEntry(tick, indicators, preCalculatedQualityScore, null);
+    }
+    
+    /**
+     * Evaluates entry conditions with optional pre-calculated quality score and market condition
+     * 🔥 OPTIMIZATION: Accepts pre-calculated market condition to avoid redundant calls
+     */
+    public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean preCalculatedMarketCondition) {
         try {
             // Step 0 removed: we no longer hard-block on flat market; requirements are tightened per-scenario
             
@@ -54,7 +62,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
             
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
-                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore, tick);
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore, tick, preCalculatedMarketCondition);
                 scenarioEvaluations.add(evaluation);
             }
             
@@ -95,6 +103,17 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
     }
     
     /**
+     * Evaluates entry conditions for standalone usage (when market condition is not pre-calculated)
+     * This method will calculate market condition internally when needed
+     */
+    @Override
+    public ScalpingEntryDecision evaluateEntryStandalone(Tick tick, FlattenedIndicators indicators) {
+        // For standalone usage, we calculate market condition internally when needed
+        // This avoids passing null and provides a clean API
+        return evaluateEntry(tick, indicators, null, null);
+    }
+    
+    /**
      * Step 1: Calculate category counts for given indicators and categories
      */
     private Map<String, Integer> calculateCategoryCounts(FlattenedIndicators indicators, Map<String, List<String>> categories) {
@@ -121,7 +140,8 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
                                                Map<String, Integer> callCategoryCounts,
                                                Map<String, Integer> putCategoryCounts,
                                                double preCalculatedQualityScore,
-                                               Tick tick) {
+                                               Tick tick,
+                                               Boolean preCalculatedMarketCondition) {
         
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
         evaluation.setScenarioName(scenario.getName());
@@ -204,7 +224,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
         boolean requirementsAdjusted = false;
         
         if (requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
-            boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+            boolean isMarketSuitable = preCalculatedMarketCondition != null ? preCalculatedMarketCondition : marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
             if (!isMarketSuitable) {
                 // Instead of blocking, adjust requirements for flat market - Made more restrictive
                 adjustedRequirements = adjustRequirementsForFlatMarket(requirements);
@@ -544,7 +564,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
             
             // Apply quality threshold from scoring config
             double minQualityThreshold = scoringConfigService.getMinQualityScore();
-            log.info("🔍 QUALITY SCORE CALCULATION - Raw Score: {}, Min Threshold: {}, Direction: {}", 
+            log.debug("🔍 QUALITY SCORE CALCULATION - Raw Score: {}, Min Threshold: {}, Direction: {}", 
                 score, minQualityThreshold, isCallDirection ? "CALL" : "PUT");
             
             if (score < minQualityThreshold) {
@@ -552,7 +572,7 @@ public class ScalpingEntryServiceImpl implements ScalpingEntryService {
                 score = 0.0;
             }
             
-            log.info("🔍 QUALITY SCORE FINAL - Final Score: {}", score);
+            log.debug("🔍 QUALITY SCORE FINAL - Final Score: {}", score);
             return score;
         } catch (Exception e) {
             log.warn("Error calculating quality score: {}", e.getMessage());

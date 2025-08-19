@@ -52,9 +52,17 @@ public interface MarketConditionAnalysisService {
      * Get detailed flat market reason with actual values
      * @param tick The current tick data
      * @param indicators The flattened indicators
-     * @return Detailed reason string or null if not flat market
+     * @return Detailed reason string with market condition details
      */
     String getDetailedFlatMarketReason(Tick tick, FlattenedIndicators indicators);
+    
+    /**
+     * Get structured market condition details
+     * @param tick The current tick data
+     * @param indicators The flattened indicators
+     * @return Map containing structured market condition details
+     */
+    java.util.Map<String, Object> getStructuredMarketConditionDetails(Tick tick, FlattenedIndicators indicators);
     
     /**
      * Result class for market condition analysis

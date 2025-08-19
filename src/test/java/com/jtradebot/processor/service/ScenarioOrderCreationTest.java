@@ -1,12 +1,15 @@
 package com.jtradebot.processor.service;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
+import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.service.OptionPricingService;
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.service.LiveOptionPricingService;
 import com.jtradebot.processor.service.impl.ExitStrategyServiceImpl;
+import org.springframework.core.env.Environment;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +39,15 @@ class ScenarioOrderCreationTest {
     @Mock
     private ScalpingVolumeSurgeService scalpingVolumeSurgeService;
     
+    @Mock
+    private TradingConfigurationService tradingConfigurationService;
+    
+    @Mock
+    private Environment environment;
+    
+    @Mock
+    private LiveOptionPricingService liveOptionPricingService;
+    
     private ExitStrategyServiceImpl exitStrategyService;
     
     @BeforeEach
@@ -44,7 +56,10 @@ class ScenarioOrderCreationTest {
             jtradeOrderRepository, 
             optionPricingService, 
             configService, 
-            scalpingVolumeSurgeService
+            tradingConfigurationService,
+            scalpingVolumeSurgeService,
+            environment,
+            liveOptionPricingService
         );
     }
     
@@ -80,6 +95,7 @@ class ScenarioOrderCreationTest {
             scenarioConfidence,
             categoryScores,
             matchedConditions,
+            true, // entryMarketConditionSuitable
             new Date() // entryTime
         );
         
