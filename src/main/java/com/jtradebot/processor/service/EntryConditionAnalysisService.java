@@ -22,12 +22,11 @@ public class EntryConditionAnalysisService {
     /**
      * Capture all conditions that led to the order entry - Scenario-based approach aligned with JSON configuration
      */
-    public List<String> captureEntryConditions(Tick tick, String orderType) {
+    public List<String> captureEntryConditions(Tick tick, String orderType, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators) {
         List<String> conditions = new ArrayList<>();
         
         try {
-            // Get the scenario-based entry decision
-            ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(tick);
+            // Use the passed entryDecision (no need to recalculate)
             
             if (entryDecision == null) {
                 conditions.add("ERROR: No entry decision available");
@@ -61,7 +60,8 @@ public class EntryConditionAnalysisService {
             }
             
             // Add additional indicator information if needed
-            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
+            // Use the passed indicators instead of recalculating
+            // FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
             if (indicators != null) {
                 // Add futuresignal information
                 if (indicators.getFuturesignals() != null) {

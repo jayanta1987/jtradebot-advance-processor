@@ -27,6 +27,7 @@ public class ScalpingEntryConfig {
     private List<Scenario> scenarios;
     private LoggingConfig logging;
     private WeightsConfig weights;
+    private FlatMarketFilteringConfig flatMarketFiltering;
     
     @Data
     @Builder
@@ -111,6 +112,8 @@ public class ScalpingEntryConfig {
         private Integer candlestick_min_count;
         private Integer momentum_min_count;
         private Double minQualityScore;
+        private Boolean flatMarketFilter;
+        private Double minDirectionalStrength;
     }
     
     @Data
@@ -121,9 +124,9 @@ public class ScalpingEntryConfig {
     public static class ScenarioRiskManagement {
         private Double stopLossPoints;
         private Double targetPoints;
-        private Boolean useTrailingStop;
         private Double stopLossPercentage;
         private Double targetPercentage;
+        private Double milestonePoints;
     }
     
     @Data

@@ -37,5 +37,4 @@ public class ScalpingVolumeSurgeCallRule {
     // Risk management
     private Double stopLossPercentage;
     private Double targetPercentage;
-    private Integer maxHoldingTimeMinutes;
 }

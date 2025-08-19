@@ -3,7 +3,8 @@ package com.jtradebot.processor.repository.document;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
-import com.jtradebot.processor.model.MilestoneSystem;
+import com.jtradebot.processor.model.MilestoneSystem.Milestone;
+
 import lombok.Data;
 import lombok.ToString;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -58,14 +59,20 @@ public class JtradeOrder {
     
     private String comments;
     
-    // Milestone System
-    private MilestoneSystem milestoneSystem;
-    private Integer currentTargetMilestone;
-    private Double totalReleasedProfit;
+    // Milestone System - Simplified (only target milestones and history)
+    private List<Milestone> targetMilestones;
     private List<String> milestoneHistory;
+    
+    // Index Price Tracking
+    private Double minIndexPrice;
+    private Double maxIndexPrice;
     
     // Entry Conditions - Store all conditions that were matched when order was created
     private List<String> entryConditions;
+    
+    // Market Condition Details at Entry Time
+    private Boolean entryMarketConditionSuitable;
+    private Map<String, Object> entryMarketConditionDetails; // Structured market condition details
     
     // Scenario-based Entry Information
     private String entryScenarioName;
@@ -73,19 +80,6 @@ public class JtradeOrder {
     private Double entryScenarioConfidence;
     private Map<String, Integer> entryCategoryScores;
     private Map<String, List<String>> entryMatchedConditions;
-    
-    // Profitable Trade Filter Information
-    private Boolean profitableTradeFilterEnabled;
-    private Boolean profitableTradeFilterPassed;
-    private String profitableTradeFilterRejectionReason;
-    private Double profitableTradeFilterQualityScore;
-    private Double profitableTradeFilterCandlestickScore;
-    private Double profitableTradeFilterVolumeSurgeMultiplier;
-    private Integer profitableTradeFilterOptionalConditionsCount;
-    private List<String> profitableTradeFilterPassedRequiredConditions;
-    private List<String> profitableTradeFilterFailedRequiredConditions;
-    private List<String> profitableTradeFilterPassedOptionalConditions;
-    private List<String> profitableTradeFilterFailedOptionalConditions;
     
     // Helper methods
     public boolean isActive() {

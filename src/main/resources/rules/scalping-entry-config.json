@@ -5,7 +5,7 @@
   "tradingConfiguration": {
     "accountBalance": 200000,
     "quantitySettings": {
-      "minLotSize": 150,
+      "minLotSize": 225,
       "maxQuantityPerTrade": 750
     },
     "investmentLimits": {
@@ -16,7 +16,7 @@
       "maxProfitPerDayPercentage": 30.0
     },
     "tradeSettings": {
-      "maxTradeHoldingTimeInSec": 150
+      "maxTradeHoldingTimeInSec": 100
     }
   },
   "futuresignalsConfig": {
@@ -24,6 +24,47 @@
       "1min",
       "5min"
     ]
+  },
+  "flatMarketFiltering": {
+    "enabled": true,
+    "description": "Filter to prevent entries in flat or non-directional markets",
+    "requirements": {
+      "minDirectionalStrength": 0.35,
+      "maxConsecutiveDoji": 2,
+      "maxConsecutiveSpinningTop": 2,
+      "maxConsecutiveSmallCandles": 5
+    },
+    "thresholds": {
+      "volatilityScore": {
+        "lowThreshold": 0.35,
+        "veryLowThreshold": 0.15
+      },
+      "directionalStrength": {
+        "veryLowThreshold": 0.25
+      },
+      "comprehensiveChecks": {
+        "emaAlignmentScore": 0.35,
+        "volumeConsistencyScore": 0.35,
+        "priceActionScore": 0.45,
+        "overallScore": 0.35
+      },
+      "flatMarketAdjustments": {
+        "categoryIncrement": 2,
+        "minQualityScore": 7.0
+      },
+      "volumeConsistency": {
+        "minVolumeMultiplier": 1.2,
+        "requiredVolumeSignals": 1
+      }
+    },
+    "atrSettings": {
+      "period": 14,
+      "minATR": 20.0
+    },
+    "lookbackSettings": {
+      "candleAnalysis": 10,
+      "volatilityAnalysis": 10
+    }
   },
   "callCategories": {
     "ema": [
@@ -92,18 +133,19 @@
   "scenarios": [
     {
       "name": "SAFE_ENTRY_SIGNAL",
-      "description": "Conservative entry with strong confirmations",
+      "description": "Conservative entry with strong confirmations using scoring config thresholds",
       "requirements": {
-        "minQualityScore": 7.5,
+        "minQualityScore": 7.4,
         "ema_min_count": 2,
         "futureAndVolume_min_count": 3,
         "candlestick_min_count": 3,
-        "momentum_min_count": 2
+        "momentum_min_count": 2,
+        "flatMarketFilter": true
       },
       "riskManagement": {
-        "stopLossPoints": 7,
+        "stopLossPoints": 7.5,
         "targetPoints": 15,
-        "useTrailingStop": true
+        "milestonePoints": 5.0
       }
     }
   ],

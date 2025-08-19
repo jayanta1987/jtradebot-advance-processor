@@ -71,7 +71,11 @@ public class KiteTickerHandler {
     }
 
     private void handleTicks(ArrayList<Tick> ticks) {
-        tickProcessService.processLiveTicks(ticks);
+        try {
+            tickProcessService.processLiveTicks(ticks);
+        } catch (KiteException e) {
+            log.error("Error processing live ticks: {}", e.getMessage());
+        }
     }
 
     public void subscribeTickIndex(Long token) {

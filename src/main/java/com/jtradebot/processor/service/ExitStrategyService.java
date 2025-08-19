@@ -27,6 +27,7 @@ public interface ExitStrategyService {
                                             String scenarioDescription, Double scenarioConfidence,
                                             java.util.Map<String, Integer> categoryScores,
                                             java.util.Map<String, java.util.List<String>> matchedConditions,
+                                            Boolean entryMarketConditionSuitable,
                                             java.util.Date entryTime);
     
     /**

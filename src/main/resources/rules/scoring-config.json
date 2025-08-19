@@ -122,16 +122,16 @@
     "rsiThresholds": {
       "callBullish": 56.0,
       "putBearish": 44.0,
-      "overbought": 70.0,
-      "oversold": 30.0,
-      "tolerance": 0.1,
-      "description": "RSI thresholds for different conditions"
+      "overbought": 75.0,
+      "oversold": 25.0,
+      "tolerance": 0.05,
+      "description": "RSI thresholds for entry decisions"
     },
     "volumeThresholds": {
       "surgeMultiplier": 1.5,
       "highVolumeMultiplier": 2.0,
       "veryHighVolumeMultiplier": 3.0,
-      "description": "Volume surge thresholds"
+      "description": "Volume surge thresholds for entry decisions"
     },
     "priceThresholds": {
       "supportResistanceTolerance": 0.01,
@@ -141,10 +141,47 @@
       "description": "Price action thresholds"
     },
     "qualityThresholds": {
-      "minConfidenceScore": 0.7,
-      "minQualityScore": 0.7,
+      "minConfidenceScore": 0.6,
+      "minQualityScore": 6.0,
       "minCandlestickScore": 4.0,
-      "description": "Quality thresholds"
+      "description": "Quality thresholds for entry decisions"
+    }
+  },
+
+  "marketConditionConfiguration": {
+    "flatMarketDetection": {
+      "enabled": true,
+      "description": "Configuration for detecting and filtering flat market conditions",
+      "candleSizeThresholds": {
+        "minCandleHeight": 15.0,
+        "minCandleBodyRatio": 0.3,
+        "maxDojiRatio": 0.1,
+        "maxSpinningTopRatio": 0.2,
+        "description": "Minimum candle size requirements to avoid flat market entries"
+      },
+      "volatilityThresholds": {
+        "minPriceRange": 20.0,
+        "minATR": 25.0,
+        "maxSidewaysBars": 5,
+        "description": "Volatility requirements to ensure sufficient market movement"
+      },
+      "directionalStrength": {
+        "minTrendStrength": 0.6,
+        "minConsecutiveDirectionalBars": 3,
+        "maxNeutralBars": 2,
+        "description": "Requirements for strong directional movement"
+      },
+      "volumeRequirements": {
+        "minVolumeMultiplier": 1.2,
+        "minVolumeTrend": 0.1,
+        "description": "Volume requirements to confirm market activity"
+      }
+    },
+    "marketConditionScoring": {
+      "flatMarketPenalty": -5.0,
+      "strongDirectionBonus": 3.0,
+      "volatilityBonus": 2.0,
+      "description": "Scoring adjustments based on market conditions"
     }
   },
 

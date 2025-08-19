@@ -89,7 +89,6 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 .check15Min(configService.isCallCheck15Min())
                 .stopLossPercentage(configService.getCallStopLossPercentage())
                 .targetPercentage(configService.getCallTargetPercentage())
-                .maxHoldingTimeMinutes(configService.getCallMaxHoldingTimeMinutes())
                 .build();
         
         putRule = ScalpingVolumeSurgePutRule.builder()
@@ -110,7 +109,6 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
                 .check15Min(configService.isPutCheck15Min())
                 .stopLossPercentage(configService.getPutStopLossPercentage())
                 .targetPercentage(configService.getPutTargetPercentage())
-                .maxHoldingTimeMinutes(configService.getPutMaxHoldingTimeMinutes())
                 .build();
         
         log.info("Strategy rules initialized from JSON configuration");
@@ -129,7 +127,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
             // Use new scenario-based entry evaluation for CALL direction
-            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
+            ScalpingEntryDecision decision = getEntryDecisionStandalone(tick, indicators);
             
             // Only trigger CALL if scenario passes AND market conditions are bullish
             boolean isBullish = isMarketConditionBullish(indicators);
@@ -233,7 +231,7 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
             // Use new scenario-based entry evaluation for PUT direction
-            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
+            ScalpingEntryDecision decision = getEntryDecisionStandalone(tick, indicators);
             
             // Only trigger PUT if scenario passes AND market conditions are bearish
             boolean isBearish = isMarketConditionBearish(indicators);
@@ -264,8 +262,85 @@ public class ScalpingVolumeSurgeServiceImpl implements ScalpingVolumeSurgeServic
             // Get flattened indicators
             FlattenedIndicators indicators = getFlattenedIndicators(tick);
             
-            // Use new scenario-based entry evaluation
-            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators);
+            return getEntryDecision(tick, indicators);
+            
+        } catch (Exception e) {
+            log.error("Error getting entry decision for tick: {}", tick.getInstrumentToken(), e);
+            return ScalpingEntryDecision.builder()
+                    .shouldEntry(false)
+                    .reason("Error during evaluation: " + e.getMessage())
+                    .build();
+        }
+    }
+    
+    @Override
+    public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators) {
+        return getEntryDecision(tick, indicators, null);
+    }
+    
+    @Override
+    public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, Boolean preCalculatedMarketCondition) {
+        try {
+            String instrumentToken = String.valueOf(tick.getInstrumentToken());
+            
+            // Use the passed indicators instead of recalculating
+            // FlattenedIndicators indicators = getFlattenedIndicators(tick);
+            
+            // Calculate quality score once to avoid duplicate calculations
+            EntryQuality callQuality = evaluateCallEntryQuality(indicators, tick);
+            EntryQuality putQuality = evaluatePutEntryQuality(indicators, tick);
+            
+            // Use the dominant quality score (same logic as TickProcessService)
+            boolean isCallDominant = callQuality.getQualityScore() > putQuality.getQualityScore();
+            double qualityScore = isCallDominant ? callQuality.getQualityScore() : putQuality.getQualityScore();
+            
+            log.debug("🔍 QUALITY SCORE UNIFIED - Call: {}, Put: {}, Dominant: {}, Final: {}", 
+                callQuality.getQualityScore(), putQuality.getQualityScore(), 
+                isCallDominant ? "CALL" : "PUT", qualityScore);
+            
+            // 🔥 OPTIMIZATION: Use new scenario-based entry evaluation with pre-calculated quality score AND market condition
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators, qualityScore, preCalculatedMarketCondition);
+            
+            if (decision.isShouldEntry()) {
+                log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 
+                    tick.getInstrumentToken(), tick.getLastTradedPrice(), decision.getScenarioName(), 
+                    decision.getConfidence(), tick.getTickTimestamp());
+            } else {
+                log.debug("🔍 ENTRY BLOCKED - Instrument: {}, Reason: {}", 
+                    tick.getInstrumentToken(), decision.getReason());
+            }
+            
+            return decision;
+            
+        } catch (Exception e) {
+            log.error("Error getting entry decision for tick: {}", tick.getInstrumentToken(), e);
+            return ScalpingEntryDecision.builder()
+                    .shouldEntry(false)
+                    .reason("Error during evaluation: " + e.getMessage())
+                    .build();
+        }
+    }
+    
+    @Override
+    public ScalpingEntryDecision getEntryDecisionStandalone(Tick tick, FlattenedIndicators indicators) {
+        // For standalone usage, we calculate quality score and use standalone entry service
+        try {
+            String instrumentToken = String.valueOf(tick.getInstrumentToken());
+            
+            // Calculate quality score once to avoid duplicate calculations
+            EntryQuality callQuality = evaluateCallEntryQuality(indicators, tick);
+            EntryQuality putQuality = evaluatePutEntryQuality(indicators, tick);
+            
+            // Use the dominant quality score (same logic as TickProcessService)
+            boolean isCallDominant = callQuality.getQualityScore() > putQuality.getQualityScore();
+            double qualityScore = isCallDominant ? callQuality.getQualityScore() : putQuality.getQualityScore();
+            
+            log.debug("🔍 QUALITY SCORE UNIFIED - Call: {}, Put: {}, Dominant: {}, Final: {}", 
+                callQuality.getQualityScore(), putQuality.getQualityScore(), 
+                isCallDominant ? "CALL" : "PUT", qualityScore);
+            
+            // Use standalone entry service method
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntryStandalone(tick, indicators);
             
             if (decision.isShouldEntry()) {
                 log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 

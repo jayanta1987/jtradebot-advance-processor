@@ -20,7 +20,7 @@ public class MilestoneSystem {
     private boolean enabled;
     private double milestonePoints; // 5 points per milestone
     private double maxStopLossPoints; // Maximum 5 points stop loss
-    private boolean trailingStopLoss;
+    private double totalTargetPoints; // Total target points for the trade (drives number of milestones)
     
     // Current state
     private double entryPrice;
@@ -29,10 +29,9 @@ public class MilestoneSystem {
     
     // Milestone tracking
     private List<Milestone> targetMilestones;
-    private int currentTargetMilestone; // 0, 1, 2, 3 (for 0, 5, 10, 15 points)
+    private int currentTargetMilestone; // Index into targetMilestones (0-based before first target)
     
-    // Trailing stop loss
-    private double trailingStopLossPrice;
+    // Profit tracking
     private double highestProfitReached;
     private double lowestProfitReached;
     
@@ -67,12 +66,17 @@ public class MilestoneSystem {
         this.totalReleasedProfit = 0.0;
         this.milestoneHistory = new ArrayList<>();
         
-        // Create target milestones (5, 10, 15 points)
+        // Create target milestones dynamically based on totalTargetPoints and milestonePoints
         this.targetMilestones = new ArrayList<>();
-        for (int i = 1; i <= 3; i++) {
-            double points = i * milestonePoints;
+        if (milestonePoints <= 0) {
+            milestonePoints = 5.0; // fallback
+        }
+        double effectiveTotalTarget = totalTargetPoints > 0 ? totalTargetPoints : (3 * milestonePoints);
+        int milestoneCount = (int) Math.ceil(effectiveTotalTarget / milestonePoints);
+        for (int i = 1; i <= milestoneCount; i++) {
+            double points = Math.min(i * milestonePoints, effectiveTotalTarget);
             double targetPrice = calculateTargetPrice(points);
-            
+
             Milestone milestone = Milestone.builder()
                     .milestoneNumber(i)
                     .points(points)
@@ -80,14 +84,13 @@ public class MilestoneSystem {
                     .targetHit(false)
                     .profitAtMilestone(0.0)
                     .build();
-            
+
             targetMilestones.add(milestone);
         }
-        
-        // Set initial trailing stop loss
-        updateTrailingStopLoss(entryPrice);
-        
-        logMilestone("Milestone system initialized - Entry: {}, Target milestones: 5, 10, 15 points", entryPrice);
+
+        logMilestone(
+                "Milestone system initialized - Entry: %.2f, Milestones: %d, Step: %.2f, Total Target: %.2f",
+                entryPrice, targetMilestones.size(), milestonePoints, effectiveTotalTarget);
     }
     
     /**
@@ -117,7 +120,6 @@ public class MilestoneSystem {
         // Update highest/lowest profit reached
         if (currentProfit > highestProfitReached) {
             highestProfitReached = currentProfit;
-            updateTrailingStopLoss(currentPrice);
         }
         if (currentProfit < lowestProfitReached) {
             lowestProfitReached = currentProfit;
@@ -129,21 +131,7 @@ public class MilestoneSystem {
             return targetResult;
         }
         
-        // Check trailing stop loss (only if we've reached at least one target milestone)
-        if (trailingStopLoss && currentTargetMilestone > 0 && isTrailingStopLossHit(currentPrice)) {
-            MilestoneResult trailingResult = MilestoneResult.builder()
-                    .exitRequired(true)
-                    .exitReason("TRAILING_STOPLOSS_HIT")
-                    .exitPrice(trailingStopLossPrice)
-                    .exitIndexPrice(currentIndexPrice)
-                    .profit(currentProfit)
-                    .milestoneNumber(currentTargetMilestone)
-                    .points(currentProfit)
-                    .build();
-            
-            logMilestone("Trailing stop loss hit at price: {}, profit: {}", trailingStopLossPrice, currentProfit);
-            return trailingResult;
-        }
+
         
         // Check initial stop loss (only if no target milestone reached yet)
         if (currentTargetMilestone == 0 && isInitialStopLossHit(currentPrice)) {
@@ -157,7 +145,7 @@ public class MilestoneSystem {
                     .points(-maxStopLossPoints)
                     .build();
             
-            logMilestone("Initial stop loss hit at price: {}, profit: {}", currentPrice, currentProfit);
+            logMilestone("Initial stop loss hit at price: %.2f, profit: %.2f", currentPrice, currentProfit);
             return stopLossResult;
         }
         
@@ -189,11 +177,11 @@ public class MilestoneSystem {
                 double profitToRelease = milestone.getPoints();
                 totalReleasedProfit += profitToRelease;
                 
-                logMilestone("Target milestone {} hit at price: {}, profit: {}, released: {}", 
+                logMilestone("Target milestone %d hit at price: %.2f, profit: %.2f, released: %.2f", 
                         milestone.getMilestoneNumber(), currentPrice, currentProfit, profitToRelease);
                 
-                // If this is the final milestone (15 points), exit
-                if (milestone.getMilestoneNumber() == 3) {
+                // If this is the final milestone, exit
+                if (i + 1 == targetMilestones.size()) {
                     return MilestoneResult.builder()
                             .exitRequired(true)
                             .exitReason("FINAL_TARGET_HIT")
@@ -220,29 +208,7 @@ public class MilestoneSystem {
         return currentPrice <= initialStopLossPrice;
     }
     
-    /**
-     * Update trailing stop loss based on highest profit reached
-     */
-    private void updateTrailingStopLoss(double currentPrice) {
-        if (!trailingStopLoss) return;
-        
-        double maxStopLossPoints = this.maxStopLossPoints;
-        
-        // For both CALL and PUT orders, trailing stop loss is current price - max stop loss points
-        // This protects profits when option price goes down
-        trailingStopLossPrice = currentPrice - maxStopLossPoints;
-    }
-    
-    /**
-     * Check if trailing stop loss is hit
-     */
-    private boolean isTrailingStopLossHit(double currentPrice) {
-        if (!trailingStopLoss) return false;
-        
-        // For both CALL and PUT orders, trailing stop loss is hit when current price <= trailing stop loss price
-        // This protects profits when option price goes down
-        return currentPrice <= trailingStopLossPrice;
-    }
+
     
     /**
      * Calculate current profit
@@ -257,16 +223,24 @@ public class MilestoneSystem {
      * Log milestone event
      */
     private void logMilestone(String message, Object... args) {
-        String logMessage = String.format(message, args);
-        milestoneHistory.add(logMessage);
+        try {
+            String logMessage = String.format(message, args);
+            milestoneHistory.add(logMessage);
+        } catch (Exception e) {
+            // Fallback if formatting fails
+            milestoneHistory.add(message + " - " + java.util.Arrays.toString(args));
+        }
     }
     
     /**
      * Get current status summary
      */
     public String getStatusSummary() {
-        return String.format("Target Milestone: %d/3, Released Profit: %.2f, Current Profit: %.2f", 
-                currentTargetMilestone, totalReleasedProfit, 
+        int totalMilestones = targetMilestones != null ? targetMilestones.size() : 0;
+        return String.format(
+                "Target Milestone: %d/%d, Released Profit: %.2f, Current Profit: %.2f",
+                currentTargetMilestone, totalMilestones,
+                totalReleasedProfit,
                 calculateCurrentProfit(entryPrice)); // This will be updated by caller
     }
     
