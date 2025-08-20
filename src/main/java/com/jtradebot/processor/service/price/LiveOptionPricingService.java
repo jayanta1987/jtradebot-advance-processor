@@ -1,4 +1,4 @@
-package com.jtradebot.processor.service;
+package com.jtradebot.processor.service.price;
 
 import com.jtradebot.processor.handler.StrikePriceCalculator;
 import com.jtradebot.processor.manager.TickDataManager;
@@ -6,14 +6,12 @@ import com.jtradebot.processor.repository.document.Instrument;
 import com.zerodhatech.models.Tick;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
-import com.zerodhatech.models.Quote;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor

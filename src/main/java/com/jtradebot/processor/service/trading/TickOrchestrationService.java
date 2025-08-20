@@ -4,10 +4,8 @@ import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.service.TickSetupService;
-import com.jtradebot.processor.service.TickEventTracker;
-import com.jtradebot.processor.service.BacktestDataCollectorService;
+import com.jtradebot.processor.service.scheduler.TickEventTracker;
 import com.zerodhatech.models.Tick;
-import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,8 +26,6 @@ public class TickOrchestrationService {
     private final TickEventTracker tickEventTracker;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final TradingSignalProcessorService tradingSignalProcessorService;
-    private final OrderExecutionService orderExecutionService;
-    private final BacktestDataCollectorService backtestDataCollectorService;
 
     @Value("${jtradebot.strategy.enable-scalping-volume-surge:true}")
     private boolean enableScalpingVolumeSurge;
@@ -59,8 +55,7 @@ public class TickOrchestrationService {
         
         // Get Nifty token identifiers
         String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
-        String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
-        
+
         for (Tick tick : latestTicks.values()) {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             
@@ -92,67 +87,5 @@ public class TickOrchestrationService {
         }
     }
 
-    /**
-     * Get Nifty tick information for logging
-     */
-    public String getNiftyTickInfo() {
-        try {
-            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
-            String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
-            
-            Tick lastNiftyTick = tickDataManager.getLastTick(niftyToken);
-            Tick lastNiftyFutureTick = tickDataManager.getLastTick(niftyFutureToken);
-            
-            if (lastNiftyTick != null && lastNiftyFutureTick != null) {
-                return String.format("Nifty: Time=%s, LTP=%.2f, Vol(Fut)=%d, H=%.2f, L=%.2f, O=%.2f, C=%.2f", 
-                    lastNiftyTick.getTickTimestamp(),
-                    lastNiftyTick.getLastTradedPrice(),
-                    lastNiftyFutureTick.getVolumeTradedToday(),
-                    lastNiftyTick.getHighPrice(),
-                    lastNiftyTick.getLowPrice(),
-                    lastNiftyTick.getOpenPrice(),
-                    lastNiftyTick.getClosePrice());
-            } else {
-                return "Nifty: No data available";
-            }
-        } catch (Exception e) {
-            return "Nifty: Error getting data";
-        }
-    }
 
-    /**
-     * Check if we can execute a new order
-     */
-    public boolean canExecuteNewOrder() {
-        return orderExecutionService.canExecuteNewOrder();
-    }
-
-    /**
-     * Get all active orders
-     */
-    public List<com.jtradebot.processor.repository.document.JtradeOrder> getActiveOrders() {
-        return orderExecutionService.getActiveOrders();
-    }
-
-    /**
-     * Update live P&L for active trades
-     */
-    public void updateLivePnL(com.zerodhatech.models.Tick tick) throws Exception, KiteException {
-        try {
-            orderExecutionService.updateLivePnL(tick);
-        } catch (KiteException e) {
-            log.error("KiteException while updating live P&L: {}", e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            log.error("Error updating live P&L: {}", e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * Check and process exits for existing orders
-     */
-    public void checkAndProcessExits(com.zerodhatech.models.Tick tick) {
-        orderExecutionService.checkAndProcessExits(tick);
-    }
 }

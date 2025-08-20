@@ -1,4 +1,4 @@
-package com.jtradebot.processor.service;
+package com.jtradebot.processor.service.notification;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;

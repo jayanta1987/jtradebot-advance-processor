@@ -3,13 +3,13 @@ package com.jtradebot.processor.indicator;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.ta4j.core.BarSeries;
 
-import java.util.List;
-import java.util.OptionalDouble;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
@@ -17,247 +17,171 @@ import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 @RequiredArgsConstructor
 @Slf4j
 public class PriceVolumeSurgeIndicator {
-    
     private final TickDataManager tickDataManager;
     private final DynamicStrategyConfigService configService;
     
-    /**
-     * Enhanced volume surge calculation with proper historical baseline
-     */
+    // Cache for volume surge calculations to prevent redundant calls
+    private final Map<String, VolumeSurgeCacheEntry> volumeSurgeCache = new ConcurrentHashMap<>();
+    private static final long CACHE_DURATION_MS = 1000; // 1 second cache
+
     public VolumeSurgeResult calculateVolumeSurge(String instrumentToken, CandleTimeFrameEnum timeframe, long currentVolume) {
         try {
             BarSeries barSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, timeframe);
-            
             if (barSeries == null || barSeries.getBarCount() < 20) {
-                log.warn("Insufficient data for volume surge calculation: instrument={}, timeframe={}, bars={}", 
+                log.warn("Insufficient data for volume surge calculation: instrument={}, timeframe={}, bars={}",
                         instrumentToken, timeframe, barSeries != null ? barSeries.getBarCount() : 0);
                 return VolumeSurgeResult.noSurge();
             }
-            
-            // Calculate historical volume averages
-            double averageVolume = calculateAverageVolume(barSeries, 20); // Last 20 bars
-            double recentAverageVolume = calculateAverageVolume(barSeries, 5); // Last 5 bars
-            
-            // Define minimum volume threshold
-            double MIN_AVERAGE_VOLUME = 1.0; // Minimum average volume to prevent division by very small numbers
-            
-            // Log volume data for debugging
-            log.debug("Volume Analysis - Instrument: {}, Timeframe: {}, Current: {}, Avg(20): {}, Avg(5): {}", 
-                    instrumentToken, timeframe, currentVolume, averageVolume, recentAverageVolume);
-            
-            // Log warning if average volumes are very low
-            if (averageVolume < MIN_AVERAGE_VOLUME || recentAverageVolume < MIN_AVERAGE_VOLUME) {
-                log.warn("Very low average volume detected - Instrument: {}, Timeframe: {}, Avg(20): {}, Avg(5): {} - Using default multiplier", 
-                        instrumentToken, timeframe, averageVolume, recentAverageVolume);
+            double avgVol = calculateAverageVolume(barSeries, 20);
+            double recentAvgVol = calculateAverageVolume(barSeries, 5);
+            final double MIN_AVG_VOL = 1.0, MAX_VOL_MULT = 100.0;
+            log.debug("Volume Analysis - Instrument: {}, Timeframe: {}, Current: {}, Avg(20): {}, Avg(5): {}",
+                    instrumentToken, timeframe, currentVolume, avgVol, recentAvgVol);
+            if (avgVol < MIN_AVG_VOL || recentAvgVol < MIN_AVG_VOL) {
+                log.warn("Very low average volume detected - Instrument: {}, Timeframe: {}, Avg(20): {}, Avg(5): {} - Using default multiplier",
+                        instrumentToken, timeframe, avgVol, recentAvgVol);
             }
-            
-            // Calculate volume surge multiplier with safety checks and maximum cap
-            double volumeMultiplier = averageVolume > MIN_AVERAGE_VOLUME ? currentVolume / averageVolume : 1.0;
-            double recentVolumeMultiplier = recentAverageVolume > MIN_AVERAGE_VOLUME ? currentVolume / recentAverageVolume : 1.0;
-            
-            // Cap the volume multiplier to prevent extreme values (max 100x)
-            double MAX_VOLUME_MULTIPLIER = 100.0;
-            volumeMultiplier = Math.min(volumeMultiplier, MAX_VOLUME_MULTIPLIER);
-            recentVolumeMultiplier = Math.min(recentVolumeMultiplier, MAX_VOLUME_MULTIPLIER);
-            
-            // Log if capping was applied
-            if (volumeMultiplier >= MAX_VOLUME_MULTIPLIER || recentVolumeMultiplier >= MAX_VOLUME_MULTIPLIER) {
-                log.warn("Volume multiplier capped to {} - Instrument: {}, Timeframe: {}, Current: {}, Avg(20): {}, Avg(5): {}", 
-                        MAX_VOLUME_MULTIPLIER, instrumentToken, timeframe, currentVolume, averageVolume, recentAverageVolume);
+            double volMult = avgVol > MIN_AVG_VOL ? currentVolume / avgVol : 1.0;
+            double recentVolMult = recentAvgVol > MIN_AVG_VOL ? currentVolume / recentAvgVol : 1.0;
+            volMult = Math.min(volMult, MAX_VOL_MULT);
+            recentVolMult = Math.min(recentVolMult, MAX_VOL_MULT);
+            if (volMult >= MAX_VOL_MULT || recentVolMult >= MAX_VOL_MULT) {
+                log.warn("Volume multiplier capped to {} - Instrument: {}, Timeframe: {}, Current: {}, Avg(20): {}, Avg(5): {}",
+                        MAX_VOL_MULT, instrumentToken, timeframe, currentVolume, avgVol, recentAvgVol);
             }
-            
-            // Determine surge strength
-            VolumeSurgeStrength strength = determineSurgeStrength(volumeMultiplier, recentVolumeMultiplier);
-            
-            // Check for volume trend consistency
-            boolean isVolumeTrendingUp = checkVolumeTrend(barSeries);
-            
-            // Calculate volume momentum (rate of change)
-            double volumeMomentum = calculateVolumeMomentum(barSeries);
-            
-            // Use config service for volume surge threshold (instead of hardcoded 1.3)
-            double volumeSurgeThreshold = configService.getCallVolumeSurgeMultiplier();
-            
+            VolumeSurgeStrength strength = determineSurgeStrength(volMult, recentVolMult);
+            boolean trendingUp = checkVolumeTrend(barSeries);
+            double momentum = calculateVolumeMomentum(barSeries);
+            double threshold = configService.getCallVolumeSurgeMultiplier();
             return VolumeSurgeResult.builder()
-                    .hasSurge(volumeMultiplier >= volumeSurgeThreshold)  // Use config instead of hardcoded
-                    .volumeMultiplier(volumeMultiplier)
-                    .recentVolumeMultiplier(recentVolumeMultiplier)
-                    .averageVolume(averageVolume)
-                    .recentAverageVolume(recentAverageVolume)
+                    .surge(volMult >= threshold)
+                    .volumeMultiplier(volMult)
+                    .recentVolumeMultiplier(recentVolMult)
+                    .averageVolume(avgVol)
+                    .recentAverageVolume(recentAvgVol)
                     .currentVolume(currentVolume)
                     .strength(strength)
-                    .isVolumeTrendingUp(isVolumeTrendingUp)
-                    .volumeMomentum(volumeMomentum)
+                    .isVolumeTrendingUp(trendingUp)
+                    .volumeMomentum(momentum)
                     .timeframe(timeframe)
                     .build();
-                    
         } catch (Exception e) {
             log.error("Error calculating volume surge for instrument: {}, timeframe: {}", instrumentToken, timeframe, e);
             return VolumeSurgeResult.noSurge();
         }
     }
-    
+
     /**
-     * Calculate volume surge for Nifty index and future comparison
-     * Note: Nifty Index doesn't have volume data, so we only analyze future volume
-     * and correlate it with index price movements
+     * Optimized method to calculate volume surge for all timeframes in a single call
+     * This prevents multiple redundant calculations and improves performance
      */
-    public NiftyVolumeAnalysis analyzeNiftyVolume(String niftyIndexToken, String niftyFutureToken, 
-                                                 long futureVolume) {
+    public MultiTimeframeVolumeSurge calculateMultiTimeframeVolumeSurge(String instrumentToken, long currentVolume) {
+        String cacheKey = instrumentToken + "_" + currentVolume;
+        long currentTime = System.currentTimeMillis();
+        
+        // Check cache first
+        VolumeSurgeCacheEntry cachedEntry = volumeSurgeCache.get(cacheKey);
+        if (cachedEntry != null && (currentTime - cachedEntry.getTimestamp()) < CACHE_DURATION_MS) {
+            log.debug("Using cached volume surge data for instrument: {}", instrumentToken);
+            return cachedEntry.getResult();
+        }
+        
         try {
-            // Calculate volume surge for future instrument only (index has no volume)
+            // Calculate for all timeframes in parallel
+            VolumeSurgeResult surge1min = calculateVolumeSurge(instrumentToken, ONE_MIN, currentVolume);
+            VolumeSurgeResult surge5min = calculateVolumeSurge(instrumentToken, FIVE_MIN, currentVolume);
+            VolumeSurgeResult surge15min = calculateVolumeSurge(instrumentToken, FIFTEEN_MIN, currentVolume);
+            
+            // Find the highest volume multiplier across all timeframes
+            double maxVolumeMultiplier = Math.max(
+                Math.max(surge1min.getVolumeMultiplier(), surge5min.getVolumeMultiplier()),
+                surge15min.getVolumeMultiplier()
+            );
+            
+            MultiTimeframeVolumeSurge result = MultiTimeframeVolumeSurge.builder()
+                    .surge1min(surge1min)
+                    .surge5min(surge5min)
+                    .surge15min(surge15min)
+                    .maxVolumeMultiplier(maxVolumeMultiplier)
+                    .hasAnySurge(surge1min.isSurge() || surge5min.isSurge() || surge15min.isSurge())
+                    .build();
+            
+            // Cache the result
+            volumeSurgeCache.put(cacheKey, new VolumeSurgeCacheEntry(result, currentTime));
+            
+            log.debug("Calculated multi-timeframe volume surge for instrument: {} - 1min: {}x, 5min: {}x, 15min: {}x, max: {}x",
+                    instrumentToken, surge1min.getVolumeMultiplier(), surge5min.getVolumeMultiplier(), 
+                    surge15min.getVolumeMultiplier(), maxVolumeMultiplier);
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("Error calculating multi-timeframe volume surge for instrument: {}", instrumentToken, e);
+            return MultiTimeframeVolumeSurge.noSurge();
+        }
+    }
+
+    public NiftyVolumeAnalysis analyzeNiftyVolume(String niftyFutureToken, long futureVolume) {
+        try {
             VolumeSurgeResult futureSurge = calculateVolumeSurge(niftyFutureToken, FIVE_MIN, futureVolume);
-            
-            // Create a dummy index surge result since index has no volume
             VolumeSurgeResult indexSurge = VolumeSurgeResult.noSurge();
-            
-            // Calculate volume correlation between index and future (uses historical data)
-            double volumeCorrelation = calculateVolumeCorrelation(niftyIndexToken, niftyFutureToken);
-            
-            // Determine if this is a coordinated volume surge
-            // Since index has no volume, coordinated surge is based on future surge + correlation
-            boolean isCoordinatedSurge = futureSurge.hasSurge() && volumeCorrelation > 0.7;
-            
-            // Volume divergence is not meaningful since index has no volume
-            // We'll use a fixed value or calculate based on future volume strength
-            double volumeDivergence = futureSurge.getVolumeMultiplier(); // Use future surge strength instead
-            
+            double divergence = futureSurge.getVolumeMultiplier();
             return NiftyVolumeAnalysis.builder()
                     .indexSurge(indexSurge)
                     .futureSurge(futureSurge)
-                    .volumeCorrelation(volumeCorrelation)
-                    .isCoordinatedSurge(isCoordinatedSurge)
-                    .volumeDivergence(volumeDivergence)
-                    .totalVolume(futureVolume) // Only future volume since index has no volume
+                    .volumeDivergence(divergence)
+                    .totalVolume(futureVolume)
                     .build();
-                    
         } catch (Exception e) {
-            log.error("Error analyzing Nifty volume for index: {}, future: {}", niftyIndexToken, niftyFutureToken, e);
+            log.error("Error analyzing Nifty volume for future: {}",  niftyFutureToken, e);
             return NiftyVolumeAnalysis.noAnalysis();
         }
     }
-    
+
     private double calculateAverageVolume(BarSeries barSeries, int periods) {
-        if (barSeries.getBarCount() < periods) {
-            return 0.0;
-        }
-        
+        if (barSeries.getBarCount() < periods) return 0.0;
         double sum = 0.0;
-        int startIndex = barSeries.getBarCount() - periods;
-        
-        for (int i = startIndex; i < barSeries.getBarCount(); i++) {
+        int start = barSeries.getBarCount() - periods;
+        for (int i = start; i < barSeries.getBarCount(); i++)
             sum += barSeries.getBar(i).getVolume().doubleValue();
-        }
-        
         return sum / periods;
     }
-    
-    private VolumeSurgeStrength determineSurgeStrength(double volumeMultiplier, double recentVolumeMultiplier) {
-        // Use config service for thresholds instead of hardcoded values
-        double baseThreshold = configService.getCallVolumeSurgeMultiplier();
-        
-        if (volumeMultiplier >= baseThreshold * 2.5 || recentVolumeMultiplier >= baseThreshold * 2.5) {
-            return VolumeSurgeStrength.EXTREME;
-        } else if (volumeMultiplier >= baseThreshold * 1.8 || recentVolumeMultiplier >= baseThreshold * 1.8) {
-            return VolumeSurgeStrength.HIGH;
-        } else if (volumeMultiplier >= baseThreshold * 1.4 || recentVolumeMultiplier >= baseThreshold * 1.4) {
-            return VolumeSurgeStrength.MEDIUM;
-        } else if (volumeMultiplier >= baseThreshold || recentVolumeMultiplier >= baseThreshold) {
-            return VolumeSurgeStrength.LOW;
-        } else {
-            return VolumeSurgeStrength.NONE;
-        }
+
+    private VolumeSurgeStrength determineSurgeStrength(double volMult, double recentVolMult) {
+        double base = configService.getCallVolumeSurgeMultiplier();
+        if (volMult >= base * 2.5 || recentVolMult >= base * 2.5) return VolumeSurgeStrength.EXTREME;
+        if (volMult >= base * 1.8 || recentVolMult >= base * 1.8) return VolumeSurgeStrength.HIGH;
+        if (volMult >= base * 1.4 || recentVolMult >= base * 1.4) return VolumeSurgeStrength.MEDIUM;
+        if (volMult >= base || recentVolMult >= base) return VolumeSurgeStrength.LOW;
+        return VolumeSurgeStrength.NONE;
     }
-    
+
     private boolean checkVolumeTrend(BarSeries barSeries) {
-        if (barSeries.getBarCount() < 10) {
-            return false;
-        }
-        
-        // Check if volume is trending upward in last 10 bars
-        double recentVolume = calculateAverageVolume(barSeries, 5);
-        
-        // Calculate older volume manually since subseries method doesn't exist
-        double olderVolume = 0.0;
-        int startIndex = barSeries.getBarCount() - 10;
-        int endIndex = barSeries.getBarCount() - 5;
-        for (int i = startIndex; i < endIndex; i++) {
-            olderVolume += barSeries.getBar(i).getVolume().doubleValue();
-        }
-        olderVolume = olderVolume / 5.0;
-        
-        return recentVolume > olderVolume * 1.05; // 5% increase (relaxed from 10%)
+        if (barSeries.getBarCount() < 10) return false;
+        double recent = calculateAverageVolume(barSeries, 5);
+        double older = 0.0;
+        int start = barSeries.getBarCount() - 10, end = barSeries.getBarCount() - 5;
+        for (int i = start; i < end; i++)
+            older += barSeries.getBar(i).getVolume().doubleValue();
+        older /= 5.0;
+        return recent > older * 1.05;
     }
-    
+
     private double calculateVolumeMomentum(BarSeries barSeries) {
-        if (barSeries.getBarCount() < 3) {
-            return 0.0;
-        }
-        
-        // Calculate rate of change in volume
-        double currentVolume = barSeries.getBar(barSeries.getBarCount() - 1).getVolume().doubleValue();
-        double previousVolume = barSeries.getBar(barSeries.getBarCount() - 2).getVolume().doubleValue();
-        
-        if (previousVolume == 0) {
-            return 0.0;
-        }
-        
-        return ((currentVolume - previousVolume) / previousVolume) * 100; // Percentage change
+        if (barSeries.getBarCount() < 3) return 0.0;
+        double curr = barSeries.getBar(barSeries.getBarCount() - 1).getVolume().doubleValue();
+        double prev = barSeries.getBar(barSeries.getBarCount() - 2).getVolume().doubleValue();
+        if (prev == 0) return 0.0;
+        return ((curr - prev) / prev) * 100;
     }
-    
-    private double calculateVolumeCorrelation(String indexToken, String futureToken) {
-        try {
-            BarSeries indexSeries = tickDataManager.getBarSeriesForTimeFrame(indexToken, FIVE_MIN);
-            BarSeries futureSeries = tickDataManager.getBarSeriesForTimeFrame(futureToken, FIVE_MIN);
-            
-            if (indexSeries == null || futureSeries == null || 
-                indexSeries.getBarCount() < 20 || futureSeries.getBarCount() < 20) {
-                return 0.0;
-            }
-            
-            // Calculate correlation for last 20 bars
-            int periods = Math.min(20, Math.min(indexSeries.getBarCount(), futureSeries.getBarCount()));
-            double[] indexVolumes = new double[periods];
-            double[] futureVolumes = new double[periods];
-            
-            for (int i = 0; i < periods; i++) {
-                indexVolumes[i] = indexSeries.getBar(indexSeries.getBarCount() - periods + i).getVolume().doubleValue();
-                futureVolumes[i] = futureSeries.getBar(futureSeries.getBarCount() - periods + i).getVolume().doubleValue();
-            }
-            
-            return calculateCorrelation(indexVolumes, futureVolumes);
-            
-        } catch (Exception e) {
-            log.error("Error calculating volume correlation", e);
-            return 0.0;
-        }
-    }
-    
-    private double calculateCorrelation(double[] x, double[] y) {
-        if (x.length != y.length || x.length == 0) {
-            return 0.0;
-        }
-        
-        double sumX = 0.0, sumY = 0.0, sumXY = 0.0, sumX2 = 0.0, sumY2 = 0.0;
-        int n = x.length;
-        
-        for (int i = 0; i < n; i++) {
-            sumX += x[i];
-            sumY += y[i];
-            sumXY += x[i] * y[i];
-            sumX2 += x[i] * x[i];
-            sumY2 += y[i] * y[i];
-        }
-        
-        double numerator = n * sumXY - sumX * sumY;
-        double denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-        
-        return denominator == 0 ? 0.0 : numerator / denominator;
-    }
-    
-    // Data classes for results
+
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class VolumeSurgeResult {
-        private boolean hasSurge;
+        private boolean surge;
         private double volumeMultiplier;
         private double recentVolumeMultiplier;
         private double averageVolume;
@@ -268,90 +192,19 @@ public class PriceVolumeSurgeIndicator {
         private double volumeMomentum;
         private CandleTimeFrameEnum timeframe;
         
+        public boolean isSurge() {
+            return surge;
+        }
+
         public static VolumeSurgeResult noSurge() {
-            VolumeSurgeResult result = new VolumeSurgeResult();
-            result.hasSurge = false;
-            result.volumeMultiplier = 1.0;
-            result.strength = VolumeSurgeStrength.NONE;
-            return result;
+            return VolumeSurgeResult.builder().surge(false).volumeMultiplier(1.0).strength(VolumeSurgeStrength.NONE).build();
         }
-        
-        // Builder pattern implementation
-        public static Builder builder() {
-            return new Builder();
-        }
-        
-        public static class Builder {
-            private VolumeSurgeResult result = new VolumeSurgeResult();
-            
-            public Builder hasSurge(boolean hasSurge) {
-                result.hasSurge = hasSurge;
-                return this;
-            }
-            
-            public Builder volumeMultiplier(double volumeMultiplier) {
-                result.volumeMultiplier = volumeMultiplier;
-                return this;
-            }
-            
-            public Builder recentVolumeMultiplier(double recentVolumeMultiplier) {
-                result.recentVolumeMultiplier = recentVolumeMultiplier;
-                return this;
-            }
-            
-            public Builder averageVolume(double averageVolume) {
-                result.averageVolume = averageVolume;
-                return this;
-            }
-            
-            public Builder recentAverageVolume(double recentAverageVolume) {
-                result.recentAverageVolume = recentAverageVolume;
-                return this;
-            }
-            
-            public Builder currentVolume(long currentVolume) {
-                result.currentVolume = currentVolume;
-                return this;
-            }
-            
-            public Builder strength(VolumeSurgeStrength strength) {
-                result.strength = strength;
-                return this;
-            }
-            
-            public Builder isVolumeTrendingUp(boolean isVolumeTrendingUp) {
-                result.isVolumeTrendingUp = isVolumeTrendingUp;
-                return this;
-            }
-            
-            public Builder volumeMomentum(double volumeMomentum) {
-                result.volumeMomentum = volumeMomentum;
-                return this;
-            }
-            
-            public Builder timeframe(CandleTimeFrameEnum timeframe) {
-                result.timeframe = timeframe;
-                return this;
-            }
-            
-            public VolumeSurgeResult build() {
-                return result;
-            }
-        }
-        
-        // Getters
-        public boolean hasSurge() { return hasSurge; }
-        public double getVolumeMultiplier() { return volumeMultiplier; }
-        public double getRecentVolumeMultiplier() { return recentVolumeMultiplier; }
-        public double getAverageVolume() { return averageVolume; }
-        public double getRecentAverageVolume() { return recentAverageVolume; }
-        public long getCurrentVolume() { return currentVolume; }
-        public VolumeSurgeStrength getStrength() { return strength; }
-        public boolean isVolumeTrendingUp() { return isVolumeTrendingUp; }
-        public double getVolumeMomentum() { return volumeMomentum; }
-        public CandleTimeFrameEnum getTimeframe() { return timeframe; }
     }
-    
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class NiftyVolumeAnalysis {
         private VolumeSurgeResult indexSurge;
         private VolumeSurgeResult futureSurge;
@@ -359,70 +212,52 @@ public class PriceVolumeSurgeIndicator {
         private boolean isCoordinatedSurge;
         private double volumeDivergence;
         private long totalVolume;
-        
         public static NiftyVolumeAnalysis noAnalysis() {
-            NiftyVolumeAnalysis analysis = new NiftyVolumeAnalysis();
-            analysis.indexSurge = VolumeSurgeResult.noSurge();
-            analysis.futureSurge = VolumeSurgeResult.noSurge();
-            analysis.volumeCorrelation = 0.0;
-            analysis.isCoordinatedSurge = false;
-            analysis.volumeDivergence = 1.0;
-            analysis.totalVolume = 0;
-            return analysis;
+            return NiftyVolumeAnalysis.builder()
+                    .indexSurge(VolumeSurgeResult.noSurge())
+                    .futureSurge(VolumeSurgeResult.noSurge())
+                    .volumeCorrelation(0.0)
+                    .isCoordinatedSurge(false)
+                    .volumeDivergence(1.0)
+                    .totalVolume(0)
+                    .build();
         }
-        
-        public static Builder builder() {
-            return new Builder();
-        }
-        
-        public static class Builder {
-            private NiftyVolumeAnalysis analysis = new NiftyVolumeAnalysis();
-            
-            public Builder indexSurge(VolumeSurgeResult indexSurge) {
-                analysis.indexSurge = indexSurge;
-                return this;
-            }
-            
-            public Builder futureSurge(VolumeSurgeResult futureSurge) {
-                analysis.futureSurge = futureSurge;
-                return this;
-            }
-            
-            public Builder volumeCorrelation(double volumeCorrelation) {
-                analysis.volumeCorrelation = volumeCorrelation;
-                return this;
-            }
-            
-            public Builder isCoordinatedSurge(boolean isCoordinatedSurge) {
-                analysis.isCoordinatedSurge = isCoordinatedSurge;
-                return this;
-            }
-            
-            public Builder volumeDivergence(double volumeDivergence) {
-                analysis.volumeDivergence = volumeDivergence;
-                return this;
-            }
-            
-            public Builder totalVolume(long totalVolume) {
-                analysis.totalVolume = totalVolume;
-                return this;
-            }
-            
-            public NiftyVolumeAnalysis build() {
-                return analysis;
-            }
-        }
-        
-        // Getters
-        public VolumeSurgeResult getIndexSurge() { return indexSurge; }
-        public VolumeSurgeResult getFutureSurge() { return futureSurge; }
-        public double getVolumeCorrelation() { return volumeCorrelation; }
-        public boolean isCoordinatedSurge() { return isCoordinatedSurge; }
-        public double getVolumeDivergence() { return volumeDivergence; }
-        public long getTotalVolume() { return totalVolume; }
     }
-    
-    public enum VolumeSurgeStrength {
-        NONE, LOW, MEDIUM, HIGH, EXTREME
+
+    public enum VolumeSurgeStrength { NONE, LOW, MEDIUM, HIGH, EXTREME }
+
+    /**
+     * Cache entry for volume surge calculations
+     */
+    @Data
+    @AllArgsConstructor
+    public static class VolumeSurgeCacheEntry {
+        private MultiTimeframeVolumeSurge result;
+        private long timestamp;
+    }
+
+    /**
+     * Result containing volume surge data for all timeframes
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MultiTimeframeVolumeSurge {
+        private VolumeSurgeResult surge1min;
+        private VolumeSurgeResult surge5min;
+        private VolumeSurgeResult surge15min;
+        private double maxVolumeMultiplier;
+        private boolean hasAnySurge;
+        
+        public static MultiTimeframeVolumeSurge noSurge() {
+            return MultiTimeframeVolumeSurge.builder()
+                    .surge1min(VolumeSurgeResult.noSurge())
+                    .surge5min(VolumeSurgeResult.noSurge())
+                    .surge15min(VolumeSurgeResult.noSurge())
+                    .maxVolumeMultiplier(1.0)
+                    .hasAnySurge(false)
+                    .build();
+        }
     }
 }

@@ -1,12 +1,10 @@
 package com.jtradebot.processor.backTest;
 
 import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
-import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.common.ProfileUtil;
 import com.zerodhatech.models.Tick;
-import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
@@ -15,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;

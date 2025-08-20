@@ -1,15 +1,13 @@
-package com.jtradebot.processor.service.impl;
+package com.jtradebot.processor.service.price;
 
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
-import com.jtradebot.processor.service.OptionPricingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-public class OptionPricingServiceImpl implements OptionPricingService {
+public class OptionPricingService {
     
-    @Override
     public Double calculateEntryPrice(Double currentIndexPrice) {
         if (currentIndexPrice == null || currentIndexPrice <= 0) {
             log.warn("Invalid index price for entry calculation: {}", currentIndexPrice);
@@ -23,7 +21,6 @@ public class OptionPricingServiceImpl implements OptionPricingService {
         return entryPrice;
     }
     
-    @Override
     public Double calculateStopLossPrice(Double entryPrice, Double stopLossPercentage, OrderTypeEnum orderType) {
         if (entryPrice == null || stopLossPercentage == null || stopLossPercentage <= 0) {
             log.warn("Invalid parameters for stop loss calculation: entryPrice={}, stopLossPercentage={}", 
@@ -43,7 +40,6 @@ public class OptionPricingServiceImpl implements OptionPricingService {
         return stopLossPrice;
     }
     
-    @Override
     public Double calculateTargetPrice(Double entryPrice, Double targetPercentage, OrderTypeEnum orderType) {
         if (entryPrice == null || targetPercentage == null || targetPercentage <= 0) {
             log.warn("Invalid parameters for target calculation: entryPrice={}, targetPercentage={}", 
@@ -63,7 +59,6 @@ public class OptionPricingServiceImpl implements OptionPricingService {
         return targetPrice;
     }
     
-    @Override
     public Double calculateCurrentLTP(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice, OrderTypeEnum orderType) {
         if (entryPrice == null || entryIndexPrice == null || currentIndexPrice == null) {
             log.warn("Invalid parameters for LTP calculation: entryPrice={}, entryIndexPrice={}, currentIndexPrice={}", 
@@ -96,7 +91,6 @@ public class OptionPricingServiceImpl implements OptionPricingService {
         return currentLTP;
     }
     
-    @Override
     public Double calculateProfitLoss(Double entryPrice, Double exitPrice, OrderTypeEnum orderType) {
         if (entryPrice == null || exitPrice == null) {
             log.warn("Invalid parameters for profit/loss calculation: entryPrice={}, exitPrice={}", 

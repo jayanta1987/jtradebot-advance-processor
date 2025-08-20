@@ -1,32 +1,25 @@
 package com.jtradebot.processor.service.trading;
 
+import com.jtradebot.processor.config.DynamicStrategyConfigService;
+import com.jtradebot.processor.config.TradingConfigurationService;
+import com.jtradebot.processor.handler.KiteInstrumentHandler;
+import com.jtradebot.processor.manager.TickDataManager;
+import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.indicator.EntryQuality;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
-import com.jtradebot.processor.service.ScalpingVolumeSurgeService;
-import com.jtradebot.processor.service.MarketConditionAnalysisService;
-import com.jtradebot.processor.service.ProfitableTradeFilterService;
-import com.jtradebot.processor.service.ExitStrategyService;
-import com.jtradebot.processor.service.LiveOptionPricingService;
-import com.jtradebot.processor.service.EntryConditionAnalysisService;
-import com.jtradebot.processor.service.OptionPricingService;
-import com.jtradebot.processor.config.DynamicStrategyConfigService;
-import com.jtradebot.processor.config.TradingConfigurationService;
+import com.jtradebot.processor.repository.document.JtradeOrder;
+import com.jtradebot.processor.service.*;
 import com.jtradebot.processor.service.analysis.IndicatorStatusService;
 import com.jtradebot.processor.service.analysis.MarketDirectionAnalysisService;
-import com.jtradebot.processor.service.logging.TradingLoggingService;
 import com.jtradebot.processor.service.logging.IndicatorLoggingService;
-import com.jtradebot.processor.service.logging.PerformanceLoggingService;
-import com.jtradebot.processor.repository.document.JtradeOrder;
-import com.jtradebot.processor.model.enums.OrderTypeEnum;
-import com.jtradebot.processor.handler.KiteInstrumentHandler;
-import com.jtradebot.processor.manager.TickDataManager;
-import com.zerodhatech.models.Tick;
-import com.zerodhatech.kiteconnect.KiteConnect;
+import com.jtradebot.processor.service.logging.TradingLoggingService;
+import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
+import com.zerodhatech.models.Tick;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -40,31 +33,25 @@ public class TradingSignalProcessorService {
 
     private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
     private final MarketConditionAnalysisService marketConditionAnalysisService;
-    private final ProfitableTradeFilterService profitableTradeFilterService;
     private final ExitStrategyService exitStrategyService;
     private final LiveOptionPricingService liveOptionPricingService;
     private final EntryConditionAnalysisService entryConditionAnalysisService;
-    private final OptionPricingService optionPricingService;
     private final OrderExecutionService orderExecutionService;
     private final DynamicStrategyConfigService configService;
     private final TradingConfigurationService tradingConfigService;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final TickDataManager tickDataManager;
-    private final KiteConnect kiteConnect;
-    private final Environment environment;
     private final IndicatorStatusService indicatorStatusService;
     private final MarketDirectionAnalysisService marketDirectionAnalysisService;
     private final TradingLoggingService tradingLoggingService;
     private final IndicatorLoggingService indicatorLoggingService;
-    private final PerformanceLoggingService performanceLoggingService;
 
     /**
      * Process trading signals for a given tick using ScalpingVolumeSurge strategy
      * This is the main entry point for trading signal processing
      */
     public void processTradingSignals(Tick indexTick) {
-        performanceLoggingService.startTiming("tick_processing");
-        
+
         try {
             // Step 1: Get market data and calculate indicators
             FlattenedIndicators indicators = calculateIndicators(indexTick);
@@ -80,8 +67,6 @@ public class TradingSignalProcessorService {
             
         } catch (Exception e) {
             tradingLoggingService.logTickProcessingError(indexTick.getInstrumentToken(), e);
-        } finally {
-            performanceLoggingService.endTiming("tick_processing");
         }
     }
 
@@ -89,37 +74,21 @@ public class TradingSignalProcessorService {
      * Step 1: Calculate indicators for the tick
      */
     private FlattenedIndicators calculateIndicators(Tick indexTick) {
-        performanceLoggingService.startTiming("indicator_calculation");
-        try {
-            // 🔥 OPTIMIZATION: Calculate indicators ONCE per tick to avoid redundant calculations
-            FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(indexTick);
-            performanceLoggingService.endTiming("indicator_calculation");
-            return indicators;
-        } catch (Exception e) {
-            performanceLoggingService.endTiming("indicator_calculation");
-            throw e;
-        }
+        // 🔥 OPTIMIZATION: Calculate indicators ONCE per tick to avoid redundant calculations
+        return scalpingVolumeSurgeService.getFlattenedIndicators(indexTick);
     }
 
     /**
      * Step 2: Analyze market conditions
      */
     private MarketConditionAnalysis analyzeMarketConditions(Tick indexTick, FlattenedIndicators indicators) {
-        performanceLoggingService.startTiming("market_condition_analysis");
-        try {
-            // 🔥 OPTIMIZATION: Calculate market condition analysis ONCE per tick to avoid redundant calculations
-            boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(indexTick, indicators);
-            
-            // Always get market condition details for order storage (entry logic is handled separately)
-            String detailedFlatMarketReason = marketConditionAnalysisService.getDetailedFlatMarketReason(indexTick, indicators);
-            
-            MarketConditionAnalysis analysis = new MarketConditionAnalysis(isMarketSuitable, detailedFlatMarketReason);
-            performanceLoggingService.endTiming("market_condition_analysis");
-            return analysis;
-        } catch (Exception e) {
-            performanceLoggingService.endTiming("market_condition_analysis");
-            throw e;
-        }
+        // 🔥 OPTIMIZATION: Calculate market condition analysis ONCE per tick to avoid redundant calculations
+        boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(indexTick, indicators);
+
+        // Always get market condition details for order storage (entry logic is handled separately)
+        String detailedFlatMarketReason = marketConditionAnalysisService.getDetailedFlatMarketReason(indexTick, indicators);
+
+        return new MarketConditionAnalysis(isMarketSuitable, detailedFlatMarketReason);
     }
 
     /**
@@ -127,45 +96,32 @@ public class TradingSignalProcessorService {
      * 🔥 OPTIMIZATION: Passes pre-calculated market condition to avoid redundant calls
      */
     private void processEntryLogicOptimized(Tick indexTick, FlattenedIndicators indicators, MarketConditionAnalysis marketConditions) {
-        performanceLoggingService.startTiming("entry_logic_processing");
-        try {
-            // 🔥 REAL ENTRY LOGIC - This is what actually matters for trading
-            logRealEntryLogicOptimized(indexTick, indicators, marketConditions.isMarketSuitable(), marketConditions.getDetailedFlatMarketReason());
-            performanceLoggingService.endTiming("entry_logic_processing");
-        } catch (Exception e) {
-            performanceLoggingService.endTiming("entry_logic_processing");
-            throw e;
-        }
+        // 🔥 REAL ENTRY LOGIC - This is what actually matters for trading
+        logRealEntryLogicOptimized(indexTick, indicators, marketConditions.isMarketSuitable(), marketConditions.getDetailedFlatMarketReason());
     }
 
     /**
      * Step 4: Handle order management
      */
     private void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, MarketConditionAnalysis marketConditions) {
-        performanceLoggingService.startTiming("order_management");
+        // Check and process exits for existing orders
+        checkAndProcessExits(indexTick);
+
+        // Process new entry signals and manage active trades (using index tick for price data)
+        processEntrySignals(indexTick, indicators, marketConditions);
+
+        // Update live P&L for active trades (using index tick for price data)
         try {
-            // Check and process exits for existing orders
-            checkAndProcessExits(indexTick);
-            
-            // Process new entry signals and manage active trades (using index tick for price data)
-            processEntrySignals(indexTick, indicators, marketConditions);
-            
-            // Update live P&L for active trades (using index tick for price data)
-            try {
-                orderExecutionService.updateLivePnL(indexTick);
-            } catch (KiteException e) {
-                tradingLoggingService.logLivePnLError(indexTick.getInstrumentToken(), e);
-            }
-            performanceLoggingService.endTiming("order_management");
-        } catch (Exception e) {
-            performanceLoggingService.endTiming("order_management");
-            throw e;
+            orderExecutionService.updateLivePnL(indexTick);
+        } catch (KiteException e) {
+            tradingLoggingService.logLivePnLError(indexTick.getInstrumentToken(), e);
         }
     }
 
     /**
      * Market condition analysis result
      */
+    @Getter
     private static class MarketConditionAnalysis {
         private final boolean isMarketSuitable;
         private final String detailedFlatMarketReason;
@@ -175,28 +131,13 @@ public class TradingSignalProcessorService {
             this.detailedFlatMarketReason = detailedFlatMarketReason;
         }
 
-        public boolean isMarketSuitable() {
-            return isMarketSuitable;
-        }
-
-        public String getDetailedFlatMarketReason() {
-            return detailedFlatMarketReason;
-        }
-    }
-
-    /**
-     * Evaluate entry decision with pre-calculated indicators to avoid recalculation
-     */
-    public ScalpingEntryDecision evaluateEntryDecision(Tick tick, FlattenedIndicators indicators) {
-        return scalpingVolumeSurgeService.getEntryDecision(tick, indicators);
     }
 
     /**
      * Validate and execute order based on entry decision
      */
     public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, MarketConditionAnalysis marketConditions) {
-        performanceLoggingService.startTiming("order_validation_and_execution");
-        
+
         try {
             // Check if we can execute the order (no active orders)
             boolean hasActiveOrder = exitStrategyService.hasActiveOrder();
@@ -210,13 +151,9 @@ public class TradingSignalProcessorService {
                 if (orderType != null) {
                     // 🔥 EXECUTE ORDER
                     tradingLoggingService.logOrderExecution(orderType, entryDecision);
-                    
-                    // Calculate entry quality scores
-                    EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, tick);
-                    EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, tick);
-                    
+
                     log.debug("🔥 CREATING ORDER - Type: {}, Symbol: {}", orderType, entryDecision.getScenarioName());
-                    createTradeOrder(tick, orderType, entryDecision, indicators, callQuality, putQuality, marketConditions.isMarketSuitable());
+                    createTradeOrder(tick, orderType, entryDecision, indicators, marketConditions.isMarketSuitable());
                 } else {
                     log.debug("❌ ORDER TYPE IS NULL - Cannot create order");
                 }
@@ -227,32 +164,9 @@ public class TradingSignalProcessorService {
             tradingLoggingService.logKiteExceptionInOrderValidation(e);
         } catch (Exception e) {
             tradingLoggingService.logOrderValidationError(e);
-        } finally {
-            performanceLoggingService.endTiming("order_validation_and_execution");
         }
     }
 
-    /**
-     * Log the REAL entry logic from ScalpingVolumeSurgeService - CONCISE ONE-LINER
-     */
-    private void logRealEntryLogic(Tick indexTick, FlattenedIndicators indicators, boolean isMarketSuitable, String detailedFlatMarketReason) {
-        try {
-            // Step 1: Get entry decision and quality scores
-            EntryAnalysisResult analysisResult = analyzeEntryConditions(indexTick, indicators);
-            
-            // Step 2: Determine market direction and entry signals
-            EntrySignalResult signalResult = determineEntrySignals(analysisResult);
-            
-            // Step 3: Log indicator status and trend analysis
-            logIndicatorStatusAndTrend(indexTick, indicators, analysisResult, signalResult, isMarketSuitable, detailedFlatMarketReason);
-            
-            // Step 4: Execute orders if signals are generated
-            executeOrdersIfSignalsGenerated(indexTick, analysisResult, signalResult, indicators, new MarketConditionAnalysis(isMarketSuitable, detailedFlatMarketReason));
-            
-        } catch (Exception e) {
-            tradingLoggingService.logEntryLogicError(e);
-        }
-    }
 
     /**
      * Log the REAL entry logic from ScalpingVolumeSurgeService - CONCISE ONE-LINER
@@ -276,13 +190,6 @@ public class TradingSignalProcessorService {
         }
     }
 
-    /**
-     * Step 1: Analyze entry conditions
-     */
-    private EntryAnalysisResult analyzeEntryConditions(Tick indexTick, FlattenedIndicators indicators) {
-        return analyzeEntryConditions(indexTick, indicators, null);
-    }
-    
     /**
      * Step 1: Analyze entry conditions (optimized version)
      * 🔥 OPTIMIZATION: Accepts pre-calculated market condition to avoid redundant calls
@@ -379,14 +286,13 @@ public class TradingSignalProcessorService {
             } else {
                 tradingLoggingService.logEntrySkipped(signalResult.isShouldCall(), signalResult.isShouldPut(), scenarioDecision);
             }
-        } else {
-            log.debug("🔍 NO SIGNALS GENERATED - ShouldCall: {}, ShouldPut: {}", signalResult.isShouldCall(), signalResult.isShouldPut());
         }
     }
 
     /**
      * Entry analysis result
      */
+    @Getter
     private static class EntryAnalysisResult {
         private final ScalpingEntryDecision entryDecision;
         private final EntryQuality callQuality;
@@ -398,14 +304,12 @@ public class TradingSignalProcessorService {
             this.putQuality = putQuality;
         }
 
-        public ScalpingEntryDecision getEntryDecision() { return entryDecision; }
-        public EntryQuality getCallQuality() { return callQuality; }
-        public EntryQuality getPutQuality() { return putQuality; }
     }
 
     /**
      * Entry signal result
      */
+    @Getter
     private static class EntrySignalResult {
         private final boolean shouldCall;
         private final boolean shouldPut;
@@ -419,10 +323,6 @@ public class TradingSignalProcessorService {
             this.isPutDominant = isPutDominant;
         }
 
-        public boolean isShouldCall() { return shouldCall; }
-        public boolean isShouldPut() { return shouldPut; }
-        public boolean isCallDominant() { return isCallDominant; }
-        public boolean isPutDominant() { return isPutDominant; }
     }
 
     /**
@@ -444,7 +344,7 @@ public class TradingSignalProcessorService {
         } else if (isPutDominant) {
             return "PUT_BUY";
         }
-        
+
         return null;
     }
 
@@ -481,19 +381,15 @@ public class TradingSignalProcessorService {
         }
     }
 
-
-
-
-
     /**
      * Create a new trade order and save to DB
      */
-    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, EntryQuality callQuality, EntryQuality putQuality, Boolean entryMarketConditionSuitable) throws KiteException {
+    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Boolean entryMarketConditionSuitable) throws KiteException {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             
             // Capture all conditions that led to this order entry (reuse entryDecision)
-            List<String> entryConditions = entryConditionAnalysisService.captureEntryConditions(tick, orderType, entryDecision, indicators);
+            List<String> entryConditions = entryConditionAnalysisService.captureEntryConditions(entryDecision, indicators);
             
             // For scalping, use point-based targets from JSON configuration
             double stopLossPoints, targetPoints;
@@ -539,11 +435,7 @@ public class TradingSignalProcessorService {
                 
                 // Calculate option entry price (1% of index price as premium)
                 optionEntryPrice = currentIndexPrice * 0.01; // Simplified calculation
-                if (optionEntryPrice == null) {
-                    log.error("Failed to calculate option entry price for index: {}", currentIndexPrice);
-                    return;
-                }
-                
+
                 // Calculate stop loss and target prices directly (point-based, not percentage-based)
                 stopLossPrice = Math.max(0.0, optionEntryPrice - stopLossPoints);
                 targetPrice = optionEntryPrice + targetPoints;
@@ -555,12 +447,7 @@ public class TradingSignalProcessorService {
                 log.info("📊 USING PLACEHOLDER PRICING - Index: {}, Premium: {} (1% of index)", 
                         currentIndexPrice, optionEntryPrice);
             }
-            
-            if (stopLossPrice == null || targetPrice == null) {
-                log.error("Failed to calculate stop loss or target price for option");
-                return;
-            }
-            
+
             JtradeOrder order;
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
                 // Create order with scenario information

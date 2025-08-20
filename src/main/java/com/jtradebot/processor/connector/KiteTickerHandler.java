@@ -72,8 +72,8 @@ public class KiteTickerHandler {
 
     private void handleTicks(ArrayList<Tick> ticks) {
         try {
-            tickProcessService.processLiveTicks(ticks);
-        } catch (KiteException e) {
+            tickProcessService.processLiveTicks(ticks,false); // market hours check is needed for live processing
+        } catch (Exception e) {
             log.error("Error processing live ticks: {}", e.getMessage());
         }
     }

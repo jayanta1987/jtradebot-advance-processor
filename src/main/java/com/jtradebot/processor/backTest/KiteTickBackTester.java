@@ -75,8 +75,8 @@ public class KiteTickBackTester {
             tickList.add(tick);
             try {
                 tickProcessService.processLiveTicks(tickList, true); // true = skip market hours check
-            } catch (KiteException e) {
-                log.error("Error processing backtest ticks: {}", e.getMessage());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
 
         } else {
