@@ -35,14 +35,20 @@ public class KiteInstrumentHandler {
         return 256265L;
     }
 
-    public Long getNifty50FutureToken() {
+    /*public Long getNifty50FutureToken() {
         Optional<Long> token = getDynamicNifty50FutureToken();
         if (token.isPresent()) {
             return token.get();
         } else {
             throw new RuntimeException("No valid Nifty 50 future token found in database");
         }
+    }*/
+
+    public Long getNifty50FutureToken() {
+        return 16410370L;
     }
+
+
 
     public Optional<Long> getDynamicNifty50FutureToken() {
         // Manual caching implementation

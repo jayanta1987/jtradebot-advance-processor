@@ -1,7 +1,6 @@
 package com.jtradebot.processor.service.scheduler;
 
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
-import com.jtradebot.processor.manager.EmaCrossTrackingManager;
 import com.jtradebot.processor.manager.TickDataManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class TickEventTracker {
     private final TickDataManager tickDataManager;
-    private final EmaCrossTrackingManager emaCrossTrackingManager;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final ConcurrentHashMap<String, Long> lastTickEventTimeStampMap = new ConcurrentHashMap<>();
 
@@ -43,7 +41,6 @@ public class TickEventTracker {
 
         if (isReset.get()) {
             tickDataManager.reset();
-            emaCrossTrackingManager.reset();
         }
     }
 
