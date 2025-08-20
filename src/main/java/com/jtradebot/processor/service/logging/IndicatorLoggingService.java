@@ -3,7 +3,7 @@ package com.jtradebot.processor.service.logging;
 import com.jtradebot.processor.model.indicator.EntryQuality;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
-import com.jtradebot.processor.service.entry.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +17,7 @@ public class IndicatorLoggingService {
 
     private final IndicatorStatusService indicatorStatusService;
     private final MarketDirectionAnalysisService marketDirectionAnalysisService;
-    private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
+    private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
 
     public void logTrendAnalysis(Tick tick, String trendInfo, String marketDirectionInfo) {
         log.info("📊 {} | 💰 {} | {}{}", 
@@ -40,7 +40,7 @@ public class IndicatorLoggingService {
     /**
      * Log the REAL entry logic from ScalpingVolumeSurgeService - CONCISE ONE-LINER
      */
-    public IndicatorLoggingService.EntryAnalysisResult logRealEntryLogicOptimized(Tick indexTick, FlattenedIndicators indicators, boolean isMarketSuitable, String detailedFlatMarketReason) {
+    public IndicatorLoggingService.EntryAnalysisResult logRealEntryLogicOptimized(Tick indexTick, FlattenedIndicators indicators, boolean isMarketSuitable) {
         try {
             // Step 1: Get entry decision and quality scores
             EntryAnalysisResult analysisResult = analyzeEntryConditions(indexTick, indicators, isMarketSuitable);
@@ -49,7 +49,7 @@ public class IndicatorLoggingService {
             EntrySignalResult signalResult = determineEntrySignals(analysisResult);
 
             // Step 3: Log indicator status and trend analysis
-            logIndicatorStatusAndTrend(indexTick, indicators, analysisResult, signalResult, isMarketSuitable, detailedFlatMarketReason);
+            logIndicatorStatusAndTrend(indexTick, indicators, analysisResult, signalResult, isMarketSuitable);
 
             return analysisResult;
         } catch (Exception e) {
@@ -59,7 +59,7 @@ public class IndicatorLoggingService {
     }
 
 
-    private void logIndicatorStatusAndTrend(Tick indexTick, FlattenedIndicators indicators, EntryAnalysisResult analysisResult, EntrySignalResult signalResult, boolean isMarketSuitable, String detailedFlatMarketReason) {
+    private void logIndicatorStatusAndTrend(Tick indexTick, FlattenedIndicators indicators, EntryAnalysisResult analysisResult, EntrySignalResult signalResult, boolean isMarketSuitable) {
         // Get essential indicator data with actual values
         String emaStatus = indicatorStatusService.getDetailedEmaStatus(indicators, indexTick);
         String rsiStatus = indicatorStatusService.getDetailedRsiStatus(indicators, indexTick);
@@ -69,7 +69,7 @@ public class IndicatorLoggingService {
 
         // Get trend and conditions info
         String trendInfo = marketDirectionAnalysisService.getTrendAndConditionsInfoForLog(
-                analysisResult.getEntryDecision(), indicators, indexTick, isMarketSuitable, detailedFlatMarketReason,
+                analysisResult.getEntryDecision(), indicators, indexTick, isMarketSuitable,
                 analysisResult.getCallQuality(), analysisResult.getPutQuality());
 
         // Log indicator status
@@ -86,11 +86,11 @@ public class IndicatorLoggingService {
 
     private EntryAnalysisResult analyzeEntryConditions(Tick indexTick, FlattenedIndicators indicators, Boolean preCalculatedMarketCondition) {
         // Use NEW scenario-based entry logic instead of old StrategyScore approach
-        ScalpingEntryDecision entryDecision = scalpingVolumeSurgeService.getEntryDecision(indexTick, indicators, preCalculatedMarketCondition);
+        ScalpingEntryDecision entryDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, preCalculatedMarketCondition);
 
         // 🔥 OPTIMIZATION: Calculate entry quality scores ONCE to avoid redundant calculations
-        EntryQuality callQuality = scalpingVolumeSurgeService.evaluateCallEntryQuality(indicators, indexTick);
-        EntryQuality putQuality = scalpingVolumeSurgeService.evaluatePutEntryQuality(indicators, indexTick);
+        EntryQuality callQuality = dynamicRuleEvaluatorService.evaluateCallEntryQuality(indicators, indexTick);
+        EntryQuality putQuality = dynamicRuleEvaluatorService.evaluatePutEntryQuality(indicators, indexTick);
 
         return new EntryAnalysisResult(entryDecision, callQuality, putQuality);
     }

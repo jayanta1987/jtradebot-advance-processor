@@ -24,7 +24,7 @@ public class MarketDirectionAnalysisService {
     private final CategoryAnalysisService categoryAnalysisService;
 
 
-    public String getTrendAndConditionsInfoForLog(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, String detailedFlatMarketReason, EntryQuality callQuality, EntryQuality putQuality) {
+    public String getTrendAndConditionsInfoForLog(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, EntryQuality callQuality, EntryQuality putQuality) {
         try {
             // Use scenario information from entry decision
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
@@ -57,14 +57,6 @@ public class MarketDirectionAnalysisService {
                             // Get the actual category increment from configuration
                             FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
                             categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
-                            
-                            // Get flat market reason from market condition analysis
-                            // Use the passed detailed flat market reason
-                            if (detailedFlatMarketReason != null) {
-                                flatMarketReason = " | Flat: " + detailedFlatMarketReason;
-                            } else {
-                                flatMarketReason = " | Flat: Market condition unsuitable";
-                            }
                         }
                     }
                     
@@ -116,7 +108,7 @@ public class MarketDirectionAnalysisService {
                 }
             } else {
                 // Show scenario-based evaluation when no scenario is triggered
-                String evaluation = getScenarioBasedEvaluation(indicators, tick, isMarketSuitable, detailedFlatMarketReason, callQuality, putQuality);
+                String evaluation = getScenarioBasedEvaluation(indicators, tick, isMarketSuitable, callQuality, putQuality);
                 // Add market direction info to non-entry logs as well
                 return evaluation;
             }
@@ -129,7 +121,7 @@ public class MarketDirectionAnalysisService {
     /**
      * Get scenario-based evaluation showing which scenarios are being checked and their requirements
      */
-    private String getScenarioBasedEvaluation(FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, String detailedFlatMarketReason, EntryQuality callQuality, EntryQuality putQuality) {
+    private String getScenarioBasedEvaluation(FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, EntryQuality callQuality, EntryQuality putQuality) {
         try {
             // 🔥 OPTIMIZATION: Use passed quality scores instead of recalculating
             String dominantTrend = callQuality.getQualityScore() > putQuality.getQualityScore() ? "CALL" : "PUT";
@@ -154,14 +146,6 @@ public class MarketDirectionAnalysisService {
                         // Get the actual category increment from configuration
                         FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
                         categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
-                        
-                        // Get flat market reason from market condition analysis
-                        // Use the passed detailed flat market reason
-                        if (detailedFlatMarketReason != null) {
-                            flatMarketReason = " | Flat: " + detailedFlatMarketReason;
-                        } else {
-                            flatMarketReason = " | Flat: Market condition unsuitable";
-                        }
                     }
                 }
                 
@@ -245,14 +229,7 @@ public class MarketDirectionAnalysisService {
                             // Get the actual category increment from configuration
                             FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
                             categoryIncrement = config.getThresholds().getFlatMarketAdjustments().getCategoryIncrement();
-                            
-                            // Get flat market reason from market condition analysis
-                            // Use the passed detailed flat market reason
-                            if (detailedFlatMarketReason != null) {
-                                flatMarketReason = " | Flat: " + detailedFlatMarketReason;
-                            } else {
-                                flatMarketReason = " | Flat: Market condition unsuitable";
-                            }
+
                         }
                     }
                     

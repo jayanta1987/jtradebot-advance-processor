@@ -4,7 +4,8 @@ import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
-import com.jtradebot.processor.service.entry.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.service.entry.RuleHelper;
+import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.logging.IndicatorLoggingService;
 import com.jtradebot.processor.service.onlyForTracking.MarketConditionAnalysisService;
 import com.jtradebot.processor.service.order.OrderExecutionService;
@@ -30,7 +31,7 @@ public class TickOrchestrationService {
     private final TickEventTracker tickEventTracker;
     private final KiteInstrumentHandler kiteInstrumentHandler;
 
-    private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
+    private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     private final MarketConditionAnalysisService marketConditionAnalysisService;
     private final OrderExecutionService orderExecutionService;
     private final IndicatorLoggingService indicatorLoggingService;
@@ -67,16 +68,16 @@ public class TickOrchestrationService {
             if (instrumentToken.equals(niftyToken)) {
                 try {
                     // Step 1: Get market data and calculate indicators
-                    FlattenedIndicators indicators = scalpingVolumeSurgeService.getFlattenedIndicators(tick);
+                    FlattenedIndicators indicators = dynamicRuleEvaluatorService.getFlattenedIndicators(tick);
 
                     // Step 2: Analyze market conditions
                     MarketConditionAnalysis marketConditions = analyzeMarketConditions(tick, indicators);
 
                     // Step 3: Process entry logic and generate signals
-                    IndicatorLoggingService.EntryAnalysisResult analysisResult = indicatorLoggingService.logRealEntryLogicOptimized(tick, indicators, marketConditions.isMarketSuitable(), marketConditions.getDetailedFlatMarketReason());
+                    IndicatorLoggingService.EntryAnalysisResult analysisResult = indicatorLoggingService.logRealEntryLogicOptimized(tick, indicators, marketConditions.isMarketSuitable());
 
                     // Step 4: Execute orders if signals are generated
-                    orderExecutionService.executeOrdersIfSignalsGenerated(tick, analysisResult, indicators, new MarketConditionAnalysis(marketConditions.isMarketSuitable(), marketConditions.getDetailedFlatMarketReason()));
+                    orderExecutionService.executeOrdersIfSignalsGenerated(tick, analysisResult, indicators, new MarketConditionAnalysis(marketConditions.isMarketSuitable()));
 
                     // Step 4: Handle order management
                     orderExecutionService.handleOrderManagement(tick, indicators, marketConditions);
@@ -101,19 +102,18 @@ public class TickOrchestrationService {
         boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(indexTick, indicators);
 
         // Always get market condition details for order storage (entry logic is handled separately)
-        String detailedFlatMarketReason = marketConditionAnalysisService.getDetailedFlatMarketReason(indexTick, indicators);
+        //String detailedFlatMarketReason = marketConditionAnalysisService.getDetailedFlatMarketReason(indexTick, indicators);
 
-        return new MarketConditionAnalysis(isMarketSuitable, detailedFlatMarketReason);
+        return new MarketConditionAnalysis(isMarketSuitable);
     }
 
     @Getter
     public static class MarketConditionAnalysis {
         private final boolean isMarketSuitable;
-        private final String detailedFlatMarketReason;
+        //private final String detailedFlatMarketReason;
 
-        public MarketConditionAnalysis(boolean isMarketSuitable, String detailedFlatMarketReason) {
+        public MarketConditionAnalysis(boolean isMarketSuitable) {
             this.isMarketSuitable = isMarketSuitable;
-            this.detailedFlatMarketReason = detailedFlatMarketReason;
         }
 
     }

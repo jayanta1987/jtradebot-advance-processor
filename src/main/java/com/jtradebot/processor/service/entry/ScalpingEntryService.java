@@ -27,14 +27,8 @@ public class ScalpingEntryService {
     private final MarketConditionAnalysisService marketConditionAnalysisService;
 
 
-    /**
-     * Evaluates entry conditions with optional pre-calculated quality score and market condition
-     * 🔥 OPTIMIZATION: Accepts pre-calculated market condition to avoid redundant calls
-     */
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean preCalculatedMarketCondition) {
         try {
-            // Step 0 removed: we no longer hard-block on flat market; requirements are tightened per-scenario
-            
             // Step 1: Pre-calculate category counts for both CALL and PUT
             Map<String, Integer> callCategoryCounts = calculateCategoryCounts(indicators, configService.getCallCategories());
             Map<String, Integer> putCategoryCounts = calculateCategoryCounts(indicators, configService.getPutCategories());
@@ -58,7 +52,7 @@ public class ScalpingEntryService {
             
             // Step 4: If any scenario matches, take entry
             Optional<ScenarioEvaluation> bestScenario = scenarioEvaluations.stream()
-                    .filter(eval -> eval.isPassed())
+                    .filter(ScenarioEvaluation::isPassed)
                     .max(Comparator.comparing(ScenarioEvaluation::getScore));
             
             if (bestScenario.isPresent()) {
@@ -141,18 +135,18 @@ public class ScalpingEntryService {
         
         // Check quality score requirement first (if specified)
         boolean qualityScorePassed = true;
-        double qualityScore = preCalculatedQualityScore; // Use pre-calculated score
-        
+        // Use pre-calculated score
+
         // Use scoring config threshold if scenario doesn't specify one
         double minQualityThreshold = requirements.getMinQualityScore() != null ? 
             requirements.getMinQualityScore() : scoringConfigService.getMinQualityScore();
         
         if (minQualityThreshold > 0) {
-            qualityScorePassed = qualityScore >= minQualityThreshold;
+            qualityScorePassed = preCalculatedQualityScore >= minQualityThreshold;
             
             if (!qualityScorePassed) {
-                log.debug("Quality score {} below threshold {} for scenario {}", 
-                    qualityScore, minQualityThreshold, scenario.getName());
+                log.debug("Quality score {} below threshold {} for scenario {}",
+                        preCalculatedQualityScore, minQualityThreshold, scenario.getName());
             }
         }
         
@@ -164,9 +158,9 @@ public class ScalpingEntryService {
             requirements.getMomentum_min_count() == null) {
             
             evaluation.setPassed(qualityScorePassed);
-            evaluation.setScore(qualityScore);
+            evaluation.setScore(preCalculatedQualityScore);
             evaluation.setReason(qualityScorePassed ? "Quality score requirement met" : 
-                               "Quality score " + qualityScore + " below threshold " + minQualityThreshold);
+                               "Quality score " + preCalculatedQualityScore + " below threshold " + minQualityThreshold);
             
             return evaluation;
         }
@@ -296,23 +290,7 @@ public class ScalpingEntryService {
         // All three requirements must be met: quality score, category requirements, and confidence score
         boolean passed = qualityScorePassed && categoryRequirementsPassed && confidenceScorePassed;
         
-        // Add detailed debug logging
-        if (!passed) {
-            log.debug("🔍 SCENARIO EVALUATION FAILED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
-                scenario.getName(), qualityScorePassed, categoryRequirementsPassed, confidenceScorePassed);
-            if (!qualityScorePassed) {
-                log.debug("  ❌ Quality Score: {} < {}", preCalculatedQualityScore, minQualityThreshold);
-            }
-            if (!categoryRequirementsPassed) {
-                log.debug("  ❌ Category Requirements: {}", String.join(", ", failedCategories));
-            }
-            if (!confidenceScorePassed) {
-                log.debug("  ❌ Confidence Score: {} < {}", confidenceScore, minConfidenceThreshold);
-            }
-        } else {
-            log.debug("✅ SCENARIO EVALUATION PASSED - Scenario: {}, Quality: {}, Categories: {}, Confidence: {}", 
-                scenario.getName(), qualityScorePassed, categoryRequirementsPassed, confidenceScorePassed);
-        }
+
         
         // Calculate overall score
         double score = calculateScenarioScore(categoryScores, adjustedRequirements);
@@ -332,7 +310,7 @@ public class ScalpingEntryService {
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
-                failures.add("Quality score " + qualityScore + " below threshold " + minQualityThreshold);
+                failures.add("Quality score " + preCalculatedQualityScore + " below threshold " + minQualityThreshold);
             }
             if (!categoryRequirementsPassed) {
                 failures.add("Failed categories: " + String.join(", ", failedCategories));

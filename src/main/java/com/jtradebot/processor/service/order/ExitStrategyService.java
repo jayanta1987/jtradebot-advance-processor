@@ -9,7 +9,7 @@ import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 
 import com.jtradebot.processor.common.ProfileUtil;
-import com.jtradebot.processor.service.entry.ScalpingVolumeSurgeService;
+import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
 import com.zerodhatech.models.Tick;
@@ -40,7 +40,7 @@ public class ExitStrategyService {
     private final OptionPricingService optionPricingService;
     private final DynamicStrategyConfigService configService;
     private final TradingConfigurationService tradingConfigurationService;
-    private final ScalpingVolumeSurgeService scalpingVolumeSurgeService;
+    private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     private final Environment environment;
     private final LiveOptionPricingService liveOptionPricingService;
     
@@ -669,14 +669,14 @@ public class ExitStrategyService {
         try {
             // For CALL orders, exit if PUT entry conditions are met (strategy reversal)
             if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
-                if (scalpingVolumeSurgeService.shouldMakePutEntry(tick)) {
+                if (dynamicRuleEvaluatorService.shouldMakePutEntry(tick)) {
                     log.info("Strategy-based exit triggered for CALL order: {} - PUT entry conditions met", order.getId());
                     return true;
                 }
             }
             // For PUT orders, exit if CALL entry conditions are met (strategy reversal)
             else if (order.getOrderType() == OrderTypeEnum.PUT_BUY) {
-                if (scalpingVolumeSurgeService.shouldMakeCallEntry(tick)) {
+                if (dynamicRuleEvaluatorService.shouldMakeCallEntry(tick)) {
                     log.info("Strategy-based exit triggered for PUT order: {} - CALL entry conditions met", order.getId());
                     return true;
                 }

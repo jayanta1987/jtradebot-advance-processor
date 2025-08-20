@@ -38,7 +38,7 @@ import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ScalpingVolumeSurgeService {
+public class DynamicRuleEvaluatorService {
     
     private final TickDataManager tickDataManager;
     private final DynamicStrategyConfigService configService;
@@ -49,7 +49,7 @@ public class ScalpingVolumeSurgeService {
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final ScalpingEntryService scalpingEntryService;
     private final ScoringConfigurationService scoringConfigService;
-    
+
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
     private ScalpingVolumeSurgePutRule putRule;
@@ -81,7 +81,7 @@ public class ScalpingVolumeSurgeService {
                 .stopLossPercentage(configService.getCallStopLossPercentage())
                 .targetPercentage(configService.getCallTargetPercentage())
                 .build();
-        
+
         putRule = ScalpingVolumeSurgePutRule.builder()
                 .ruleName(configService.getPutRuleName())
                 .strategyType(configService.getPutStrategyType())
@@ -101,11 +101,11 @@ public class ScalpingVolumeSurgeService {
                 .stopLossPercentage(configService.getPutStopLossPercentage())
                 .targetPercentage(configService.getPutTargetPercentage())
                 .build();
-        
+
         log.info("Strategy rules initialized from JSON configuration");
-        log.info("Call Rule - RSI Threshold: {}, Volume Multiplier: {}", 
+        log.info("Call Rule - RSI Threshold: {}, Volume Multiplier: {}",
                 callRule.getMinRsiThreshold(), callRule.getMinVolumeSurgeMultiplier());
-        log.info("Put Rule - RSI Threshold: {}, Volume Multiplier: {}", 
+        log.info("Put Rule - RSI Threshold: {}, Volume Multiplier: {}",
                 putRule.getMaxRsiThreshold(), putRule.getMinVolumeSurgeMultiplier());
     }
     
