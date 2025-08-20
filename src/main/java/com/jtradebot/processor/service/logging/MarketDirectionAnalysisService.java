@@ -1,4 +1,4 @@
-package com.jtradebot.processor.service.analysis;
+package com.jtradebot.processor.service.logging;
 
 import com.jtradebot.processor.model.indicator.EntryQuality;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
@@ -6,12 +6,12 @@ import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
+import com.jtradebot.processor.service.analysis.CategoryAnalysisService;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,86 +23,8 @@ public class MarketDirectionAnalysisService {
     private final DynamicStrategyConfigService configService;
     private final CategoryAnalysisService categoryAnalysisService;
 
-    /**
-     * Determine if market conditions are bullish for CALL entries
-     */
-    public boolean isMarketConditionBullish(FlattenedIndicators indicators) {
-        if (indicators == null) return false;
-        
-        int bullishSignals = 0;
-        int totalSignals = 0;
-        
-        // EMA conditions (bullish when EMA9 > EMA21)
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishSignals++;
-        totalSignals += 3;
-        
-        // Price action conditions (bullish when price > VWAP)
-        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) bullishSignals++;
-        totalSignals += 3;
-        
-        // RSI conditions (bullish when RSI > 56)
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_56())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_56())) bullishSignals++;
-        totalSignals += 3;
-        
-        // Candlestick conditions (bullish patterns)
-        if (Boolean.TRUE.equals(indicators.getGreen_candle_5min())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getGreen_candle_1min())) bullishSignals++;
-        totalSignals += 2;
-        
-        // Require at least 60% of signals to be bullish
-        boolean isBullish = totalSignals > 0 && (double) bullishSignals / totalSignals >= 0.6;
-        
-        return isBullish;
-    }
 
-    /**
-     * Determine if market conditions are bearish for PUT entries
-     */
-    public boolean isMarketConditionBearish(FlattenedIndicators indicators) {
-        if (indicators == null) return false;
-        
-        int bearishSignals = 0;
-        int totalSignals = 0;
-        
-        // EMA conditions (bearish when EMA9 < EMA21)
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) bearishSignals++;
-        totalSignals += 3;
-        
-        // Price action conditions (bearish when price < VWAP)
-        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) bearishSignals++;
-        totalSignals += 3;
-        
-        // RSI conditions (bearish when RSI < 44)
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_44())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_44())) bearishSignals++;
-        totalSignals += 3;
-        
-        // Candlestick conditions (bearish patterns)
-        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_5min())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_1min())) bearishSignals++;
-        totalSignals += 2;
-        
-        // Require at least 60% of signals to be bearish
-        boolean isBearish = totalSignals > 0 && (double) bearishSignals / totalSignals >= 0.6;
-        
-        return isBearish;
-    }
-
-    /**
-     * Get trend and entry conditions info for simplified logging - aligned with actual entry logic
-     */
-    public String getTrendAndConditionsInfo(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, String detailedFlatMarketReason, EntryQuality callQuality, EntryQuality putQuality) {
+    public String getTrendAndConditionsInfoForLog(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Tick tick, boolean isMarketSuitable, String detailedFlatMarketReason, EntryQuality callQuality, EntryQuality putQuality) {
         try {
             // Use scenario information from entry decision
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {

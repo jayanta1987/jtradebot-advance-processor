@@ -1,4 +1,4 @@
-package com.jtradebot.processor.service.analysis;
+package com.jtradebot.processor.service.logging;
 
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.indicator.MultiEmaIndicator;

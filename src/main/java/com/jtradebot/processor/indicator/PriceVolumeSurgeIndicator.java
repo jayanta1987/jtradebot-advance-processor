@@ -191,10 +191,6 @@ public class PriceVolumeSurgeIndicator {
         private boolean isVolumeTrendingUp;
         private double volumeMomentum;
         private CandleTimeFrameEnum timeframe;
-        
-        public boolean isSurge() {
-            return surge;
-        }
 
         public static VolumeSurgeResult noSurge() {
             return VolumeSurgeResult.builder().surge(false).volumeMultiplier(1.0).strength(VolumeSurgeStrength.NONE).build();

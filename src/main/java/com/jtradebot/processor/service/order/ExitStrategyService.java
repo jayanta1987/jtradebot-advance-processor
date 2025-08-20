@@ -1,4 +1,4 @@
-package com.jtradebot.processor.service;
+package com.jtradebot.processor.service.order;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingConfigurationService;
@@ -9,6 +9,7 @@ import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 
 import com.jtradebot.processor.common.ProfileUtil;
+import com.jtradebot.processor.service.entry.ScalpingVolumeSurgeService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
 import com.zerodhatech.models.Tick;
@@ -160,43 +161,6 @@ public class ExitStrategyService {
         
         return order;
     }
-    
-
-    public JtradeOrder createOrderEntryWithRealisticPricing(OrderTypeEnum orderType, String tradingSymbol,
-                                                          Long instrumentToken, Double currentIndexPrice,
-                                                          Double stopLossPercentage, Double targetPercentage,
-                                                          Integer quantity) {
-        
-        // Check if there's already an active order
-        if (hasActiveOrder()) {
-            log.warn("Cannot create new order - there's already an active order. Please exit existing order first.");
-            return null;
-        }
-        
-        // Calculate realistic entry price (1% of index price)
-        Double entryPrice = optionPricingService.calculateEntryPrice(currentIndexPrice);
-        if (entryPrice == null) {
-            log.error("Failed to calculate entry price for index price: {}", currentIndexPrice);
-            return null;
-        }
-        
-        // Calculate stop loss and target prices
-        Double stopLossPrice = optionPricingService.calculateStopLossPrice(entryPrice, stopLossPercentage, orderType);
-        Double targetPrice = optionPricingService.calculateTargetPrice(entryPrice, targetPercentage, orderType);
-        
-        if (stopLossPrice == null || targetPrice == null) {
-            log.error("Failed to calculate stop loss or target price for order type: {}", orderType);
-            return null;
-        }
-        
-        log.info("Creating realistic order: {} - {} @ {} (Index: {}, SL: {}, Target: {})", 
-                orderType, tradingSymbol, entryPrice, currentIndexPrice, stopLossPrice, targetPrice);
-        
-        // Create order with calculated prices
-                return createOrderEntry(orderType, tradingSymbol, instrumentToken, entryPrice, currentIndexPrice,
-                               stopLossPrice, targetPrice, quantity, new Date());
-    }
-    
 
     public void exitOrder(String orderId, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice, Date exitTime) {
         JtradeOrder order = activeOrdersMap.get(orderId);
@@ -251,36 +215,6 @@ public class ExitStrategyService {
                 .filter(order -> order.getOrderType() == orderType)
                 .toList();
     }
-    
-
-    public void checkAndProcessExits(Double currentPrice, Double currentIndexPrice) {
-        if (activeOrdersMap.isEmpty()) {
-            return;
-        }
-        
-        // Log current profit/loss for all active orders
-        logCurrentProfitLoss(currentIndexPrice);
-        
-        List<JtradeOrder> ordersToExit = new ArrayList<>();
-        
-        for (JtradeOrder order : activeOrdersMap.values()) {
-            // Use the appropriate price source based on profile
-            Double currentLTP = getCurrentOptionPriceForManualCheck(currentPrice);
-            
-            // Check all exit conditions
-            if (shouldExitOrder(order, currentLTP, currentIndexPrice)) {
-                ordersToExit.add(order);
-            }
-        }
-        
-        // Process exits
-        for (JtradeOrder order : ordersToExit) {
-            Double currentLTP = getCurrentOptionPriceForManualCheck(currentPrice);
-            ExitReasonEnum exitReason = determineExitReason(order, currentLTP, currentIndexPrice);
-            exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice, new Date()); // Use current time for non-tick exits
-        }
-    }
-    
 
     public void checkAndProcessExitsWithStrategy(Tick tick) {
         if (activeOrdersMap.isEmpty()) {

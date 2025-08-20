@@ -1,7 +1,6 @@
-package com.jtradebot.processor.service;
+package com.jtradebot.processor.service.onlyForTracking;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
-import com.jtradebot.processor.config.ScoringConfigurationService;
 import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
@@ -33,7 +32,7 @@ public class MarketConditionAnalysisService {
     private final DynamicStrategyConfigService configService;
 
 
-    public MarketConditionResult analyzeMarketCondition(Tick tick, FlattenedIndicators indicators) {
+    private MarketConditionResult analyzeMarketCondition(Tick tick, FlattenedIndicators indicators) {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             

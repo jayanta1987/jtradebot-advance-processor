@@ -4,8 +4,7 @@ package com.jtradebot.processor.backTest;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.ScheduleManager;
-import com.jtradebot.processor.manager.TickDataManager;
-import com.jtradebot.processor.service.TickProcessService;
+import com.jtradebot.processor.service.TickOrchestrationService;
 import com.jtradebot.processor.service.TickSetupService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
@@ -28,9 +27,8 @@ import static com.jtradebot.processor.model.enums.SchedulerNameEnum.BACK_TESTING
 public class KiteTickBackTester {
 
     private final ScheduleManager scheduleManager;
-    private final TickDataManager tickDataManager;
     private final TickSetupService tickSetupService;
-    private final TickProcessService tickProcessService;
+    private final TickOrchestrationService tickOrchestrationService;
     private final BackTestDataFactory backTestDataFactory;
     private final KiteInstrumentHandler kiteInstrumentHandler;
 
@@ -74,7 +72,7 @@ public class KiteTickBackTester {
             List<Tick> tickList = new ArrayList<>();
             tickList.add(tick);
             try {
-                tickProcessService.processLiveTicks(tickList, true); // true = skip market hours check
+                tickOrchestrationService.processLiveTicks(tickList, true); // true = skip market hours check
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
