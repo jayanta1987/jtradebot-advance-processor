@@ -7,7 +7,6 @@ import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 
-import com.jtradebot.processor.service.onlyForTracking.MarketConditionAnalysisService;
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +23,7 @@ public class ScalpingEntryService {
 
     private final DynamicStrategyConfigService configService;
     private final ScoringConfigurationService scoringConfigService;
-    private final MarketConditionAnalysisService marketConditionAnalysisService;
+    private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
 
 
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean preCalculatedMarketCondition) {
@@ -35,11 +34,7 @@ public class ScalpingEntryService {
             
             // Step 2: Use pre-calculated quality score or calculate if not provided
             double qualityScore;
-            if (preCalculatedQualityScore != null) {
-                qualityScore = preCalculatedQualityScore;
-            } else {
-                qualityScore = calculateQualityScore(indicators);
-            }
+            qualityScore = Objects.requireNonNullElseGet(preCalculatedQualityScore, () -> calculateQualityScore(indicators));
             
             // Step 3: Loop through scenarios and check their specific requirements
             List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
@@ -126,10 +121,22 @@ public class ScalpingEntryService {
                                                double preCalculatedQualityScore,
                                                Tick tick,
                                                Boolean preCalculatedMarketCondition) {
+
         
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
         evaluation.setScenarioName(scenario.getName());
         evaluation.setScenario(scenario);
+
+        UnstableMarketConditionAnalysisService.EntryFilteringResult filteringResult =
+                unstableMarketConditionAnalysisService.checkEntryFilteringConditions(tick, indicators);
+
+        if (!filteringResult.isConditionsMet()) {
+            evaluation.setPassed(false);
+            evaluation.setScore(0.0);
+            evaluation.setReason(filteringResult.getReason());
+            log.warn("Scenario '{}' failed entry filtering: {}", scenario.getName(), filteringResult.getReason());
+            return evaluation;
+        }
         
         ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
         
@@ -208,7 +215,7 @@ public class ScalpingEntryService {
         boolean requirementsAdjusted = false;
         
         if (requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
-            boolean isMarketSuitable = preCalculatedMarketCondition != null ? preCalculatedMarketCondition : marketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+            boolean isMarketSuitable = preCalculatedMarketCondition != null ? preCalculatedMarketCondition : unstableMarketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
             if (!isMarketSuitable) {
                 // Instead of blocking, adjust requirements for flat market - Made more restrictive
                 adjustedRequirements = adjustRequirementsForFlatMarket(requirements);
@@ -264,7 +271,7 @@ public class ScalpingEntryService {
         
         // Check directional strength requirement
         if (requirements.getMinDirectionalStrength() != null) {
-            double directionalStrength = marketConditionAnalysisService.calculateDirectionalStrength(tick, indicators);
+            double directionalStrength = unstableMarketConditionAnalysisService.calculateDirectionalStrength(tick, indicators);
             if (directionalStrength < requirements.getMinDirectionalStrength()) {
                 categoryRequirementsPassed = false;
                 failedCategories.add("Directional strength: " + String.format("%.2f", directionalStrength) + 

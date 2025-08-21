@@ -12,7 +12,7 @@ import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.EntryConditionAnalysisService;
 import com.jtradebot.processor.service.TickOrchestrationService;
 import com.jtradebot.processor.service.logging.IndicatorLoggingService;
-import com.jtradebot.processor.service.onlyForTracking.MarketConditionAnalysisService;
+import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
 import com.zerodhatech.kiteconnect.KiteConnect;
@@ -41,7 +41,7 @@ public class OrderExecutionService {
     private final DynamicStrategyConfigService configService;
     private final EntryConditionAnalysisService entryConditionAnalysisService;
     private final LiveOptionPricingService liveOptionPricingService;
-    private final MarketConditionAnalysisService marketConditionAnalysisService;
+    private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
     private final TradingConfigurationService tradingConfigService;
 
     public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
@@ -223,7 +223,7 @@ public class OrderExecutionService {
                 order.setEntryConditions(entryConditions);
 
                 // Store structured market condition details
-                Map<String, Object> marketConditionDetails = marketConditionAnalysisService.getStructuredMarketConditionDetails(tick, indicators);
+                Map<String, Object> marketConditionDetails = unstableMarketConditionAnalysisService.getStructuredMarketConditionDetails(tick, indicators);
                 order.setEntryMarketConditionDetails(marketConditionDetails);
 
                 // Force database update to ensure order is saved

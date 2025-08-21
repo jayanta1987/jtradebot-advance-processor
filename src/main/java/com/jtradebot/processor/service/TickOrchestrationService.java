@@ -4,10 +4,9 @@ import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
-import com.jtradebot.processor.service.entry.RuleHelper;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.logging.IndicatorLoggingService;
-import com.jtradebot.processor.service.onlyForTracking.MarketConditionAnalysisService;
+import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.order.OrderExecutionService;
 import com.jtradebot.processor.service.scheduler.TickEventTracker;
 import com.zerodhatech.models.Tick;
@@ -32,7 +31,7 @@ public class TickOrchestrationService {
     private final KiteInstrumentHandler kiteInstrumentHandler;
 
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
-    private final MarketConditionAnalysisService marketConditionAnalysisService;
+    private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
     private final OrderExecutionService orderExecutionService;
     private final IndicatorLoggingService indicatorLoggingService;
 
@@ -99,7 +98,7 @@ public class TickOrchestrationService {
 
     private MarketConditionAnalysis analyzeMarketConditions(Tick indexTick, FlattenedIndicators indicators) {
         // 🔥 OPTIMIZATION: Calculate market condition analysis ONCE per tick to avoid redundant calculations
-        boolean isMarketSuitable = marketConditionAnalysisService.isMarketConditionSuitable(indexTick, indicators);
+        boolean isMarketSuitable = unstableMarketConditionAnalysisService.isMarketConditionSuitable(indexTick, indicators);
 
         // Always get market condition details for order storage (entry logic is handled separately)
         //String detailedFlatMarketReason = marketConditionAnalysisService.getDetailedFlatMarketReason(indexTick, indicators);
