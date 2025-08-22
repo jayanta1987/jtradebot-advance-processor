@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.jtradebot.processor.handler.DateTimeHandler.formatDate;
+
 import org.springframework.cache.annotation.Cacheable;
 
 
@@ -44,6 +45,11 @@ public class KiteInstrumentHandler {
         }
     }
 
+   /* public Long getNifty50FutureToken() {
+        return 16410370L;
+    }*/
+
+
     public Optional<Long> getDynamicNifty50FutureToken() {
         // Manual caching implementation
         if (cachedFutureToken != null && lastCacheTime != null) {
@@ -52,39 +58,39 @@ public class KiteInstrumentHandler {
                 return Optional.of(cachedFutureToken);
             }
         }
-        
+
         try {
             LocalDate now = LocalDate.now();
-            
+
             // Find Nifty future instruments using efficient database query
             List<Instrument> niftyFutures = instrumentRepository.findByNameAndInstrumentTypeAndSegmentOrderByExpiryAsc("NIFTY", "FUT", "NFO-FUT");
-            
+
             if (niftyFutures.isEmpty()) {
                 log.warn("No Nifty futures found in database");
                 return Optional.empty();
             }
-            
+
             // Find the appropriate future based on expiry date
             // First, try to find current month's future
             String currentMonth = now.format(DateTimeFormatter.ofPattern("MMM")).toUpperCase();
             String currentYear = String.valueOf(now.getYear()).substring(2);
-            
+
             // First, try to find current month's future
             Optional<Instrument> currentMonthFuture = niftyFutures.stream()
                     .filter(instrument -> {
                         String tradingSymbol = instrument.getTradingSymbol();
-                        return tradingSymbol != null && 
-                               tradingSymbol.contains(currentMonth) && 
-                               tradingSymbol.contains(currentYear);
+                        return tradingSymbol != null &&
+                                tradingSymbol.contains(currentMonth) &&
+                                tradingSymbol.contains(currentYear);
                     })
                     .findFirst();
-            
+
             if (currentMonthFuture.isPresent()) {
                 Instrument currentMonthInstrument = currentMonthFuture.get();
                 try {
                     LocalDate expiryDate = LocalDate.parse(currentMonthInstrument.getExpiry(), DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
                     long daysUntilExpiry = java.time.temporal.ChronoUnit.DAYS.between(now, expiryDate);
-                    
+
                     if (daysUntilExpiry > 7) {
                         return Optional.of(currentMonthInstrument.getInstrumentToken());
                     }
@@ -92,7 +98,7 @@ public class KiteInstrumentHandler {
                     log.warn("Error parsing expiry for current month future: {}", e.getMessage());
                 }
             }
-            
+
             // If current month is not suitable, find the next available future
             // Sort by expiry date first, then filter
             Optional<Instrument> selectedFuture = niftyFutures.stream()
@@ -110,31 +116,30 @@ public class KiteInstrumentHandler {
                         try {
                             LocalDate expiryDate = LocalDate.parse(instrument.getExpiry(), DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
                             long daysUntilExpiry = java.time.temporal.ChronoUnit.DAYS.between(now, expiryDate);
-                            
+
                             // If expiry is more than 7 days away, use this future
                             boolean shouldUseThisFuture = daysUntilExpiry > 7;
-                            
 
-                            
+
                             return shouldUseThisFuture;
                         } catch (Exception e) {
-                            log.warn("Error parsing expiry date for instrument {}: {}", 
+                            log.warn("Error parsing expiry date for instrument {}: {}",
                                     instrument.getTradingSymbol(), e.getMessage());
                             return false;
                         }
                     })
                     .findFirst();
-            
+
             if (selectedFuture.isPresent()) {
                 Instrument future = selectedFuture.get();
                 try {
                     LocalDate expiryDate = LocalDate.parse(future.getExpiry(), DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
                     long daysUntilExpiry = java.time.temporal.ChronoUnit.DAYS.between(now, expiryDate);
-                    
+
                     // Update cache
                     cachedFutureToken = future.getInstrumentToken();
                     lastCacheTime = LocalDateTime.now();
-                    
+
                     return Optional.of(future.getInstrumentToken());
                 } catch (Exception e) {
                     log.error("Error calculating days until expiry for selected future: {}", e.getMessage());
@@ -146,18 +151,18 @@ public class KiteInstrumentHandler {
                 try {
                     LocalDate expiryDate = LocalDate.parse(firstFuture.getExpiry(), DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
                     long daysUntilExpiry = java.time.temporal.ChronoUnit.DAYS.between(now, expiryDate);
-                    
+
                     // Update cache
                     cachedFutureToken = firstFuture.getInstrumentToken();
                     lastCacheTime = LocalDateTime.now();
-                    
+
                     return Optional.of(firstFuture.getInstrumentToken());
                 } catch (Exception e) {
                     log.error("Error calculating days until expiry for first future: {}", e.getMessage());
                     return Optional.of(firstFuture.getInstrumentToken());
                 }
             }
-            
+
         } catch (Exception e) {
             log.error("Error getting dynamic Nifty 50 future token: {}", e.getMessage(), e);
             return Optional.empty();
@@ -166,6 +171,7 @@ public class KiteInstrumentHandler {
 
     /**
      * Gets the current month's Nifty 50 future trading symbol
+     *
      * @return Optional containing the trading symbol if found, empty otherwise
      */
     public Optional<String> getCurrentMonthNiftyFutureSymbol() {
@@ -174,23 +180,23 @@ public class KiteInstrumentHandler {
             LocalDate now = LocalDate.now();
             String currentMonth = now.format(DateTimeFormatter.ofPattern("MMM")).toUpperCase();
             String currentYear = String.valueOf(now.getYear()).substring(2); // Get last 2 digits of year
-            
+
             // Find Nifty future instruments using efficient database query
             List<Instrument> niftyFutures = instrumentRepository.findByNameAndInstrumentTypeAndSegmentOrderByExpiryAsc("NIFTY", "FUT", "NFO-FUT");
-            
+
             // Find the current month's future
             Optional<Instrument> currentMonthFuture = niftyFutures.stream()
                     .filter(instrument -> {
                         String tradingSymbol = instrument.getTradingSymbol();
                         // Check if trading symbol contains current month and year
-                        return tradingSymbol != null && 
-                               tradingSymbol.contains(currentMonth) && 
-                               tradingSymbol.contains(currentYear);
+                        return tradingSymbol != null &&
+                                tradingSymbol.contains(currentMonth) &&
+                                tradingSymbol.contains(currentYear);
                     })
                     .findFirst();
-            
+
             return currentMonthFuture.map(Instrument::getTradingSymbol);
-            
+
         } catch (Exception e) {
             log.error("Error getting current month Nifty 50 future symbol: {}", e.getMessage(), e);
             return Optional.empty();
@@ -202,7 +208,7 @@ public class KiteInstrumentHandler {
         instruments
                 .forEach(instrument -> {
                     if (instrument.name.equalsIgnoreCase("NIFTY") &&
-                            (instrument.segment.equalsIgnoreCase("NFO-OPT")|| instrument.segment.equalsIgnoreCase("NFO-FUT"))) {
+                            (instrument.segment.equalsIgnoreCase("NFO-OPT") || instrument.segment.equalsIgnoreCase("NFO-FUT"))) {
                         com.jtradebot.processor.repository.document.Instrument newInstrument = new com.jtradebot.processor.repository.document.Instrument();
                         newInstrument.setInstrumentToken(instrument.instrument_token);
                         newInstrument.setTradingSymbol(instrument.tradingsymbol);

@@ -1,6 +1,6 @@
 package com.jtradebot.processor.connector;
 
-import com.jtradebot.processor.service.TickProcessService;
+import com.jtradebot.processor.service.TickOrchestrationService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
@@ -20,7 +20,7 @@ public class KiteTickerHandler {
     private long lastTickReceivedTime = System.currentTimeMillis();
     private KiteTicker kiteTicker;
     private final KiteConnect kiteConnect;
-    private final TickProcessService tickProcessService;
+    private final TickOrchestrationService tickOrchestrationService;
     private final ArrayList<Long> indexTokens = new ArrayList<>();
     private final ArrayList<Long> tokens = new ArrayList<>();
 
@@ -72,8 +72,8 @@ public class KiteTickerHandler {
 
     private void handleTicks(ArrayList<Tick> ticks) {
         try {
-            tickProcessService.processLiveTicks(ticks);
-        } catch (KiteException e) {
+            tickOrchestrationService.processLiveTicks(ticks,false); // market hours check is needed for live processing
+        } catch (Exception e) {
             log.error("Error processing live ticks: {}", e.getMessage());
         }
     }

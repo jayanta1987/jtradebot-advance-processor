@@ -49,7 +49,7 @@
         "overallScore": 0.35
       },
       "flatMarketAdjustments": {
-        "categoryIncrement": 2,
+        "categoryIncrement": 1,
         "minQualityScore": 7.0
       },
       "volumeConsistency": {

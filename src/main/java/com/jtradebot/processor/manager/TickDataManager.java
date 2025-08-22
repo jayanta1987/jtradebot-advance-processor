@@ -91,35 +91,11 @@ public class TickDataManager {
         return barSeriesManager.getBarSeriesForTimeFrame(instrumentToken, timeFrame);
     }
 
-    public IndexData getIndexData(CandleTimeFrameEnum timeFrame) {
-        return indexDataMap.get(timeFrame);
-    }
 
     public Tick getLastTick(String instrumentToken) {
         return barSeriesManager.getLastTick(instrumentToken);
     }
 
-    public Map<CandleTimeFrameEnum, Set<Support>> getAllSupportMap() {
-        Map<CandleTimeFrameEnum, Set<Support>> supportMap = new HashMap<>();
-        for (CandleTimeFrameEnum timeFrame : CandleTimeFrameEnum.values()) {
-            IndexData indexData = getIndexData(timeFrame);
-            if (indexData != null) {
-                supportMap.put(timeFrame, indexData.getSupports());
-            }
-        }
-        return supportMap;
-    }
-
-    public Map<CandleTimeFrameEnum, Set<Resistance>> getAllResistanceMap() {
-        Map<CandleTimeFrameEnum, Set<Resistance>> resistanceMap = new HashMap<>();
-        for (CandleTimeFrameEnum timeFrame : CandleTimeFrameEnum.values()) {
-            IndexData indexData = getIndexData(timeFrame);
-            if (indexData != null) {
-                resistanceMap.put(timeFrame, indexData.getResistances());
-            }
-        }
-        return resistanceMap;
-    }
 
     public void reset() {
         barSeriesManager.reset();

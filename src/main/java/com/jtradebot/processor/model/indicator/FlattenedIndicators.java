@@ -28,6 +28,11 @@ public class FlattenedIndicators {
     private Boolean ema5_5min_lt_ema34_5min;
     private Boolean ema5_15min_lt_ema34_15min;
     
+    // EMA 200 distance indicators (distance from EMA 200)
+    private Double ema200_distance_1min; // Distance from EMA 200 in 1min timeframe
+    private Double ema200_distance_5min; // Distance from EMA 200 in 5min timeframe
+    private Double ema200_distance_15min; // Distance from EMA 200 in 15min timeframe
+    
     // RSI indicators - Updated thresholds
     private Boolean rsi_1min_gt_70;
     private Boolean rsi_5min_gt_70;
