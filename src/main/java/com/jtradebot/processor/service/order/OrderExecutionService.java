@@ -15,6 +15,7 @@ import com.jtradebot.processor.service.logging.IndicatorLoggingService;
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
+import com.jtradebot.processor.service.analysis.CategoryAnalysisService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
@@ -43,6 +44,7 @@ public class OrderExecutionService {
     private final LiveOptionPricingService liveOptionPricingService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
     private final TradingConfigurationService tradingConfigService;
+    private final CategoryAnalysisService categoryAnalysisService;
 
     public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
         exitStrategyService.checkAndProcessExitsWithStrategy(indexTick);
@@ -96,23 +98,58 @@ public class OrderExecutionService {
      * Determine order type based on entry decision and indicators
      */
     private String determineOrderType(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators) {
-        // Use the quality score from entryDecision to determine direction
-        double qualityScore = entryDecision.getQualityScore();
-
-        // For now, use a simple heuristic for direction
-        // In a real implementation, you'd want to store both call and put quality scores in the entryDecision
-        boolean isCallDominant = qualityScore > 0;
-        boolean isPutDominant = false; // Simplified for now
-
-        log.debug("🔍 ORDER TYPE LOGIC - QualityScore: {}, CallDominant: {}, PutDominant: {}", qualityScore, isCallDominant, isPutDominant);
-
-        if (isCallDominant) {
-            return "CALL_BUY";
-        } else if (isPutDominant) {
-            return "PUT_BUY";
+        // Use the market direction that was determined during the evaluation process
+        String marketDirection = entryDecision.getMarketDirection();
+        
+        if (marketDirection == null) {
+            log.warn("🔍 ORDER TYPE LOGIC - Market direction is null, using CategoryAnalysisService to determine direction");
+            // Fallback: use CategoryAnalysisService to determine direction
+            return determineOrderTypeFromCategoryAnalysis(indicators);
         }
-
-        return null;
+        
+        log.debug("🔍 ORDER TYPE LOGIC - MarketDirection: {}, QualityScore: {}", marketDirection, entryDecision.getQualityScore());
+        
+        // Convert market direction to order type
+        switch (marketDirection.toUpperCase()) {
+            case "CALL":
+                return "CALL_BUY";
+            case "PUT":
+                return "PUT_BUY";
+            default:
+                log.warn("🔍 ORDER TYPE LOGIC - Unknown market direction: {}, using CategoryAnalysisService", marketDirection);
+                return determineOrderTypeFromCategoryAnalysis(indicators);
+        }
+    }
+    
+    /**
+     * Use CategoryAnalysisService to determine order type from indicators
+     */
+    private String determineOrderTypeFromCategoryAnalysis(FlattenedIndicators indicators) {
+        // Get category counts for both CALL and PUT strategies
+        Map<String, Integer> callCategoryCounts = categoryAnalysisService.getCategoryCountsMap(indicators, "CALL");
+        Map<String, Integer> putCategoryCounts = categoryAnalysisService.getCategoryCountsMap(indicators, "PUT");
+        
+        // Calculate total scores for each direction
+        int callTotalScore = callCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
+        int putTotalScore = putCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
+        
+        log.debug("🔍 CATEGORY ANALYSIS - CallTotalScore: {}, PutTotalScore: {}", callTotalScore, putTotalScore);
+        log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}", 
+                callCategoryCounts.getOrDefault("ema", 0), callCategoryCounts.getOrDefault("futureAndVolume", 0),
+                callCategoryCounts.getOrDefault("candlestick", 0), callCategoryCounts.getOrDefault("momentum", 0),
+                putCategoryCounts.getOrDefault("ema", 0), putCategoryCounts.getOrDefault("futureAndVolume", 0),
+                putCategoryCounts.getOrDefault("candlestick", 0), putCategoryCounts.getOrDefault("momentum", 0));
+        
+        // Determine direction based on total scores
+        if (callTotalScore > putTotalScore) {
+            return "CALL_BUY";
+        } else if (putTotalScore > callTotalScore) {
+            return "PUT_BUY";
+        } else {
+            // If scores are equal, return null (no clear direction)
+            log.warn("🔍 CATEGORY ANALYSIS - Equal call and put scores, no clear direction");
+            return null;
+        }
     }
 
 

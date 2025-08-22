@@ -62,6 +62,7 @@ public class ScalpingEntryService {
                         .reason(best.getReason()) // Set the reason from scenario evaluation
                         .riskManagement(best.getScenario().getRiskManagement())
                         .categoryScores(best.getCategoryScores()) // Store actual scores used in evaluation
+                        .marketDirection(best.getMarketDirection()) // Store the determined market direction
                         .build();
             } else {
                 // Only log when scenarios fail - removed verbose logging
@@ -188,6 +189,17 @@ public class ScalpingEntryService {
         
         boolean isCallDirection = callTotalScore >= putTotalScore;
         
+        // Store market direction for later use
+        String marketDirection = isCallDirection ? "CALL" : "PUT";
+        
+        log.debug("🔍 MARKET DIRECTION ANALYSIS - CallTotalScore: {}, PutTotalScore: {}, Direction: {}", 
+                callTotalScore, putTotalScore, marketDirection);
+        log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}", 
+                callCategoryCounts.getOrDefault("ema", 0), callCategoryCounts.getOrDefault("futureAndVolume", 0),
+                callCategoryCounts.getOrDefault("candlestick", 0), callCategoryCounts.getOrDefault("momentum", 0),
+                putCategoryCounts.getOrDefault("ema", 0), putCategoryCounts.getOrDefault("futureAndVolume", 0),
+                putCategoryCounts.getOrDefault("candlestick", 0), putCategoryCounts.getOrDefault("momentum", 0));
+        
         // Use only the appropriate category counts based on market direction
         if (requirements.getEma_min_count() != null) {
             int emaCount = isCallDirection ? callCategoryCounts.getOrDefault("ema", 0) : putCategoryCounts.getOrDefault("ema", 0);
@@ -209,111 +221,51 @@ public class ScalpingEntryService {
             categoryScores.put("momentum", momentumCount);
         }
         
-        // Check flat market filtering requirements first
-        boolean flatMarketFilterPassed = true;
-        ScalpingEntryConfig.ScenarioRequirements adjustedRequirements = requirements;
-        boolean requirementsAdjusted = false;
+
         
-        if (requirements.getFlatMarketFilter() != null && requirements.getFlatMarketFilter()) {
-            boolean isMarketSuitable = preCalculatedMarketCondition != null ? preCalculatedMarketCondition : unstableMarketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
-            if (!isMarketSuitable) {
-                // Instead of blocking, adjust requirements for flat market - Made more restrictive
-                adjustedRequirements = adjustRequirementsForFlatMarket(requirements);
-                requirementsAdjusted = true;
-                
-                // Additional flat market restrictions using configuration
-                FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
-                double minQualityScore = config.getThresholds().getFlatMarketAdjustments().getMinQualityScore();
-                
-                if (preCalculatedQualityScore < minQualityScore) {
-                    log.debug("Flat market detected - Quality score {} below flat market threshold {}", 
-                             preCalculatedQualityScore, minQualityScore);
-                    evaluation.setPassed(false);
-                    evaluation.setScore(0.0);
-                    evaluation.setReason("Flat market detected - Quality score " + preCalculatedQualityScore + 
-                                       " below flat market threshold " + minQualityScore);
-                    return evaluation;
-                }
-            }
-        }
-        
-        // Check if all requirements are met (using adjusted requirements for flat market)
+        // Keep category-based checks for entry decisions
         boolean categoryRequirementsPassed = true;
         List<String> failedCategories = new ArrayList<>();
         
-        if (adjustedRequirements.getEma_min_count() != null && 
-            categoryScores.get("ema") < adjustedRequirements.getEma_min_count()) {
+        if (requirements.getEma_min_count() != null && 
+            categoryScores.get("ema") < requirements.getEma_min_count()) {
             categoryRequirementsPassed = false;
-            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
-            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + adjustedRequirements.getEma_min_count() + adjustmentNote);
+            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + requirements.getEma_min_count());
         }
         
-        if (adjustedRequirements.getFutureAndVolume_min_count() != null && 
-            categoryScores.get("futureAndVolume") < adjustedRequirements.getFutureAndVolume_min_count()) {
+        if (requirements.getFutureAndVolume_min_count() != null && 
+            categoryScores.get("futureAndVolume") < requirements.getFutureAndVolume_min_count()) {
             categoryRequirementsPassed = false;
-            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
-            failedCategories.add("FV: " + categoryScores.get("futureAndVolume") + "/" + adjustedRequirements.getFutureAndVolume_min_count() + adjustmentNote);
+            failedCategories.add("FV: " + categoryScores.get("futureAndVolume") + "/" + requirements.getFutureAndVolume_min_count());
         }
         
-        if (adjustedRequirements.getCandlestick_min_count() != null && 
-            categoryScores.get("candlestick") < adjustedRequirements.getCandlestick_min_count()) {
+        if (requirements.getCandlestick_min_count() != null && 
+            categoryScores.get("candlestick") < requirements.getCandlestick_min_count()) {
             categoryRequirementsPassed = false;
-            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
-            failedCategories.add("CS: " + categoryScores.get("candlestick") + "/" + adjustedRequirements.getCandlestick_min_count() + adjustmentNote);
+            failedCategories.add("CS: " + categoryScores.get("candlestick") + "/" + requirements.getCandlestick_min_count());
         }
         
-        if (adjustedRequirements.getMomentum_min_count() != null && 
-            categoryScores.get("momentum") < adjustedRequirements.getMomentum_min_count()) {
+        if (requirements.getMomentum_min_count() != null && 
+            categoryScores.get("momentum") < requirements.getMomentum_min_count()) {
             categoryRequirementsPassed = false;
-            String adjustmentNote = requirementsAdjusted ? " (+" + configService.getFlatMarketFilteringConfig().getThresholds().getFlatMarketAdjustments().getCategoryIncrement() + ")" : "";
-            failedCategories.add("M: " + categoryScores.get("momentum") + "/" + adjustedRequirements.getMomentum_min_count() + adjustmentNote);
-        }
-        
-        // Check directional strength requirement
-        if (requirements.getMinDirectionalStrength() != null) {
-            double directionalStrength = unstableMarketConditionAnalysisService.calculateDirectionalStrength(tick, indicators);
-            if (directionalStrength < requirements.getMinDirectionalStrength()) {
-                categoryRequirementsPassed = false;
-                failedCategories.add("Directional strength: " + String.format("%.2f", directionalStrength) + 
-                                   "/" + requirements.getMinDirectionalStrength());
-            }
+            failedCategories.add("M: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_count());
         }
         
 
         
-        // Check confidence score threshold from scoring config
-        boolean confidenceScorePassed = true;
-        double confidenceScore = calculateScenarioScore(categoryScores, adjustedRequirements);
-        double minConfidenceThreshold = scoringConfigService.getMinConfidenceScore();
-        
-        if (minConfidenceThreshold > 0) {
-            confidenceScorePassed = confidenceScore >= minConfidenceThreshold;
-            if (!confidenceScorePassed) {
-                log.debug("Confidence score {} below threshold {} for scenario {}", 
-                    confidenceScore, minConfidenceThreshold, scenario.getName());
-            }
-        }
-        
-        // All three requirements must be met: quality score, category requirements, and confidence score
-        boolean passed = qualityScorePassed && categoryRequirementsPassed && confidenceScorePassed;
-        
-
-        
-        // Calculate overall score
-        double score = calculateScenarioScore(categoryScores, adjustedRequirements);
+        // Final decision: entry filtering + category requirements + quality score
+        boolean passed = qualityScorePassed && categoryRequirementsPassed;
         
         evaluation.setPassed(passed);
-        evaluation.setScore(score);
+        evaluation.setScore(passed ? preCalculatedQualityScore : 0.0);
         evaluation.setCategoryScores(categoryScores);
         evaluation.setMatchedConditions(matchedConditions);
+        evaluation.setMarketDirection(marketDirection); // Set the determined market direction
         
         // Build comprehensive reason message
         StringBuilder reason = new StringBuilder();
         if (passed) {
-            reason.append("All requirements met");
-            if (requirementsAdjusted) {
-                reason.append(" (flat market adjusted)");
-            }
+            reason.append("All entry conditions met");
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
@@ -322,13 +274,7 @@ public class ScalpingEntryService {
             if (!categoryRequirementsPassed) {
                 failures.add("Failed categories: " + String.join(", ", failedCategories));
             }
-            if (!confidenceScorePassed) {
-                failures.add("Confidence score " + confidenceScore + " below threshold " + minConfidenceThreshold);
-            }
             reason.append(String.join("; ", failures));
-            if (requirementsAdjusted) {
-                reason.append(" (flat market adjusted)");
-            }
         }
         evaluation.setReason(reason.toString());
         
@@ -778,6 +724,7 @@ public class ScalpingEntryService {
         private Map<String, Integer> categoryScores;
         private Map<String, List<String>> matchedConditions;
         private String reason;
+        private String marketDirection; // Store the determined market direction
 
     }
     

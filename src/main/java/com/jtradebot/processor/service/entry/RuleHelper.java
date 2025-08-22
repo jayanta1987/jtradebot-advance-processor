@@ -49,15 +49,23 @@ public class RuleHelper {
                     boolean ltResult = ema5_1min < ema34_1min;
                     indicators.setEma5_1min_gt_ema34_1min(gtResult);
                     indicators.setEma5_1min_lt_ema34_1min(ltResult);
+                    
+                    // Calculate EMA 200 distance for 1min timeframe
+                    double ema200_1min = emaInfo_1min.getEma200();
+                    double currentPrice = oneMinSeries.getLastBar().getClosePrice().doubleValue();
+                    double ema200Distance1min = currentPrice - ema200_1min;
+                    indicators.setEma200_distance_1min(ema200Distance1min);
                 } catch (Exception e) {
                     log.error("Error calculating 1min EMA", e);
                     indicators.setEma5_1min_gt_ema34_1min(null);
                     indicators.setEma5_1min_lt_ema34_1min(null);
+                    indicators.setEma200_distance_1min(null);
                 }
             } else {
                 log.warn("1min BarSeries insufficient data - BarCount: {}", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
                 indicators.setEma5_1min_gt_ema34_1min(null);
                 indicators.setEma5_1min_lt_ema34_1min(null);
+                indicators.setEma200_distance_1min(null);
             }
             
             // 5-minute EMA calculation
@@ -71,15 +79,23 @@ public class RuleHelper {
                     boolean ltResult = ema5_5min < ema34_5min;
                     indicators.setEma5_5min_gt_ema34_5min(gtResult);
                     indicators.setEma5_5min_lt_ema34_5min(ltResult);
+                    
+                    // Calculate EMA 200 distance for 5min timeframe
+                    double ema200_5min = emaInfo_5min.getEma200();
+                    double currentPrice = fiveMinSeries.getLastBar().getClosePrice().doubleValue();
+                    double ema200Distance5min = currentPrice - ema200_5min;
+                    indicators.setEma200_distance_5min(ema200Distance5min);
                 } catch (Exception e) {
                     log.error("Error calculating 5min EMA", e);
                     indicators.setEma5_5min_gt_ema34_5min(null);
                     indicators.setEma5_5min_lt_ema34_5min(null);
+                    indicators.setEma200_distance_5min(null);
                 }
             } else {
                 log.warn("5min BarSeries insufficient data - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
                 indicators.setEma5_5min_gt_ema34_5min(null);
                 indicators.setEma5_5min_lt_ema34_5min(null);
+                indicators.setEma200_distance_5min(null);
             }
             
             // 15-minute EMA calculation
@@ -93,15 +109,23 @@ public class RuleHelper {
                     boolean ltResult = ema5_15min < ema34_15min;
                     indicators.setEma5_15min_gt_ema34_15min(gtResult);
                     indicators.setEma5_15min_lt_ema34_15min(ltResult);
+                    
+                    // Calculate EMA 200 distance for 15min timeframe
+                    double ema200_15min = emaInfo_15min.getEma200();
+                    double currentPrice = fifteenMinSeries.getLastBar().getClosePrice().doubleValue();
+                    double ema200Distance15min = currentPrice - ema200_15min;
+                    indicators.setEma200_distance_15min(ema200Distance15min);
                 } catch (Exception e) {
                     log.error("Error calculating 15min EMA", e);
                     indicators.setEma5_15min_gt_ema34_15min(null);
                     indicators.setEma5_15min_lt_ema34_15min(null);
+                    indicators.setEma200_distance_15min(null);
                 }
             } else {
                 log.warn("15min BarSeries insufficient data - BarCount: {}", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
                 indicators.setEma5_15min_gt_ema34_15min(null);
                 indicators.setEma5_15min_lt_ema34_15min(null);
+                indicators.setEma200_distance_15min(null);
             }
             
         } catch (Exception e) {

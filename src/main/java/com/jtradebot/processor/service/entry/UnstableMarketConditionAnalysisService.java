@@ -32,6 +32,8 @@ public class UnstableMarketConditionAnalysisService {
     private final DynamicStrategyConfigService configService;
 
 
+    // COMMENTED OUT: Complex market condition analysis - simplified to use entry filtering only
+    /*
     private MarketConditionResult analyzeMarketCondition(Tick tick, FlattenedIndicators indicators) {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
@@ -71,6 +73,7 @@ public class UnstableMarketConditionAnalysisService {
                     "Error during analysis: " + e.getMessage(), null);
         }
     }
+    */
 
 
     public boolean isMarketConditionSuitable(Tick tick, FlattenedIndicators indicators) {
@@ -80,32 +83,13 @@ public class UnstableMarketConditionAnalysisService {
                 return true; // If filtering is disabled, always return suitable
             }
 
-            MarketConditionResult result = analyzeMarketCondition(tick, indicators);
-
-            // Get thresholds from configuration
-            double minDirectionalStrength = configService.getFlatMarketFilteringConfig()
-                    .getRequirements().getMinDirectionalStrength();
-            double minVolumeMultiplier = configService.getFlatMarketFilteringConfig()
-                    .getRequirements().getMinVolumeMultiplier();
-
-            // Check if market conditions meet minimum requirements
-            boolean directionalStrengthOk = result.getDirectionalStrength() >= minDirectionalStrength;
-            boolean volumeOk = indicators.getVolume_surge_multiplier() != null &&
-                    indicators.getVolume_surge_multiplier() >= minVolumeMultiplier;
-
-            // Additional comprehensive flat market checks
-            boolean comprehensiveFlatCheck = performComprehensiveFlatMarketCheck(tick, indicators, result);
-
-            boolean isSuitable = !result.isFlatMarket() && directionalStrengthOk && volumeOk && comprehensiveFlatCheck;
-
-            if (!isSuitable) {
-                if (!result.isFlatMarket()) {
-                    log.debug("Market condition unsuitable - Flat: {}, Directional: {}, Volume: {}, Comprehensive: {}",
-                            result.isFlatMarket(), directionalStrengthOk, volumeOk, comprehensiveFlatCheck);
-                }
-            }
-
-            return isSuitable;
+            // SIMPLIFIED: Only check essential conditions for entry filtering
+            // Use your entry filtering conditions as the main validation
+            EntryFilteringResult filteringResult = checkEntryFilteringConditions(tick, indicators);
+            
+            // Return true if entry filtering conditions are met
+            // This means market is suitable for trading
+            return filteringResult.isConditionsMet();
 
         } catch (Exception e) {
             log.error("Error checking market condition suitability: {}", e.getMessage());
@@ -203,6 +187,8 @@ public class UnstableMarketConditionAnalysisService {
     }
 
 
+    // COMMENTED OUT: Complex volatility calculation - simplified to use entry filtering only
+    /*
     public double calculateVolatilityScore(Tick tick, FlattenedIndicators indicators) {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
@@ -279,6 +265,7 @@ public class UnstableMarketConditionAnalysisService {
             return 0.0;
         }
     }
+    */
 
     private double calculateCandleSizeScore(CandleAnalysisResult candleAnalysis) {
         try {
@@ -615,7 +602,7 @@ public class UnstableMarketConditionAnalysisService {
         if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishEmaSignals++;
         totalEmaSignals += 3;
 
-        return totalEmaSignals > 0 ? (double) bullishEmaSignals / totalEmaSignals : 0.0;
+        return (double) bullishEmaSignals / totalEmaSignals;
     }
 
     /**
@@ -642,7 +629,7 @@ public class UnstableMarketConditionAnalysisService {
             }
             totalVolumeChecks++;
 
-            return totalVolumeChecks > 0 ? (double) volumeSignals / totalVolumeChecks : 0.0;
+            return (double) volumeSignals / totalVolumeChecks;
 
         } catch (Exception e) {
             log.error("Error calculating volume consistency score: {}", e.getMessage());
@@ -669,11 +656,11 @@ public class UnstableMarketConditionAnalysisService {
         if (Boolean.TRUE.equals(indicators.getBullish_engulfing_1min())) priceActionSignals++;
         totalPriceActionChecks += 4;
 
-        return totalPriceActionChecks > 0 ? (double) priceActionSignals / totalPriceActionChecks : 0.0;
+        return (double) priceActionSignals / totalPriceActionChecks;
     }
 
     /**
-     * Check entry filtering conditions: minimum candle height ≥ 4 and volume surge > 10x + good candle body ratio (>0.7)
+     * Check entry filtering conditions: minimum candle height ≥ 4, volume surge > 10x, good candle body ratio (>0.7), and EMA 200 distance check
      * This method reuses existing calculations from the service
      */
     public EntryFilteringResult checkEntryFilteringConditions(Tick tick, FlattenedIndicators indicators) {
@@ -684,17 +671,24 @@ public class UnstableMarketConditionAnalysisService {
             CandleAnalysisResult candleAnalysis = analyzeCandleCharacteristics(tick, indicators);
 
             // Check minimum candle height ≥ 4
-            boolean candleHeightOk = candleAnalysis.getCandleHeight() >= 4.0;
+            boolean candleHeightOk = candleAnalysis.getCandleHeight() >= 8.0;
 
             // Check volume surge > 10x
             Double volumeMultiplier = indicators.getVolume_surge_multiplier();
             boolean volumeSurgeOk = volumeMultiplier != null && volumeMultiplier > 10.0;
 
-            // Check candle body ratio > 0.7
+            // Check candle body ratio > 0.6
             boolean bodyRatioOk = candleAnalysis.getBodyRatio() >= 0.60;
 
+            // Check EMA 200 distance in 5min timeframe - should not be more than 140 points
+            Double ema200Distance5min = indicators.getEma200_distance_5min();
+            boolean ema200DistanceOk = ema200Distance5min != null && Math.abs(ema200Distance5min) <= 130.0;
+            
+            log.debug("🔍 EMA 200 DISTANCE CHECK - 5min Distance: {}, Threshold: 130.0, Passed: {}",
+                    ema200Distance5min != null ? String.format("%.2f", ema200Distance5min) : "null", ema200DistanceOk);
+
             // All conditions must be met
-            boolean allConditionsMet = candleHeightOk && volumeSurgeOk && bodyRatioOk;
+            boolean allConditionsMet = candleHeightOk && volumeSurgeOk && bodyRatioOk && ema200DistanceOk;
 
             // Build detailed reason message
             StringBuilder reason = new StringBuilder();
@@ -703,7 +697,7 @@ public class UnstableMarketConditionAnalysisService {
             } else {
                 List<String> failedConditions = new ArrayList<>();
                 if (!candleHeightOk) {
-                    failedConditions.add(String.format("Candle height %.2f < 4.0", candleAnalysis.getCandleHeight()));
+                    failedConditions.add(String.format("Candle height %.2f < 8.0", candleAnalysis.getCandleHeight()));
                 }
                 if (!volumeSurgeOk) {
                     failedConditions.add(String.format("Volume surge %.2fx <= 10x",
@@ -712,39 +706,47 @@ public class UnstableMarketConditionAnalysisService {
                 if (!bodyRatioOk) {
                     failedConditions.add(String.format("Body ratio %.2f < 0.60", candleAnalysis.getBodyRatio()));
                 }
+                if (!ema200DistanceOk) {
+                    failedConditions.add(String.format("EMA 200 distance %.2f > 140.0", 
+                            ema200Distance5min != null ? Math.abs(ema200Distance5min) : 0.0));
+                }
                 reason.append("Entry filtering failed: ").append(String.join(", ", failedConditions));
             }
 
             return new EntryFilteringResult(allConditionsMet, candleAnalysis.getCandleHeight(),
-                    volumeMultiplier, candleAnalysis.getBodyRatio(), reason.toString());
+                    volumeMultiplier, candleAnalysis.getBodyRatio(), ema200Distance5min, reason.toString());
 
         } catch (Exception e) {
             log.error("Error checking entry filtering conditions for tick: {}", tick.getInstrumentToken(), e);
-            return new EntryFilteringResult(false, 0.0, 0.0, 0.0,
+            return new EntryFilteringResult(false, 0.0, 0.0, 0.0, null,
                     "Error during filtering check: " + e.getMessage());
         }
     }
 
+    // SIMPLIFIED: Market condition details for database storage
     public Map<String, Object> getStructuredMarketConditionDetails(Tick tick, FlattenedIndicators indicators) {
         try {
-            MarketConditionResult result = analyzeMarketCondition(tick, indicators);
-
-            FlatMarketFilteringConfig config = configService.getFlatMarketFilteringConfig();
-            FlatMarketFilteringConfig.Requirements requirements = config.getRequirements();
-            FlatMarketFilteringConfig.Thresholds thresholds = config.getThresholds();
-
             Map<String, Object> marketDetails = new HashMap<>();
 
-            // Basic scores
-            marketDetails.put("directionalStrength", Math.round(result.getDirectionalStrength() * 100.0) / 100.0);
-            marketDetails.put("volatilityScore", Math.round(result.getVolatilityScore() * 100.0) / 100.0);
-            marketDetails.put("overallScore", Math.round(result.getOverallScore() * 100.0) / 100.0);
+            // Get entry filtering result for basic validation
+            EntryFilteringResult filteringResult = checkEntryFilteringConditions(tick, indicators);
+            
+            // Basic entry filtering details
+            marketDetails.put("entryFilteringPassed", filteringResult.isConditionsMet());
+            marketDetails.put("candleHeight", Math.round(filteringResult.getCandleHeight() * 100.0) / 100.0);
+            marketDetails.put("volumeSurgeMultiplier", filteringResult.getVolumeMultiplier() != null ? 
+                Math.round(filteringResult.getVolumeMultiplier() * 100.0) / 100.0 : 0.0);
+            marketDetails.put("bodyRatio", Math.round(filteringResult.getBodyRatio() * 100.0) / 100.0);
+            marketDetails.put("ema200Distance5min", filteringResult.getEma200Distance5min() != null ? 
+                Math.round(filteringResult.getEma200Distance5min() * 100.0) / 100.0 : 0.0);
 
-            // Candle analysis details
-            CandleAnalysisResult candleAnalysis = result.getCandleAnalysis();
+            // Directional strength (kept for reference)
+            double directionalStrength = calculateDirectionalStrength(tick, indicators);
+            marketDetails.put("directionalStrength", Math.round(directionalStrength * 100.0) / 100.0);
+
+            // Candle analysis details (simplified)
+            CandleAnalysisResult candleAnalysis = analyzeCandleCharacteristics(tick, indicators);
             if (candleAnalysis != null) {
-                marketDetails.put("candleHeight", Math.round(candleAnalysis.getCandleHeight() * 100.0) / 100.0);
-                marketDetails.put("bodyRatio", Math.round(candleAnalysis.getBodyRatio() * 100.0) / 100.0);
                 marketDetails.put("isLongBody", candleAnalysis.isLongBody());
                 marketDetails.put("isDoji", candleAnalysis.isDoji());
                 marketDetails.put("consecutiveDoji", candleAnalysis.getConsecutiveDoji());
@@ -752,74 +754,9 @@ public class UnstableMarketConditionAnalysisService {
                 marketDetails.put("consecutiveSmallCandles", candleAnalysis.getConsecutiveSmallCandles());
             }
 
-            // Volume surge multiplier
-            if (indicators.getVolume_surge_multiplier() != null) {
-                marketDetails.put("volumeSurgeMultiplier", Math.round(indicators.getVolume_surge_multiplier() * 100.0) / 100.0);
-            }
-
-            // Comprehensive scores
-            double emaAlignmentScore = calculateEmaAlignmentScore(indicators);
-            double volumeConsistencyScore = calculateVolumeConsistencyScore(indicators);
-            double priceActionScore = calculatePriceActionScore(indicators);
-
-            marketDetails.put("emaAlignmentScore", Math.round(emaAlignmentScore * 100.0) / 100.0);
-            marketDetails.put("volumeConsistencyScore", Math.round(volumeConsistencyScore * 100.0) / 100.0);
-            marketDetails.put("priceActionScore", Math.round(priceActionScore * 100.0) / 100.0);
-
-            // If it's a flat market, add the reasons why
-            if (result.isFlatMarket()) {
-                List<String> flatMarketReasons = new ArrayList<>();
-                flatMarketReasons.add("FLAT_MARKET:");
-
-                // Check directional strength
-                if (result.getDirectionalStrength() < requirements.getMinDirectionalStrength()) {
-                    flatMarketReasons.add(String.format("Dir:%.2f<%.2f",
-                            result.getDirectionalStrength(), requirements.getMinDirectionalStrength()));
-                }
-
-                // Check volatility
-                if (result.getVolatilityScore() < thresholds.getVolatilityScore().getLowThreshold()) {
-                    flatMarketReasons.add(String.format("Vol:%.2f<%.2f",
-                            result.getVolatilityScore(), thresholds.getVolatilityScore().getLowThreshold()));
-                }
-
-                // Check candle analysis
-                if (candleAnalysis != null) {
-                    if (candleAnalysis.getConsecutiveDoji() > requirements.getMaxConsecutiveDoji()) {
-                        flatMarketReasons.add(String.format("Doji:%d>%d",
-                                candleAnalysis.getConsecutiveDoji(), requirements.getMaxConsecutiveDoji()));
-                    }
-                    if (candleAnalysis.getConsecutiveSpinningTop() > requirements.getMaxConsecutiveSpinningTop()) {
-                        flatMarketReasons.add(String.format("Spin:%d>%d",
-                                candleAnalysis.getConsecutiveSpinningTop(), requirements.getMaxConsecutiveSpinningTop()));
-                    }
-                    if (candleAnalysis.getConsecutiveSmallCandles() > requirements.getMaxConsecutiveSmallCandles()) {
-                        flatMarketReasons.add(String.format("Small:%d>%d",
-                                candleAnalysis.getConsecutiveSmallCandles(), requirements.getMaxConsecutiveSmallCandles()));
-                    }
-                }
-
-                FlatMarketFilteringConfig.ComprehensiveChecks comprehensiveChecks = thresholds.getComprehensiveChecks();
-
-                if (emaAlignmentScore < comprehensiveChecks.getEmaAlignmentScore()) {
-                    flatMarketReasons.add(String.format("EMA:%.2f<%.2f",
-                            emaAlignmentScore, comprehensiveChecks.getEmaAlignmentScore()));
-                }
-                if (volumeConsistencyScore < comprehensiveChecks.getVolumeConsistencyScore()) {
-                    flatMarketReasons.add(String.format("VolCons:%.2f<%.2f",
-                            volumeConsistencyScore, comprehensiveChecks.getVolumeConsistencyScore()));
-                }
-                if (priceActionScore < comprehensiveChecks.getPriceActionScore()) {
-                    flatMarketReasons.add(String.format("Price:%.2f<%.2f",
-                            priceActionScore, comprehensiveChecks.getPriceActionScore()));
-                }
-                if (result.getOverallScore() < comprehensiveChecks.getOverallScore()) {
-                    flatMarketReasons.add(String.format("Overall:%.2f<%.2f",
-                            result.getOverallScore(), comprehensiveChecks.getOverallScore()));
-                }
-
-                marketDetails.put("flatMarketReasons", flatMarketReasons);
-            }
+            // Market suitability status
+            boolean isMarketSuitable = isMarketConditionSuitable(tick, indicators);
+            marketDetails.put("marketSuitable", isMarketSuitable);
 
             return marketDetails;
 
@@ -899,6 +836,7 @@ public class UnstableMarketConditionAnalysisService {
         private double candleHeight;
         private Double volumeMultiplier;
         private double bodyRatio;
+        private Double ema200Distance5min; // Added EMA 200 distance field
         private String reason;
 
         public EntryFilteringResult() {
@@ -910,6 +848,16 @@ public class UnstableMarketConditionAnalysisService {
             this.candleHeight = candleHeight;
             this.volumeMultiplier = volumeMultiplier;
             this.bodyRatio = bodyRatio;
+            this.reason = reason;
+        }
+
+        public EntryFilteringResult(boolean conditionsMet, double candleHeight,
+                                    Double volumeMultiplier, double bodyRatio, Double ema200Distance5min, String reason) {
+            this.conditionsMet = conditionsMet;
+            this.candleHeight = candleHeight;
+            this.volumeMultiplier = volumeMultiplier;
+            this.bodyRatio = bodyRatio;
+            this.ema200Distance5min = ema200Distance5min;
             this.reason = reason;
         }
     }

@@ -23,4 +23,7 @@ public class ScalpingEntryDecision {
     private Map<String, Integer> categoryScores;
     private Map<String, java.util.List<String>> matchedConditions;
     private double qualityScore;
+    
+    // Market direction determined during evaluation
+    private String marketDirection; // "CALL" or "PUT"
 }
