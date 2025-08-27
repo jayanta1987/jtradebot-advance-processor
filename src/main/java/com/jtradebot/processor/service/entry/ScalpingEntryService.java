@@ -6,6 +6,8 @@ import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.service.analysis.MarketDirectionService;
+import com.jtradebot.processor.service.analysis.SignalDeterminationService;
 
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
@@ -24,24 +26,26 @@ public class ScalpingEntryService {
     private final DynamicStrategyConfigService configService;
     private final ScoringConfigurationService scoringConfigService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
+    private final MarketDirectionService marketDirectionService;
+    private final SignalDeterminationService signalDeterminationService;
 
 
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean preCalculatedMarketCondition) {
         try {
-            // Step 1: Pre-calculate category counts for both CALL and PUT
-            Map<String, Integer> callCategoryCounts = calculateCategoryCounts(indicators, configService.getCallCategories());
-            Map<String, Integer> putCategoryCounts = calculateCategoryCounts(indicators, configService.getPutCategories());
+            // Step 1: Use MarketDirectionService to get category counts and market direction
+            String marketDirection = marketDirectionService.determineMarketDirection(indicators);
+            Map<String, Integer> callCategoryCounts = marketDirectionService.getCategoryScores(indicators, "CALL");
+            Map<String, Integer> putCategoryCounts = marketDirectionService.getCategoryScores(indicators, "PUT");
             
             // Step 2: Use pre-calculated quality score or calculate if not provided
-            double qualityScore;
-            qualityScore = Objects.requireNonNullElseGet(preCalculatedQualityScore, () -> calculateQualityScore(indicators));
+            double qualityScore = Objects.requireNonNullElseGet(preCalculatedQualityScore, () -> calculateQualityScore(indicators));
             
             // Step 3: Loop through scenarios and check their specific requirements
             List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
             List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
             
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
-                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore, tick, preCalculatedMarketCondition);
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore, tick, preCalculatedMarketCondition, marketDirection);
                 scenarioEvaluations.add(evaluation);
             }
             
@@ -52,20 +56,26 @@ public class ScalpingEntryService {
             
             if (bestScenario.isPresent()) {
                 ScenarioEvaluation best = bestScenario.get();
-                // Removed verbose scenario found log
                 
-                return ScalpingEntryDecision.builder()
+                // Create entry decision with market direction
+                ScalpingEntryDecision entryDecision = ScalpingEntryDecision.builder()
                         .shouldEntry(true)
                         .scenarioName(best.getScenarioName())
                         .confidence(best.getScore())
-                        .qualityScore(qualityScore) // Use pre-calculated quality score
-                        .reason(best.getReason()) // Set the reason from scenario evaluation
+                        .qualityScore(qualityScore)
+                        .reason(best.getReason())
                         .riskManagement(best.getScenario().getRiskManagement())
-                        .categoryScores(best.getCategoryScores()) // Store actual scores used in evaluation
-                        .marketDirection(best.getMarketDirection()) // Store the determined market direction
+                        .categoryScores(best.getCategoryScores())
+                        .marketDirection(marketDirection)
                         .build();
+                
+                // Use SignalDeterminationService to set explicit signal flags
+                SignalDeterminationService.SignalResult signalResult = signalDeterminationService.determineSignals(entryDecision);
+                entryDecision.setShouldCall(signalResult.isShouldCall());
+                entryDecision.setShouldPut(signalResult.isShouldPut());
+                
+                return entryDecision;
             } else {
-                // Only log when scenarios fail - removed verbose logging
                 return ScalpingEntryDecision.builder()
                         .shouldEntry(false)
                         .scenarioName("NO_SCENARIO_PASSED")
@@ -121,7 +131,8 @@ public class ScalpingEntryService {
                                                Map<String, Integer> putCategoryCounts,
                                                double preCalculatedQualityScore,
                                                Tick tick,
-                                               Boolean preCalculatedMarketCondition) {
+                                               Boolean preCalculatedMarketCondition,
+                                               String marketDirection) {
 
         
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
@@ -177,23 +188,10 @@ public class ScalpingEntryService {
         Map<String, Integer> categoryScores = new HashMap<>();
         Map<String, List<String>> matchedConditions = new HashMap<>();
         
-        // Determine market direction based on category strengths
-        int callTotalScore = callCategoryCounts.getOrDefault("ema", 0) + 
-                           callCategoryCounts.getOrDefault("futureAndVolume", 0) + 
-                           callCategoryCounts.getOrDefault("candlestick", 0) + 
-                           callCategoryCounts.getOrDefault("momentum", 0);
-        int putTotalScore = putCategoryCounts.getOrDefault("ema", 0) + 
-                          putCategoryCounts.getOrDefault("futureAndVolume", 0) + 
-                          putCategoryCounts.getOrDefault("candlestick", 0) + 
-                          putCategoryCounts.getOrDefault("momentum", 0);
+        // Use the market direction passed as parameter
+        boolean isCallDirection = "CALL".equals(marketDirection);
         
-        boolean isCallDirection = callTotalScore >= putTotalScore;
-        
-        // Store market direction for later use
-        String marketDirection = isCallDirection ? "CALL" : "PUT";
-        
-        log.debug("🔍 MARKET DIRECTION ANALYSIS - CallTotalScore: {}, PutTotalScore: {}, Direction: {}", 
-                callTotalScore, putTotalScore, marketDirection);
+        log.debug("🔍 MARKET DIRECTION ANALYSIS - Direction: {}", marketDirection);
         log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}", 
                 callCategoryCounts.getOrDefault("ema", 0), callCategoryCounts.getOrDefault("futureAndVolume", 0),
                 callCategoryCounts.getOrDefault("candlestick", 0), callCategoryCounts.getOrDefault("momentum", 0),

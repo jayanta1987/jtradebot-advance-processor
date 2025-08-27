@@ -11,12 +11,13 @@ import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.EntryConditionAnalysisService;
 import com.jtradebot.processor.service.TickOrchestrationService;
-import com.jtradebot.processor.service.logging.IndicatorLoggingService;
+
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
 import com.jtradebot.processor.service.risk.DynamicRiskManagementService;
 import com.jtradebot.processor.service.analysis.CategoryAnalysisService;
+import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
@@ -46,6 +47,7 @@ public class OrderExecutionService {
     private final TradingConfigurationService tradingConfigService;
     private final CategoryAnalysisService categoryAnalysisService;
     private final DynamicRiskManagementService dynamicRiskManagementService;
+    private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
 
     public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
         exitStrategyService.checkAndProcessExitsWithStrategy(indexTick);
@@ -86,9 +88,15 @@ public class OrderExecutionService {
     }
 
 
-    public void executeOrdersIfSignalsGenerated(Tick indexTick, IndicatorLoggingService.EntryAnalysisResult analysisResult, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
-
-        ScalpingEntryDecision scenarioDecision = analysisResult.getEntryDecision();
+    public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
+        // Get entry decision directly from DynamicRuleEvaluatorService
+        ScalpingEntryDecision scenarioDecision = null;
+        try {
+            scenarioDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, marketConditions.isMarketSuitable());
+        } catch (Exception e) {
+            log.error("Error getting entry decision for order execution: {}", e.getMessage());
+            return;
+        }
 
         if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
             validateAndExecuteOrder(indexTick, scenarioDecision, indicators, marketConditions);
@@ -97,29 +105,21 @@ public class OrderExecutionService {
 
 
     /**
-     * Determine order type based on entry decision and indicators
+     * Determine order type based on entry decision signals
      */
     private String determineOrderType(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators) {
-        // Use the market direction that was determined during the evaluation process
-        String marketDirection = entryDecision.getMarketDirection();
-
-        if (marketDirection == null) {
-            log.warn("🔍 ORDER TYPE LOGIC - Market direction is null, using CategoryAnalysisService to determine direction");
+        // Use the explicit signal flags from the entry decision
+        if (entryDecision.isShouldCall()) {
+            log.debug("🔍 ORDER TYPE LOGIC - ShouldCall: true, OrderType: CALL_BUY");
+            return "CALL_BUY";
+        } else if (entryDecision.isShouldPut()) {
+            log.debug("🔍 ORDER TYPE LOGIC - ShouldPut: true, OrderType: PUT_BUY");
+            return "PUT_BUY";
+        } else {
+            log.warn("🔍 ORDER TYPE LOGIC - No explicit signals, using CategoryAnalysisService as fallback");
             // Fallback: use CategoryAnalysisService to determine direction
             return determineOrderTypeFromCategoryAnalysis(indicators);
         }
-
-        log.debug("🔍 ORDER TYPE LOGIC - MarketDirection: {}, QualityScore: {}", marketDirection, entryDecision.getQualityScore());
-
-        // Convert market direction to order type
-        return switch (marketDirection.toUpperCase()) {
-            case "CALL" -> "CALL_BUY";
-            case "PUT" -> "PUT_BUY";
-            default -> {
-                log.warn("🔍 ORDER TYPE LOGIC - Unknown market direction: {}, using CategoryAnalysisService", marketDirection);
-                yield determineOrderTypeFromCategoryAnalysis(indicators);
-            }
-        };
     }
 
     /**

@@ -2,11 +2,9 @@ package com.jtradebot.processor.service.entry;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
-import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
-import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
-
+import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.indicators.ATRIndicator;
-
 
 import java.util.ArrayList;
 import java.util.HashMap;
