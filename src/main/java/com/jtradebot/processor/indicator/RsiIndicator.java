@@ -26,6 +26,35 @@ public class RsiIndicator {
         return rsi14.getValue(lastIndex).doubleValue();
     }
 
+    /**
+     * Calculate RSI Moving Average
+     * @param series BarSeries for the timeframe
+     * @param rsiPeriod RSI calculation period (default 14)
+     * @param maPeriod Moving average period for RSI
+     * @return RSI MA value
+     */
+    public double getRsiMaValue(BarSeries series, int rsiPeriod, int maPeriod) {
+        try {
+            ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
+            RSIIndicator rsiIndicator = new RSIIndicator(closePrice, rsiPeriod);
+            
+            // Calculate simple moving average of RSI values
+            double sum = 0.0;
+            int startIndex = Math.max(series.getBeginIndex(), series.getEndIndex() - maPeriod + 1);
+            int count = 0;
+            
+            for (int i = startIndex; i <= series.getEndIndex(); i++) {
+                sum += rsiIndicator.getValue(i).doubleValue();
+                count++;
+            }
+            
+            return count > 0 ? sum / count : 0.0;
+        } catch (Exception e) {
+            log.error("Error calculating RSI MA: {}", e.getMessage());
+            return 0.0;
+        }
+    }
+
     // Adjust the lookback period
     private List<Integer> findSwingHighs(Indicator<Num> indicator, int startIndex, int endIndex, int lookback) {
         List<Integer> swingHighs = new ArrayList<>();

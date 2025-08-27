@@ -7,6 +7,7 @@ import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.logging.IndicatorLoggingService;
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
+import com.jtradebot.processor.service.order.ExitStrategyService;
 import com.jtradebot.processor.service.order.OrderExecutionService;
 import com.jtradebot.processor.service.scheduler.TickEventTracker;
 import com.zerodhatech.models.Tick;
@@ -34,6 +35,7 @@ public class TickOrchestrationService {
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
     private final OrderExecutionService orderExecutionService;
     private final IndicatorLoggingService indicatorLoggingService;
+    private final ExitStrategyService exitStrategyService;
 
     public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) throws Exception {
         if (!skipMarketHoursCheck && !DateTimeHandler.isMarketOpen()) {
@@ -74,6 +76,11 @@ public class TickOrchestrationService {
 
                     // Step 3: Process entry logic and generate signals
                     IndicatorLoggingService.EntryAnalysisResult analysisResult = indicatorLoggingService.logRealEntryLogicOptimized(tick, indicators, marketConditions.isMarketSuitable());
+
+                    if (exitStrategyService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken())) {
+                        log.warn("🚫 ORDER CREATION BLOCKED - Recent STOPLOSS_HIT exit in same 5-min candle");
+                        return;
+                    }
 
                     // Step 4: Execute orders if signals are generated
                     orderExecutionService.executeOrdersIfSignalsGenerated(tick, analysisResult, indicators, new MarketConditionAnalysis(marketConditions.isMarketSuitable()));

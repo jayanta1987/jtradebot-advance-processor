@@ -91,39 +91,47 @@ public class BarSeriesManager {
         updateBarSeries(seriesData.getSeries1Day(), tick, endTime, Duration.ofDays(1), tickVolume);
     }
 
-    private void updateBarSeries(BarSeries series, Tick tick, ZonedDateTime endTime, Duration duration, double volume) {
+    private void updateBarSeries(BarSeries series, Tick tick, ZonedDateTime tickTime, Duration duration, double volume) {
         if (series == null) {
             return;
         }
         if (series.isEmpty()) {
-            series.addBar(duration, endTime, tick.getOpenPrice(), tick.getHighPrice(), tick.getLowPrice(), tick.getClosePrice(), volume);
+            series.addBar(duration, tickTime, tick.getOpenPrice(), tick.getHighPrice(), tick.getLowPrice(), tick.getClosePrice(), volume);
         } else {
             Bar lastBar = series.getLastBar();
             ZonedDateTime lastBarEndTime = lastBar.getEndTime();
-            ZonedDateTime nextBarStartTime = lastBarEndTime.plus(duration);
+            ZonedDateTime lastBarBeginTime = lastBar.getBeginTime();
+            ZonedDateTime nextBarBeginTime = lastBarEndTime.plus(duration);
+            // Ensure tickTime is in the same zone as lastBarEndTime
+            if (!tickTime.getZone().equals(lastBarEndTime.getZone())) {
+                tickTime = tickTime.withZoneSameInstant(lastBarEndTime.getZone());
+            }
 
-            if (endTime.isBefore(nextBarStartTime)) {
-                // The tick belongs to the current bar's timeframe, update the current bar
+            if (tickTime.isBefore(lastBarEndTime) && tickTime.isAfter(lastBarBeginTime)) {
                 lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
-            } else {
-                // The tick belongs to the next bar's timeframe, create a new bar
-                series.addBar(duration, endTime, tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), volume);
+            } else if (!tickTime.isBefore(lastBarEndTime)) { // Equals and after create new bar
+                // Only add a new bar if tickTime is strictly after
+                log.debug("Creating new bar. Tick time: {}, Last bar end: {}, Next bar start: {}", tickTime, lastBarEndTime, nextBarBeginTime);
+                series.addBar(duration, nextBarBeginTime, tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), volume);
             }
         }
     }
 
     private BarSeries fetchAndConvertToBarSeries(String instrumentToken, KiteHistoricalDataTimeframeEnum kiteTimeFrame,
                                                  Date fromDate, Date toDate, CandleTimeFrameEnum timeFrame) {
-        HistoricalData oneMinHistoricalData = fetchHistoricalData(instrumentToken, kiteTimeFrame.getTimeframe(), fromDate, toDate);
-        return  convertToBarSeries(oneMinHistoricalData, timeFrame.name());
+        HistoricalData historicalData = fetchHistoricalData(instrumentToken, kiteTimeFrame.getTimeframe(), fromDate, toDate);
+        return convertToBarSeries(historicalData, timeFrame.name());
     }
+
 
     private BarSeries convertToBarSeries(HistoricalData historicalData, String seriesName) {
         BarSeries series = new BaseBarSeriesBuilder().withName(seriesName).build();
         Duration duration = getDurationFromSeriesName(seriesName);
+        ZoneId zoneId = ZoneId.of("Asia/Kolkata");
         for (HistoricalData candle : historicalData.dataArrayList) {
-            ZonedDateTime endTime = DateTimeHandler.getZonedDateTime(candle.timeStamp, "yyyy-MM-dd'T'HH:mm:ssZ");
-            series.addBar(duration, endTime, candle.open, candle.high, candle.low, candle.close, candle.volume);
+            ZonedDateTime endTime = DateTimeHandler.getZonedDateTime(candle.timeStamp, "yyyy-MM-dd'T'HH:mm:ssZ")
+                    .withZoneSameInstant(zoneId);
+            series.addBar(duration, endTime.plus(duration), candle.open, candle.high, candle.low, candle.close, candle.volume);
         }
         return series;
     }
@@ -165,34 +173,6 @@ public class BarSeriesManager {
             case ONE_HOUR -> seriesData.getSeries1Hour();
             case ONE_DAY -> seriesData.getSeries1Day();
         };
-    }
-
-    public Double getAvg5MinCandleHeight(String instrumentToken) {
-        return avg5MinCandleHeightMap.getOrDefault(instrumentToken, 0.0);
-    }
-
-    public Double getAvg3MinCandleHeight(String instrumentToken) {
-        return avg3MinCandleHeightMap.getOrDefault(instrumentToken, 0.0);
-    }
-
-    public Bar getCurrentBarForTimeFrame(String instrumentToken, CandleTimeFrameEnum timeFrame) {
-        BarSeries series = getBarSeriesForTimeFrame(instrumentToken, timeFrame);
-        return (series != null && !series.isEmpty()) ? series.getLastBar() : null;
-    }
-
-    public Bar getPreviousBarForTimeFrame(String instrumentToken, CandleTimeFrameEnum timeFrame) {
-        BarSeries series = getBarSeriesForTimeFrame(instrumentToken, timeFrame);
-        return (series != null && series.getBarCount() > 1) ? series.getBar(series.getEndIndex() - 1) : null;
-    }
-
-    public Bar getPrecious2ndBarForTimeFrame(String instrumentToken, CandleTimeFrameEnum timeFrame) {
-        BarSeries series = getBarSeriesForTimeFrame(instrumentToken, timeFrame);
-        return (series != null && series.getBarCount() >= 2) ? series.getBar(series.getEndIndex() - 1) : null;
-    }
-
-    public Bar getPrecious3rdBarForTimeFrame(String instrumentToken, CandleTimeFrameEnum timeFrame) {
-        BarSeries series = getBarSeriesForTimeFrame(instrumentToken, timeFrame);
-        return (series != null && series.getBarCount() >= 3) ? series.getBar(series.getEndIndex() - 2) : null;
     }
 
     public void reset() {
@@ -268,4 +248,14 @@ public class BarSeriesManager {
     public boolean isInitialized(String instrumentToken) {
         return !instrumentSeriesMap.isEmpty() && instrumentSeriesMap.containsKey(instrumentToken);
     }
+
+    public boolean is5MinCandleOpen(String instrumentToken, Date tickTimestamp) {
+        BarSeries series = getBarSeriesForTimeFrame(instrumentToken, CandleTimeFrameEnum.FIVE_MIN);
+        if (series == null || series.isEmpty()) return false;
+
+        ZonedDateTime tickTime = tickTimestamp.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
+        Bar lastBar = series.getLastBar();
+        return tickTime.isAfter(lastBar.getBeginTime()) && tickTime.isBefore(lastBar.getEndTime());
+    }
+
 }

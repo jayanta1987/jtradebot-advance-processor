@@ -192,7 +192,7 @@ public class IndicatorStatusService {
                 // RSI check
                 Double rsiValue = rsiIndicator.getRsiValue(oneMinSeries, 14);
                 if (rsiValue != null) {
-                    if (rsiValue > 56) {
+                    if (rsiValue > 60) {
                         callConditions++;
                     } else if (rsiValue < 40) {
                         putConditions++;
@@ -217,7 +217,7 @@ public class IndicatorStatusService {
                 // RSI check
                 Double rsiValue = rsiIndicator.getRsiValue(fiveMinSeries, 14);
                 if (rsiValue != null) {
-                    if (rsiValue > 56) {
+                    if (rsiValue > 60) {
                         callConditions++;
                     } else if (rsiValue < 40) {
                         putConditions++;

@@ -121,13 +121,21 @@ public class CategoryAnalysisService {
     public int getMomentumCount(FlattenedIndicators indicators, boolean isCall) {
         int momentumCount = 0;
         if (isCall) {
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_56())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_56())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_60())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_60())) momentumCount++;
+            // RSI MA comparison for bullish momentum
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_rsi_ma())) momentumCount++;
         } else {
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_44())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_44())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_40())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_40())) momentumCount++;
+            // RSI MA comparison for bearish momentum
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_rsi_ma())) momentumCount++;
         }
         return momentumCount;
     }

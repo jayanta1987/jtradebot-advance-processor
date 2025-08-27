@@ -15,6 +15,7 @@ import com.jtradebot.processor.service.logging.IndicatorLoggingService;
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
+import com.jtradebot.processor.service.risk.DynamicRiskManagementService;
 import com.jtradebot.processor.service.analysis.CategoryAnalysisService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
@@ -39,12 +40,12 @@ public class OrderExecutionService {
     private final TickDataManager tickDataManager;
     private final KiteConnect kiteConnect;
     private final Environment environment;
-    private final DynamicStrategyConfigService configService;
     private final EntryConditionAnalysisService entryConditionAnalysisService;
     private final LiveOptionPricingService liveOptionPricingService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
     private final TradingConfigurationService tradingConfigService;
     private final CategoryAnalysisService categoryAnalysisService;
+    private final DynamicRiskManagementService dynamicRiskManagementService;
 
     public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
         exitStrategyService.checkAndProcessExitsWithStrategy(indexTick);
@@ -60,6 +61,7 @@ public class OrderExecutionService {
         try {
             // Check if we can execute the order (no active orders)
             boolean hasActiveOrder = exitStrategyService.hasActiveOrder();
+
             log.debug("🔍 ORDER VALIDATION - HasActiveOrder: {}", hasActiveOrder);
 
             if (!hasActiveOrder) {
@@ -100,27 +102,26 @@ public class OrderExecutionService {
     private String determineOrderType(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators) {
         // Use the market direction that was determined during the evaluation process
         String marketDirection = entryDecision.getMarketDirection();
-        
+
         if (marketDirection == null) {
             log.warn("🔍 ORDER TYPE LOGIC - Market direction is null, using CategoryAnalysisService to determine direction");
             // Fallback: use CategoryAnalysisService to determine direction
             return determineOrderTypeFromCategoryAnalysis(indicators);
         }
-        
+
         log.debug("🔍 ORDER TYPE LOGIC - MarketDirection: {}, QualityScore: {}", marketDirection, entryDecision.getQualityScore());
-        
+
         // Convert market direction to order type
-        switch (marketDirection.toUpperCase()) {
-            case "CALL":
-                return "CALL_BUY";
-            case "PUT":
-                return "PUT_BUY";
-            default:
+        return switch (marketDirection.toUpperCase()) {
+            case "CALL" -> "CALL_BUY";
+            case "PUT" -> "PUT_BUY";
+            default -> {
                 log.warn("🔍 ORDER TYPE LOGIC - Unknown market direction: {}, using CategoryAnalysisService", marketDirection);
-                return determineOrderTypeFromCategoryAnalysis(indicators);
-        }
+                yield determineOrderTypeFromCategoryAnalysis(indicators);
+            }
+        };
     }
-    
+
     /**
      * Use CategoryAnalysisService to determine order type from indicators
      */
@@ -128,18 +129,18 @@ public class OrderExecutionService {
         // Get category counts for both CALL and PUT strategies
         Map<String, Integer> callCategoryCounts = categoryAnalysisService.getCategoryCountsMap(indicators, "CALL");
         Map<String, Integer> putCategoryCounts = categoryAnalysisService.getCategoryCountsMap(indicators, "PUT");
-        
+
         // Calculate total scores for each direction
         int callTotalScore = callCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
         int putTotalScore = putCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
-        
+
         log.debug("🔍 CATEGORY ANALYSIS - CallTotalScore: {}, PutTotalScore: {}", callTotalScore, putTotalScore);
-        log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}", 
+        log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}",
                 callCategoryCounts.getOrDefault("ema", 0), callCategoryCounts.getOrDefault("futureAndVolume", 0),
                 callCategoryCounts.getOrDefault("candlestick", 0), callCategoryCounts.getOrDefault("momentum", 0),
                 putCategoryCounts.getOrDefault("ema", 0), putCategoryCounts.getOrDefault("futureAndVolume", 0),
                 putCategoryCounts.getOrDefault("candlestick", 0), putCategoryCounts.getOrDefault("momentum", 0));
-        
+
         // Determine direction based on total scores
         if (callTotalScore > putTotalScore) {
             return "CALL_BUY";
@@ -163,16 +164,28 @@ public class OrderExecutionService {
             // Capture all conditions that led to this order entry (reuse entryDecision)
             List<String> entryConditions = entryConditionAnalysisService.captureEntryConditions(entryDecision, indicators);
 
-            // For scalping, use point-based targets from JSON configuration
+            // Get dynamic stop loss and target points based on 5-minute candle range
             double stopLossPoints, targetPoints;
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            Tick niftyTick = tickDataManager.getLastTick(niftyToken);
 
-            if ("CALL_BUY".equals(orderType)) {
-                stopLossPoints = configService.getCallStopLossPoints();
-                targetPoints = configService.getCallTargetPoints();
-            } else {
-                stopLossPoints = configService.getPutStopLossPoints();
-                targetPoints = configService.getPutTargetPoints();
+            if (niftyTick == null) {
+                log.error("No Nifty index data available for order creation");
+                return;
             }
+
+            double currentIndexPrice = niftyTick.getLastTradedPrice();
+
+            // Calculate dynamic stop loss and target based on 5-minute candle range
+            stopLossPoints = dynamicRiskManagementService.calculateDynamicStopLoss(niftyToken, currentIndexPrice);
+            targetPoints = dynamicRiskManagementService.calculateDynamicTarget(stopLossPoints);
+
+            // Log dynamic risk management info
+            String dynamicRiskInfo = optionPricingService.getDynamicRiskInfo(niftyToken, currentIndexPrice);
+            log.info("🎯 DYNAMIC RISK MANAGEMENT - Stop Loss: {} pts, Target: {} pts | {}",
+                    String.format("%.2f", stopLossPoints),
+                    String.format("%.2f", targetPoints),
+                    dynamicRiskInfo);
 
             // Try to get live option pricing first (for live profile)
             Optional<LiveOptionPricingService.LiveOptionPricingInfo> livePricing = liveOptionPricingService.getLiveOptionPricing(orderType);
@@ -180,7 +193,6 @@ public class OrderExecutionService {
             Double optionEntryPrice, stopLossPrice, targetPrice;
             String optionSymbol;
             Long optionInstrumentToken;
-            double currentIndexPrice;
 
             if (livePricing.isPresent()) {
                 // Use live option pricing
@@ -196,19 +208,10 @@ public class OrderExecutionService {
                         optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice);
             } else {
                 // Fallback to placeholder pricing (for local profile or when live pricing fails)
-                String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
-                Tick niftyTick = tickDataManager.getLastTick(niftyToken);
-                if (niftyTick == null) {
-                    log.error("No Nifty index data available for order creation");
-                    return;
-                }
-
-                currentIndexPrice = niftyTick.getLastTradedPrice();
-
                 // Calculate option entry price (1% of index price as premium)
                 optionEntryPrice = currentIndexPrice * 0.01; // Simplified calculation
 
-                // Calculate stop loss and target prices directly (point-based, not percentage-based)
+                // Calculate stop loss and target prices using dynamic points
                 stopLossPrice = Math.max(0.0, optionEntryPrice - stopLossPoints);
                 targetPrice = optionEntryPrice + targetPoints;
 
@@ -241,18 +244,8 @@ public class OrderExecutionService {
                         tick.getTickTimestamp() // Use tick timestamp instead of current time
                 );
             } else {
-                // Fallback to regular order creation if no scenario info
-                order = exitStrategyService.createOrderEntry(
-                        OrderTypeEnum.valueOf(orderType),
-                        optionSymbol,
-                        optionInstrumentToken,
-                        optionEntryPrice, // Option entry price (premium)
-                        currentIndexPrice, // Entry index price (Nifty level)
-                        stopLossPrice,
-                        targetPrice,
-                        tradingConfigService.getMinLotSize(), // Get configured minimum lot size from JSON
-                        tick.getTickTimestamp() // Use tick timestamp instead of current time
-                );
+                log.warn("❌ ENTRY DECISION INVALID - Cannot create order without valid scenario");
+                return;
             }
 
             if (order != null) {
@@ -306,24 +299,24 @@ public class OrderExecutionService {
             if (activeOrders.isEmpty()) {
                 return;
             }
-            
+
             JtradeOrder activeOrder = activeOrders.get(0); // Get the first active order
-            
+
             double currentOptionPrice;
             double currentIndexPrice;
-            
+
             // Check if we're in live profile and have real option instrument token
             if (isLiveProfile() && activeOrder.getInstrumentToken() != null && activeOrder.getInstrumentToken() > 0) {
                 // Get real option LTP for live profile using Kite Connect API
                 String instrumentToken = String.valueOf(activeOrder.getInstrumentToken());
                 currentOptionPrice = kiteConnect.getLTP(new String[]{instrumentToken}).get(instrumentToken).lastPrice;
-                
+
                 // Get current Nifty index price for reference
                 String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
                 Tick niftyTick = tickDataManager.getLastTick(niftyToken);
                 currentIndexPrice = niftyTick != null ? niftyTick.getLastTradedPrice() : activeOrder.getEntryIndexPrice();
-                
-                log.debug("🎯 USING REAL OPTION LTP FROM KITE API - Token: {}, Symbol: {}, LTP: {}, Index: {}", 
+
+                log.debug("🎯 USING REAL OPTION LTP FROM KITE API - Token: {}, Symbol: {}, LTP: {}, Index: {}",
                         activeOrder.getInstrumentToken(), activeOrder.getTradingSymbol(), currentOptionPrice, currentIndexPrice);
             } else {
                 // Use calculated option price for local profile or when no real instrument token
@@ -333,28 +326,28 @@ public class OrderExecutionService {
                     log.warn("No Nifty index data available for P&L calculation");
                     return;
                 }
-                
+
                 currentIndexPrice = niftyTick.getLastTradedPrice();
                 double entryIndexPrice = activeOrder.getEntryIndexPrice();
                 double entryOptionPrice = activeOrder.getEntryPrice();
-                
+
                 // Calculate current option price based on index movement
                 currentOptionPrice = optionPricingService.calculateCurrentLTP(
-                    entryOptionPrice, entryIndexPrice, currentIndexPrice, activeOrder.getOrderType());
-                
-                log.debug("📊 USING CALCULATED OPTION PRICE - Entry: {}, Current: {}, Index: {}", 
+                        entryOptionPrice, entryIndexPrice, currentIndexPrice, activeOrder.getOrderType());
+
+                log.debug("📊 USING CALCULATED OPTION PRICE - Entry: {}, Current: {}, Index: {}",
                         entryOptionPrice, currentOptionPrice, currentIndexPrice);
             }
-            
+
             double entryOptionPrice = activeOrder.getEntryPrice();
             double points = currentOptionPrice - entryOptionPrice;
             double pnl = points * activeOrder.getQuantity();
-            
+
             // Simplified live P&L log (only points and P&L)
             String orderTypeDisplay = OrderTypeEnum.CALL_BUY.equals(activeOrder.getOrderType()) ? "CALL" : "PUT";
-            log.info("_________________________ 💰 LIVE P&L - {} | Points: {}, P&L: ₹{}, LTP: {} _________________________", 
+            log.info("_________________________ 💰 LIVE P&L - {} | Points: {}, P&L: ₹{}, LTP: {} _________________________",
                     orderTypeDisplay, String.format("%+.2f", points), String.format("%.2f", pnl), String.format("%.2f", currentOptionPrice));
-            
+
         } catch (Exception e) {
             log.error("Error updating live P&L for tick: {}", tick.getInstrumentToken(), e);
         }

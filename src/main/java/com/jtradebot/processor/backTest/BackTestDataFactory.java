@@ -26,9 +26,13 @@ public class BackTestDataFactory {
 
     public Queue<Tick> getBackTestData(SourceType sourceType, Date fromDate, Date toDate, List<Long> instrumentTokens)
             throws KiteException, IOException {
-        return switch (sourceType) {
-            case HISTORICAL_DATA -> historicalDataService.getBackTestData(instrumentTokens, fromDate, toDate);
-            case DATABASE -> dbService.getBackTestData(fromDate, toDate, instrumentTokens);
-        };
+        switch (sourceType) {
+            case HISTORICAL_DATA:
+                return historicalDataService.getBackTestData(instrumentTokens, fromDate, toDate);
+            case DATABASE:
+                return dbService.getBackTestData(fromDate, toDate, instrumentTokens);
+            default:
+                throw new IllegalArgumentException("Unknown source type: " + sourceType);
+        }
     }
 }

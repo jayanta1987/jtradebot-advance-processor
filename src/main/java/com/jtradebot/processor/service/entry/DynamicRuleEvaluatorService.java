@@ -91,69 +91,17 @@ public class DynamicRuleEvaluatorService {
         log.info("Put Rule - RSI Threshold: {}, Volume Multiplier: {}",
                 putRule.getMaxRsiThreshold(), putRule.getMinVolumeSurgeMultiplier());
     }
-    
 
-    public boolean shouldMakeCallEntry(Tick tick) {
-        try {
-            String instrumentToken = String.valueOf(tick.getInstrumentToken());
-            
-            // Get flattened indicators
-            FlattenedIndicators indicators = getFlattenedIndicators(tick);
-            
-            // Use new scenario-based entry evaluation for CALL direction
-            ScalpingEntryDecision decision = getEntryDecisionStandalone(tick, indicators);
-            
-            // Only trigger CALL if scenario passes AND market conditions are bullish
-            boolean isBullish = ruleHelper.isMarketConditionBullish(indicators);
-            boolean shouldEntry = decision.isShouldEntry() && isBullish;
-            
-            if (shouldEntry) {
-                log.debug("🚀 CALL ENTRY SIGNAL - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Bullish: {}, Time: {}", 
-                    tick.getInstrumentToken(), tick.getLastTradedPrice(), decision.getScenarioName(), 
-                    decision.getConfidence(), isBullish, tick.getTickTimestamp());
-            } else {
-                log.debug("🔍 CALL ENTRY BLOCKED - Instrument: {}, Scenario: {}, Bullish: {}, Reason: {}", 
-                    tick.getInstrumentToken(), decision.getScenarioName(), isBullish, decision.getReason());
-            }
-            
-            return shouldEntry;
-            
-        } catch (Exception e) {
-            log.error("Error evaluating CALL entry for tick: {}", tick.getInstrumentToken(), e);
-            return false;
-        }
+    public boolean shouldMakePutExit(Tick tick){
+        FlattenedIndicators indicators = getFlattenedIndicators(tick);
+        // 40% bearish threshold
+        return ruleHelper.isMarketConditionBullish(indicators, 0.3);
     }
-    
 
-    public boolean shouldMakePutEntry(Tick tick) {
-        try {
-            String instrumentToken = String.valueOf(tick.getInstrumentToken());
-            
-            // Get flattened indicators
-            FlattenedIndicators indicators = getFlattenedIndicators(tick);
-            
-            // Use new scenario-based entry evaluation for PUT direction
-            ScalpingEntryDecision decision = getEntryDecisionStandalone(tick, indicators);
-            
-            // Only trigger PUT if scenario passes AND market conditions are bearish
-            boolean isBearish = ruleHelper.isMarketConditionBearish(indicators);
-            boolean shouldEntry = decision.isShouldEntry() && isBearish;
-            
-            if (shouldEntry) {
-                log.debug("📉 PUT ENTRY SIGNAL - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Bearish: {}, Time: {}", 
-                    tick.getInstrumentToken(), tick.getLastTradedPrice(), decision.getScenarioName(), 
-                    decision.getConfidence(), isBearish, tick.getTickTimestamp());
-            } else {
-                log.debug("🔍 PUT ENTRY BLOCKED - Instrument: {}, Scenario: {}, Bearish: {}, Reason: {}", 
-                    tick.getInstrumentToken(), decision.getScenarioName(), isBearish, decision.getReason());
-            }
-            
-            return shouldEntry;
-            
-        } catch (Exception e) {
-            log.error("Error evaluating PUT entry for tick: {}", tick.getInstrumentToken(), e);
-            return false;
-        }
+    public boolean shouldMakeCallExit(Tick tick){
+        FlattenedIndicators indicators = getFlattenedIndicators(tick);
+        // 40% bullish threshold
+        return ruleHelper.isMarketConditionBearish(indicators, 0.3);
     }
 
 
@@ -172,44 +120,6 @@ public class DynamicRuleEvaluatorService {
             
             // 🔥 OPTIMIZATION: Use new scenario-based entry evaluation with pre-calculated quality score AND market condition
             ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators, qualityScore, preCalculatedMarketCondition);
-            
-            if (decision.isShouldEntry()) {
-                log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 
-                    tick.getInstrumentToken(), tick.getLastTradedPrice(), decision.getScenarioName(), 
-                    decision.getConfidence(), tick.getTickTimestamp());
-            } else {
-                log.debug("🔍 ENTRY BLOCKED - Instrument: {}, Reason: {}", tick.getInstrumentToken(), decision.getReason());
-            }
-            
-            return decision;
-            
-        } catch (Exception e) {
-            log.error("Error getting entry decision for tick: {}", tick.getInstrumentToken(), e);
-            return ScalpingEntryDecision.builder()
-                    .shouldEntry(false)
-                    .reason("Error during evaluation: " + e.getMessage())
-                    .build();
-        }
-    }
-    
-
-    public ScalpingEntryDecision getEntryDecisionStandalone(Tick tick, FlattenedIndicators indicators) {
-        // For standalone usage, we calculate quality score and use standalone entry service
-        try {
-            // Calculate quality score once to avoid duplicate calculations
-            EntryQuality callQuality = evaluateCallEntryQuality(indicators, tick);
-            EntryQuality putQuality = evaluatePutEntryQuality(indicators, tick);
-            
-            // Use the dominant quality score (same logic as TickProcessService)
-            boolean isCallDominant = callQuality.getQualityScore() > putQuality.getQualityScore();
-            double qualityScore = isCallDominant ? callQuality.getQualityScore() : putQuality.getQualityScore();
-            
-            log.debug("🔍 QUALITY SCORE UNIFIED - Call: {}, Put: {}, Dominant: {}, Final: {}", 
-                callQuality.getQualityScore(), putQuality.getQualityScore(), 
-                isCallDominant ? "CALL" : "PUT", qualityScore);
-            
-            // Use standalone entry service method
-            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntryStandalone(tick, indicators);
             
             if (decision.isShouldEntry()) {
                 log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 
@@ -265,7 +175,8 @@ public class DynamicRuleEvaluatorService {
             // Use RuleHelper to flatten indicators
             ruleHelper.flattenEmaIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
             ruleHelper.flattenRsiIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, 
-                callRule.getMinRsiThreshold(), putRule.getMaxRsiThreshold());
+                callRule.getMinRsiThreshold(), putRule.getMaxRsiThreshold(),
+                configService.getRsiMaPeriod(), configService.isEnableRsiMaComparison());
             ruleHelper.flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
             ruleHelper.flattenCandlestickPatternIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
             
@@ -361,8 +272,8 @@ public class DynamicRuleEvaluatorService {
         
         // RSI Quality Score (0-10)
         double rsiScore = 0.0;
-        if (indicators.getRsi_5min_gt_56() != null && indicators.getRsi_5min_gt_56()) rsiScore += scoringConfigService.getRsiQuality();
-        if (indicators.getRsi_1min_gt_56() != null && indicators.getRsi_1min_gt_56()) rsiScore += scoringConfigService.getRsiQuality();
+        if (indicators.getRsi_5min_gt_60() != null && indicators.getRsi_5min_gt_60()) rsiScore += scoringConfigService.getRsiQuality();
+        if (indicators.getRsi_1min_gt_60() != null && indicators.getRsi_1min_gt_60()) rsiScore += scoringConfigService.getRsiQuality();
         quality.setRsiScore(rsiScore);
         
         // Volume Quality Score (0-10)
@@ -455,8 +366,8 @@ public class DynamicRuleEvaluatorService {
         
         // RSI Quality Score (0-10)
         double rsiScore = 0.0;
-        if (indicators.getRsi_5min_lt_44() != null && indicators.getRsi_5min_lt_44()) rsiScore += scoringConfigService.getRsiQuality();
-        if (indicators.getRsi_1min_lt_44() != null && indicators.getRsi_1min_lt_44()) rsiScore += scoringConfigService.getRsiQuality();
+        if (indicators.getRsi_5min_lt_40() != null && indicators.getRsi_5min_lt_40()) rsiScore += scoringConfigService.getRsiQuality();
+        if (indicators.getRsi_1min_lt_40() != null && indicators.getRsi_1min_lt_40()) rsiScore += scoringConfigService.getRsiQuality();
         quality.setRsiScore(rsiScore);
         
         // Volume Quality Score (0-10)

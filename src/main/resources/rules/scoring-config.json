@@ -1,96 +1,9 @@
 {
   "strategy": "SCORING_CONFIGURATION",
   "version": "1.0",
-  "description": "Comprehensive scoring and threshold configuration for trading strategies",
+  "description": "Clean scoring configuration with only used sections",
   
   "scoringConfiguration": {
-    "confidenceScoring": {
-      "emaConfidence": 0.2,
-      "rsiConfidence": 0.2,
-      "volumeConfidence": 0.2,
-      "priceActionConfidence": 0.2,
-      "resistanceConfidence": 0.2,
-      "maxConfidence": 1.0,
-      "description": "Confidence scoring weights"
-    },
-    "emaScoring": {
-      "bullishScore": 1.5,
-      "bearishScore": -1.5,
-      "maxScore": 3.0,
-      "minScore": -3.0,
-      "description": "EMA crossover scoring"
-    },
-    "rsiScoring": {
-      "bullishScore": 1.5,
-      "bearishScore": -1.5,
-      "maxScore": 3.0,
-      "minScore": -3.0,
-      "description": "RSI condition scoring"
-    },
-    "volumeScoring": {
-      "volume5minPoints": 2.0,
-      "volume1minPoints": 1.0,
-      "volumeMultiplierThresholds": {
-        "veryHigh": {
-          "threshold": 3.0,
-          "bonus": 2.0
-        },
-        "high": {
-          "threshold": 2.0,
-          "bonus": 1.0
-        },
-        "standard": {
-          "threshold": 1.5,
-          "bonus": 0.5
-        }
-      },
-      "maxScore": 5.0,
-      "minScore": -5.0,
-      "description": "Volume surge scoring"
-    },
-    "priceActionScoring": {
-      "vwapBullishScore": 1.5,
-      "vwapBearishScore": -1.5,
-      "resistanceScore": 1.5,
-      "supportScore": -1.5,
-      "breakoutStrength": {
-        "strongBreakout": {
-          "threshold": 2.0,
-          "bonus": 2.0
-        },
-        "standardBreakout": {
-          "bonus": 1.0
-        }
-      },
-      "breakdownStrength": {
-        "strongBreakdown": {
-          "threshold": 2.0,
-          "bonus": 2.0
-        },
-        "standardBreakdown": {
-          "bonus": 1.0
-        }
-      },
-      "maxScore": 5.0,
-      "minScore": -5.0,
-      "description": "Price action scoring"
-    },
-    "futuresignalScoring": {
-      "bullishScore": 2.0,
-      "bearishScore": -2.0,
-      "maxScore": 2.0,
-      "minScore": -2.0,
-      "description": "Futuresignal scoring"
-    },
-    "momentumScoring": {
-      "weight": 0.15,
-      "perfectAlignmentBonus": 2.0,
-      "majorityAlignmentBonus": 1.0,
-      "rsiAlignmentBonus": 1.0,
-      "maxScore": 3.0,
-      "minScore": -3.0,
-      "description": "Momentum and trend alignment scoring"
-    },
     "qualityScoring": {
       "emaQuality": 5.0,
       "rsiQuality": 5.0,
@@ -119,74 +32,18 @@
   },
 
   "thresholdConfiguration": {
-    "rsiThresholds": {
-      "callBullish": 56.0,
-      "putBearish": 44.0,
-      "overbought": 75.0,
-      "oversold": 25.0,
-      "tolerance": 0.05,
-      "description": "RSI thresholds for entry decisions"
-    },
     "volumeThresholds": {
       "surgeMultiplier": 1.5,
       "highVolumeMultiplier": 2.0,
-      "veryHighVolumeMultiplier": 3.0,
       "description": "Volume surge thresholds for entry decisions"
     },
-    "priceThresholds": {
-      "supportResistanceTolerance": 0.01,
-      "breakoutThreshold": 0.99,
-      "breakdownThreshold": 1.01,
-      "emaTouchTolerance": 0.001,
-      "description": "Price action thresholds"
-    },
     "qualityThresholds": {
-      "minConfidenceScore": 0.6,
       "minQualityScore": 6.0,
-      "minCandlestickScore": 4.0,
       "description": "Quality thresholds for entry decisions"
     }
   },
 
-  "marketConditionConfiguration": {
-    "flatMarketDetection": {
-      "enabled": true,
-      "description": "Configuration for detecting and filtering flat market conditions",
-      "candleSizeThresholds": {
-        "minCandleHeight": 15.0,
-        "minCandleBodyRatio": 0.3,
-        "maxDojiRatio": 0.1,
-        "maxSpinningTopRatio": 0.2,
-        "description": "Minimum candle size requirements to avoid flat market entries"
-      },
-      "volatilityThresholds": {
-        "minPriceRange": 20.0,
-        "minATR": 25.0,
-        "maxSidewaysBars": 5,
-        "description": "Volatility requirements to ensure sufficient market movement"
-      },
-      "directionalStrength": {
-        "minTrendStrength": 0.6,
-        "minConsecutiveDirectionalBars": 3,
-        "maxNeutralBars": 2,
-        "description": "Requirements for strong directional movement"
-      },
-      "volumeRequirements": {
-        "minVolumeMultiplier": 1.2,
-        "minVolumeTrend": 0.1,
-        "description": "Volume requirements to confirm market activity"
-      }
-    },
-    "marketConditionScoring": {
-      "flatMarketPenalty": -5.0,
-      "strongDirectionBonus": 3.0,
-      "volatilityBonus": 2.0,
-      "description": "Scoring adjustments based on market conditions"
-    }
-  },
-
   "timingConfiguration": {
-    "entryCooldownMs": 30000,
     "minDataBars": 20,
     "description": "Timing and data requirements"
   }
