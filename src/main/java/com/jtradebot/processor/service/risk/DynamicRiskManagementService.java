@@ -178,10 +178,51 @@ public class DynamicRiskManagementService {
     private CandleTimeFrameEnum getCandleTimeframeFromConfig() {
         try {
             String timeframeStr = tradingConfigService.getCandleTimeframe();
-            return CandleTimeFrameEnum.valueOf(timeframeStr);
+            
+            // Handle common timeframe formats
+            if (timeframeStr == null || timeframeStr.trim().isEmpty()) {
+                log.warn("Candle timeframe is null or empty, using FIVE_MIN as default");
+                return CandleTimeFrameEnum.FIVE_MIN;
+            }
+            
+            // Try direct enum value first
+            try {
+                return CandleTimeFrameEnum.valueOf(timeframeStr.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // Try to map common formats to enum values
+                String normalized = timeframeStr.trim().toLowerCase();
+                switch (normalized) {
+                    case "1min":
+                    case "1_min":
+                    case "one_min":
+                        return CandleTimeFrameEnum.ONE_MIN;
+                    case "3min":
+                    case "3_min":
+                    case "three_min":
+                        return CandleTimeFrameEnum.THREE_MIN;
+                    case "5min":
+                    case "5_min":
+                    case "five_min":
+                        return CandleTimeFrameEnum.FIVE_MIN;
+                    case "15min":
+                    case "15_min":
+                    case "fifteen_min":
+                        return CandleTimeFrameEnum.FIFTEEN_MIN;
+                    case "1hour":
+                    case "1_hour":
+                    case "one_hour":
+                        return CandleTimeFrameEnum.ONE_HOUR;
+                    case "1day":
+                    case "1_day":
+                    case "one_day":
+                        return CandleTimeFrameEnum.ONE_DAY;
+                    default:
+                        throw new IllegalArgumentException("Unknown timeframe format: " + timeframeStr);
+                }
+            }
         } catch (Exception e) {
-            log.warn("Error parsing candle timeframe from config: {}, using FIVE_MIN as default",
-                    tradingConfigService.getCandleTimeframe(), e);
+            log.warn("Error parsing candle timeframe from config: {}, using FIVE_MIN as default. Error: {}",
+                    tradingConfigService.getCandleTimeframe(), e.getMessage());
             return CandleTimeFrameEnum.FIVE_MIN;
         }
     }

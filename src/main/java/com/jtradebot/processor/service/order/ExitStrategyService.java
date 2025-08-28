@@ -432,37 +432,62 @@ public class ExitStrategyService {
 
     /**
      * Update trailing stop loss after milestone is hit
-     * Simple logic: Use the latest hit milestone price as new stop loss
+     * New logic: Stop loss moves to previous milestone price
+     * - 1st milestone hit → stop loss becomes entry price
+     * - 2nd milestone hit → stop loss becomes 1st milestone price
+     * - 3rd milestone hit → stop loss becomes 2nd milestone price
+     * - And so on...
      */
     private void updateTrailingStopLoss(JtradeOrder order, Milestone milestone) {
         try {
-            // Get the latest milestone that was hit (targetHit: true)
             List<Milestone> targetMilestones = order.getTargetMilestones();
-            Milestone latestHitMilestone = null;
+            double oldStopLoss = order.getStopLossPrice();
+            double newStopLossPrice;
 
-            for (Milestone m : targetMilestones) {
-                if (m.isTargetHit()) {
-                    latestHitMilestone = m;
+            // Determine the new stop loss based on which milestone was hit
+            if (milestone.getMilestoneNumber() == 1) {
+                // 1st milestone hit → stop loss becomes entry price
+                newStopLossPrice = order.getEntryPrice();
+                log.info("🔒 TRAILING STOP LOSS UPDATED - Order: {} | 1st Milestone Hit | Old Stop Loss: {} | New Stop Loss: {} (Entry Price)",
+                        order.getId(), oldStopLoss, newStopLossPrice);
+            } else {
+                // 2nd milestone and beyond → stop loss becomes previous milestone price
+                Milestone previousMilestone = null;
+                for (Milestone m : targetMilestones) {
+                    if (m.getMilestoneNumber() == milestone.getMilestoneNumber() - 1) {
+                        previousMilestone = m;
+                        break;
+                    }
+                }
+
+                if (previousMilestone != null) {
+                    newStopLossPrice = previousMilestone.getTargetPrice();
+                    log.info("🔒 TRAILING STOP LOSS UPDATED - Order: {} | Milestone {} Hit | Old Stop Loss: {} | New Stop Loss: {} (Milestone {} Price)",
+                            order.getId(), milestone.getMilestoneNumber(), oldStopLoss, newStopLossPrice, previousMilestone.getMilestoneNumber());
+                } else {
+                    // Fallback to entry price if previous milestone not found
+                    newStopLossPrice = order.getEntryPrice();
+                    log.warn("⚠️ Previous milestone not found for milestone {}, using entry price as stop loss - Order: {}", 
+                            milestone.getMilestoneNumber(), order.getId());
                 }
             }
 
-            if (latestHitMilestone != null) {
-                // Use the latest hit milestone price as new stop loss
-                double oldStopLoss = order.getStopLossPrice();
-                double newStopLossPrice = latestHitMilestone.getTargetPrice();
+            order.setStopLossPrice(newStopLossPrice);
 
-                order.setStopLossPrice(newStopLossPrice);
-
-                log.info("🔒 TRAILING STOP LOSS UPDATED - Order: {} | Latest Hit Milestone: {} | Old Stop Loss: {} | New Stop Loss: {}",
-                        order.getId(), latestHitMilestone.getMilestoneNumber(), oldStopLoss, newStopLossPrice);
-
-                // Add to milestone history
-                if (order.getMilestoneHistory() == null) {
-                    order.setMilestoneHistory(new ArrayList<>());
-                }
+            // Add to milestone history
+            if (order.getMilestoneHistory() == null) {
+                order.setMilestoneHistory(new ArrayList<>());
+            }
+            
+            if (milestone.getMilestoneNumber() == 1) {
+                order.getMilestoneHistory().add(
+                        String.format("Stop loss updated to %.2f (entry price) after milestone %d hit",
+                                newStopLossPrice, milestone.getMilestoneNumber())
+                );
+            } else {
                 order.getMilestoneHistory().add(
                         String.format("Stop loss updated to %.2f (milestone %d price) after milestone %d hit",
-                                newStopLossPrice, latestHitMilestone.getMilestoneNumber(), milestone.getMilestoneNumber())
+                                newStopLossPrice, milestone.getMilestoneNumber() - 1, milestone.getMilestoneNumber())
                 );
             }
 

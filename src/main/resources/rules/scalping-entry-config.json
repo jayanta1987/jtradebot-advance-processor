@@ -212,7 +212,7 @@
     "riskManagement": {
       "maxRiskPerDayPercentage": 2.0,
       "maxProfitPerDayPercentage": 5.0,
-      "milestonePoints": 50.0,
+      "milestonePoints": 7.0,
       "rsiThresholds": {
         "callRsiThreshold": 60.0,
         "putRsiThreshold": 40.0,
@@ -230,7 +230,7 @@
         "stopLossPercentage": 0.25,
         "targetMultiplier": 2.5,
         "minStopLoss": 5.0,
-        "maxStopLoss": 15.0,
+        "maxStopLoss": 10.0,
         "minTarget": 10.0,
         "maxTarget": 30.0,
         "fallbackValues": {
@@ -241,12 +241,12 @@
         "technicalParameters": {
           "minRequiredBars": 20,
           "volatilityLookbackPeriod": 14,
-          "candleTimeframe": "5min"
+          "candleTimeframe": "FIVE_MIN"
         }
       }
     },
     "tradeSettings": {
-      "maxTradeHoldingTimeInSec": 300
+      "maxTradeHoldingTimeInSec": 150
     },
     "exitSignalConfiguration": {
       "enabled": true,

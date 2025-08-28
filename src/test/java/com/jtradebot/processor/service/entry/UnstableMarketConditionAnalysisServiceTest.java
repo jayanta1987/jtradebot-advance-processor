@@ -5,6 +5,7 @@ import com.jtradebot.processor.config.ScoringConfigurationService;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.zerodhatech.models.Tick;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,5 +76,24 @@ class UnstableMarketConditionAnalysisServiceTest {
         assertEquals("Test filter description", filter.getDescription());
         assertEquals(10.0, filter.getThreshold());
         assertEquals(1, filter.getPriority());
+    }
+
+    @Test
+    void testCandleTimeframeEnumParsing() {
+        // Given: Test different timeframe formats
+        assertEquals(CandleTimeFrameEnum.ONE_MIN, CandleTimeFrameEnum.valueOf("ONE_MIN"));
+        assertEquals(CandleTimeFrameEnum.FIVE_MIN, CandleTimeFrameEnum.valueOf("FIVE_MIN"));
+        assertEquals(CandleTimeFrameEnum.FIFTEEN_MIN, CandleTimeFrameEnum.valueOf("FIFTEEN_MIN"));
+        assertEquals(CandleTimeFrameEnum.ONE_HOUR, CandleTimeFrameEnum.valueOf("ONE_HOUR"));
+        assertEquals(CandleTimeFrameEnum.ONE_DAY, CandleTimeFrameEnum.valueOf("ONE_DAY"));
+        
+        // Test that invalid values throw exception
+        assertThrows(IllegalArgumentException.class, () -> {
+            CandleTimeFrameEnum.valueOf("5min");
+        });
+        
+        assertThrows(IllegalArgumentException.class, () -> {
+            CandleTimeFrameEnum.valueOf("INVALID");
+        });
     }
 }
