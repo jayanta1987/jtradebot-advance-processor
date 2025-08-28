@@ -33,21 +33,41 @@ public class FlattenedIndicators {
     private Double ema200_distance_5min; // Distance from EMA 200 in 5min timeframe
     private Double ema200_distance_15min; // Distance from EMA 200 in 15min timeframe
     
-    // RSI indicators - Updated thresholds
-    private Boolean rsi_1min_gt_70;
-    private Boolean rsi_5min_gt_70;
-    private Boolean rsi_15min_gt_70;
-    private Boolean rsi_1min_lt_30;
-    private Boolean rsi_5min_lt_30;
-    private Boolean rsi_15min_lt_30;
+    // EMA values for additional filtering
+    private Double ema34_5min; // EMA 34 value in 5min timeframe
+    private Double ema200_5min; // EMA 200 value in 5min timeframe
     
-    // New RSI indicators for updated thresholds (56 and 44)
-    private Boolean rsi_1min_gt_56;
-    private Boolean rsi_5min_gt_56;
-    private Boolean rsi_15min_gt_56;
-    private Boolean rsi_1min_lt_44;
-    private Boolean rsi_5min_lt_44;
-    private Boolean rsi_15min_lt_44;
+    // RSI indicators - Updated thresholds
+    private Boolean rsi_1min_gt_80;
+    private Boolean rsi_5min_gt_80;
+    private Boolean rsi_15min_gt_80;
+    private Boolean rsi_1min_lt_20;
+    private Boolean rsi_5min_lt_20;
+    private Boolean rsi_15min_lt_20;
+    
+    // New RSI indicators for updated thresholds (60 and 40)
+    private Boolean rsi_1min_gt_60;
+    private Boolean rsi_5min_gt_60;
+    private Boolean rsi_15min_gt_60;
+    private Boolean rsi_1min_lt_40;
+    private Boolean rsi_5min_lt_40;
+    private Boolean rsi_15min_lt_40;
+    
+    // RSI MA comparison indicators
+    private Boolean rsi_1min_gt_rsi_ma;
+    private Boolean rsi_5min_gt_rsi_ma;
+    private Boolean rsi_15min_gt_rsi_ma;
+    private Boolean rsi_1min_lt_rsi_ma;
+    private Boolean rsi_5min_lt_rsi_ma;
+    private Boolean rsi_15min_lt_rsi_ma;
+    
+    // RSI Divergence indicators
+    private Boolean rsi_bullish_divergence_1min;
+    private Boolean rsi_bullish_divergence_5min;
+    private Boolean rsi_bullish_divergence_15min;
+    private Boolean rsi_bearish_divergence_1min;
+    private Boolean rsi_bearish_divergence_5min;
+    private Boolean rsi_bearish_divergence_15min;
     
     // Volume surge indicators
     private Boolean volume_1min_surge;

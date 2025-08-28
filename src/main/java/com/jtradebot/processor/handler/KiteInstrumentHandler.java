@@ -36,18 +36,18 @@ public class KiteInstrumentHandler {
         return 256265L;
     }
 
-    public Long getNifty50FutureToken() {
+    /*public Long getNifty50FutureToken() {
         Optional<Long> token = getDynamicNifty50FutureToken();
         if (token.isPresent()) {
             return token.get();
         } else {
             throw new RuntimeException("No valid Nifty 50 future token found in database");
         }
-    }
-
-   /* public Long getNifty50FutureToken() {
-        return 16410370L;
     }*/
+
+    public Long getNifty50FutureToken() {
+        return 16410370L;
+    }
 
 
     public Optional<Long> getDynamicNifty50FutureToken() {
@@ -62,6 +62,7 @@ public class KiteInstrumentHandler {
         try {
             LocalDate now = LocalDate.now();
 
+            log.info("Fetching Nifty futures from database to determine the appropriate future contract...");
             // Find Nifty future instruments using efficient database query
             List<Instrument> niftyFutures = instrumentRepository.findByNameAndInstrumentTypeAndSegmentOrderByExpiryAsc("NIFTY", "FUT", "NFO-FUT");
 
@@ -118,10 +119,9 @@ public class KiteInstrumentHandler {
                             long daysUntilExpiry = java.time.temporal.ChronoUnit.DAYS.between(now, expiryDate);
 
                             // If expiry is more than 7 days away, use this future
-                            boolean shouldUseThisFuture = daysUntilExpiry > 7;
 
 
-                            return shouldUseThisFuture;
+                            return daysUntilExpiry > 7;
                         } catch (Exception e) {
                             log.warn("Error parsing expiry date for instrument {}: {}",
                                     instrument.getTradingSymbol(), e.getMessage());

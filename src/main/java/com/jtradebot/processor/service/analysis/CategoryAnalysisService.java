@@ -121,13 +121,29 @@ public class CategoryAnalysisService {
     public int getMomentumCount(FlattenedIndicators indicators, boolean isCall) {
         int momentumCount = 0;
         if (isCall) {
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_56())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_56())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_60())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_60())) momentumCount++;
+            // RSI MA comparison for bullish momentum
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_rsi_ma())) momentumCount++;
+            // RSI Divergence for bullish momentum
+            if (Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_5min())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1min())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_15min())) momentumCount++;
         } else {
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_44())) momentumCount++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_44())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_40())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_40())) momentumCount++;
+            // RSI MA comparison for bearish momentum
+            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_rsi_ma())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_rsi_ma())) momentumCount++;
+            // RSI Divergence for bearish momentum
+            if (Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_5min())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1min())) momentumCount++;
+            if (Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min())) momentumCount++;
         }
         return momentumCount;
     }

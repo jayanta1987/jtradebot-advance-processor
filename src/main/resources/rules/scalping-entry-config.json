@@ -1,30 +1,164 @@
 {
   "strategy": "SCALPING_ENTRY_LOGIC",
   "version": "2.0",
-  "description": "Flexible scalping entry logic with scenario-based configurations",
-  "tradingConfiguration": {
-    "accountBalance": 200000,
-    "quantitySettings": {
-      "minLotSize": 225,
-      "maxQuantityPerTrade": 750
-    },
-    "investmentLimits": {
-      "maxInvestmentPercentage": 90
-    },
-    "riskManagement": {
-      "maxRiskPerDayPercentage": 12.0,
-      "maxProfitPerDayPercentage": 30.0
-    },
-    "tradeSettings": {
-      "maxTradeHoldingTimeInSec": 100
-    }
-  },
+  "description": "Clean scalping entry logic with only actively used configurations",
+  
   "futuresignalsConfig": {
     "enabledTimeframes": [
       "1min",
       "5min"
     ]
   },
+  
+  "scenarios": [
+    {
+      "name": "SAFE_ENTRY_SIGNAL",
+      "description": "Conservative entry with strong confirmations using scoring config thresholds",
+      "requirements": {
+        "minQualityScore": 7.5,
+        "ema_min_count": 3,
+        "futureAndVolume_min_count": 3,
+        "candlestick_min_count": 3,
+        "momentum_min_count": 4,
+        "flatMarketFilter": true
+      }
+    }
+  ],
+  
+  "callCategories": {
+    "ema": [
+      "ema5_5min_gt_ema34_5min",
+      "ema5_1min_gt_ema34_1min",
+      "ema5_15min_gt_ema34_15min"
+    ],
+    "futureAndVolume": [
+      "volume_5min_surge",
+      "volume_1min_surge",
+      "volume_15min_surge",
+      "price_gt_vwap_5min",
+      "price_gt_vwap_1min",
+      "price_gt_vwap_15min",
+      "price_above_resistance"
+    ],
+    "candlestick": [
+      "green_candle_5min",
+      "green_candle_1min",
+      "long_body_5min",
+      "long_body_1min",
+      "bullish_engulfing_5min",
+      "bullish_engulfing_1min",
+      "bullish_morning_star_5min",
+      "bullish_morning_star_1min",
+      "hammer_5min",
+      "hammer_1min"
+    ],
+    "momentum": [
+      "rsi_5min_gt_60",
+      "rsi_1min_gt_60",
+      "rsi_15min_gt_60",
+      "rsi_5min_gt_rsi_ma",
+      "rsi_1min_gt_rsi_ma",
+      "rsi_15min_gt_rsi_ma",
+      "rsi_bullish_divergence_5min",
+      "rsi_bullish_divergence_1min",
+      "rsi_bullish_divergence_15min"
+    ]
+  },
+  
+  "putCategories": {
+    "ema": [
+      "ema5_5min_lt_ema34_5min",
+      "ema5_1min_lt_ema34_1min",
+      "ema5_15min_lt_ema34_15min"
+    ],
+    "futureAndVolume": [
+      "volume_5min_surge",
+      "volume_1min_surge",
+      "volume_15min_surge",
+      "price_lt_vwap_5min",
+      "price_lt_vwap_1min",
+      "price_lt_vwap_15min",
+      "price_below_support"
+    ],
+    "candlestick": [
+      "red_candle_5min",
+      "red_candle_1min",
+      "bearish_engulfing_5min",
+      "bearish_engulfing_1min",
+      "bearish_evening_star_5min",
+      "bearish_evening_star_1min",
+      "shooting_star_5min",
+      "shooting_star_1min"
+    ],
+    "momentum": [
+      "rsi_5min_lt_40",
+      "rsi_1min_lt_40",
+      "rsi_15min_lt_40",
+      "rsi_5min_lt_rsi_ma",
+      "rsi_1min_lt_rsi_ma",
+      "rsi_15min_lt_rsi_ma",
+      "rsi_bearish_divergence_5min",
+      "rsi_bearish_divergence_1min",
+      "rsi_bearish_divergence_15min"
+    ]
+  },
+  
+  "noTradeZones": {
+    "enabled": true,
+    "description": "Flexible market condition filtering with configurable relaxation",
+    "maxOptionalFiltersToIgnore": 2,
+    "filters": {
+      "candleHeight": {
+        "enabled": true,
+        "mandatory": true,
+        "name": "Minimum Candle Height",
+        "description": "Filter out entries with candle height less than 8.0",
+        "threshold": 4.0,
+        "priority": 1
+      },
+      "volumeSurge": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Volume Surge Multiplier",
+        "description": "Filter out entries with volume surge less than configured threshold",
+        "threshold": 10.0,
+        "priority": 2
+      },
+      "bodyRatio": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Candle Body Ratio",
+        "description": "Filter out entries with body ratio less than 0.50",
+        "threshold": 0.50,
+        "priority": 3
+      },
+      "ema200Distance": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "EMA 200 Distance",
+        "description": "Filter out entries with EMA 200 distance more than 0.6% of EMA 200",
+        "threshold": 0.006,
+        "priority": 4
+      },
+      "priceBetweenEma34AndEma200": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Price Between EMA34 and EMA200",
+        "description": "Filter out entries when price is between EMA34 and EMA200",
+        "priority": 5
+      },
+      "overboughtOversold": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Overbought/Oversold RSI",
+        "description": "Filter out entries when RSI is overbought (>80) or oversold (<20)",
+        "overboughtThreshold": 80.0,
+        "oversoldThreshold": 20.0,
+        "priority": 6
+      }
+    }
+  },
+  
   "flatMarketFiltering": {
     "enabled": true,
     "description": "Filter to prevent entries in flat or non-directional markets",
@@ -66,99 +200,70 @@
       "volatilityAnalysis": 10
     }
   },
-  "callCategories": {
-    "ema": [
-      "ema5_5min_gt_ema34_5min",
-      "ema5_1min_gt_ema34_1min",
-      "ema5_15min_gt_ema34_15min"
-    ],
-    "futureAndVolume": [
-      "volume_5min_surge",
-      "volume_1min_surge",
-      "volume_15min_surge",
-      "price_gt_vwap_5min",
-      "price_gt_vwap_1min",
-      "price_gt_vwap_15min",
-      "price_above_resistance"
-    ],
-    "candlestick": [
-      "green_candle_5min",
-      "green_candle_1min",
-      "long_body_5min",
-      "long_body_1min",
-      "bullish_engulfing_5min",
-      "bullish_engulfing_1min",
-      "bullish_morning_star_5min",
-      "bullish_morning_star_1min",
-      "hammer_5min",
-      "hammer_1min"
-    ],
-    "momentum": [
-      "rsi_5min_gt_56",
-      "rsi_1min_gt_56",
-      "rsi_15min_gt_56"
-    ]
-  },
-  "putCategories": {
-    "ema": [
-      "ema5_5min_lt_ema34_5min",
-      "ema5_1min_lt_ema34_1min",
-      "ema5_15min_lt_ema34_15min"
-    ],
-    "futureAndVolume": [
-      "volume_5min_surge",
-      "volume_1min_surge",
-      "volume_15min_surge",
-      "price_lt_vwap_5min",
-      "price_lt_vwap_1min",
-      "price_lt_vwap_15min",
-      "price_below_support"
-    ],
-    "candlestick": [
-      "red_candle_5min",
-      "red_candle_1min",
-      "bearish_engulfing_5min",
-      "bearish_engulfing_1min",
-      "bearish_evening_star_5min",
-      "bearish_evening_star_1min",
-      "shooting_star_5min",
-      "shooting_star_1min"
-    ],
-    "momentum": [
-      "rsi_5min_lt_44",
-      "rsi_1min_lt_44",
-      "rsi_15min_lt_44"
-    ]
-  },
-  "scenarios": [
-    {
-      "name": "SAFE_ENTRY_SIGNAL",
-      "description": "Conservative entry with strong confirmations using scoring config thresholds",
-      "requirements": {
-        "minQualityScore": 7.4,
-        "ema_min_count": 2,
-        "futureAndVolume_min_count": 3,
-        "candlestick_min_count": 3,
-        "momentum_min_count": 2,
-        "flatMarketFilter": true
+  
+  "tradingConfiguration": {
+    "quantitySettings": {
+      "minLotSize": 225,
+      "maxQuantityPerTrade": 550
+    },
+    "investmentLimits": {
+      "maxInvestmentPercentage": 5.0
+    },
+    "riskManagement": {
+      "maxRiskPerDayPercentage": 2.0,
+      "maxProfitPerDayPercentage": 5.0,
+      "milestonePoints": 7.0,
+      "rsiThresholds": {
+        "callRsiThreshold": 60.0,
+        "putRsiThreshold": 40.0,
+        "rsiMaPeriod": 14,
+        "enableRsiMaComparison": true
       },
-      "riskManagement": {
-        "stopLossPoints": 7.5,
-        "targetPoints": 15,
-        "milestonePoints": 5.0
+      "volumeSurgeMultiplier": 1.5,
+      "signalStrength": 0.7,
+      "stopLossPercentage": 0.3,
+      "targetPercentage": 0.8,
+      "stopLossPoints": 10.0,
+      "targetPoints": 20.0,
+      "dynamicRiskManagement": {
+        "enabled": false,
+        "stopLossPercentage": 0.25,
+        "targetMultiplier": 2.5,
+        "minStopLoss": 5.0,
+        "maxStopLoss": 10.0,
+        "minTarget": 10.0,
+        "maxTarget": 30.0,
+        "fallbackValues": {
+          "defaultStopLossWhenDisabled": 10.0,
+          "defaultTargetWhenDisabled": 20.0,
+          "defaultVolatilityScore": 0.5
+        },
+        "technicalParameters": {
+          "minRequiredBars": 20,
+          "volatilityLookbackPeriod": 14,
+          "candleTimeframe": "FIVE_MIN"
+        }
+      }
+    },
+    "tradeSettings": {
+      "maxTradeHoldingTimeInSec": 150
+    },
+    "exitSignalConfiguration": {
+      "enabled": true,
+      "description": "Exit signal configuration to match relaxed entry criteria",
+      "exitThresholds": {
+        "callExitThreshold": 0.5,
+        "putExitThreshold": 0.5,
+        "description": "Threshold for exit signals (0.5 = 50% of signals must be in opposite direction)"
+      },
+      "rsiDivergenceExit": {
+        "enabled": true,
+        "description": "Exit on RSI divergence signals"
+      },
+      "marketConditionExit": {
+        "enabled": true,
+        "description": "Exit on market condition reversal"
       }
     }
-  ],
-  "logging": {
-    "enabled": true,
-    "logFilteredEntries": true,
-    "logRejectionReasons": true
-  },
-  "weights": {
-    "emaCrossoverWeight": 0.25,
-    "rsiConditionWeight": 0.20,
-    "volumeSurgeWeight": 0.25,
-    "priceActionWeight": 0.15,
-    "futuresignalsWeight": 0.15
   }
 }

@@ -1,9 +1,11 @@
 package com.jtradebot.processor.service.entry;
 
+import com.jtradebot.processor.config.ScoringConfigurationService;
 import com.jtradebot.processor.indicator.MultiEmaIndicator;
 import com.jtradebot.processor.indicator.PriceVolumeSurgeIndicator;
 import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
+import com.jtradebot.processor.model.enums.DivergenceType;
 import com.jtradebot.processor.indicator.VWAPIndicator;
 import com.jtradebot.processor.candleStick.CandlestickPattern;
 import com.jtradebot.processor.model.indicator.EmaInfo;
@@ -32,6 +34,7 @@ public class RuleHelper {
     private final VWAPIndicator vwapIndicator;
     private final SupportResistanceIndicator supportResistanceIndicator;
     private final PriceVolumeSurgeIndicator priceVolumeSurgeIndicator;
+    private final ScoringConfigurationService scoringConfigService;
 
     /**
      * Flatten EMA indicators for all timeframes
@@ -85,17 +88,23 @@ public class RuleHelper {
                     double currentPrice = fiveMinSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance5min = currentPrice - ema200_5min;
                     indicators.setEma200_distance_5min(ema200Distance5min);
+                    indicators.setEma34_5min(ema34_5min);
+                    indicators.setEma200_5min(ema200_5min);
                 } catch (Exception e) {
                     log.error("Error calculating 5min EMA", e);
                     indicators.setEma5_5min_gt_ema34_5min(null);
                     indicators.setEma5_5min_lt_ema34_5min(null);
                     indicators.setEma200_distance_5min(null);
+                    indicators.setEma34_5min(null);
+                    indicators.setEma200_5min(null);
                 }
             } else {
                 log.warn("5min BarSeries insufficient data - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
                 indicators.setEma5_5min_gt_ema34_5min(null);
                 indicators.setEma5_5min_lt_ema34_5min(null);
                 indicators.setEma200_distance_5min(null);
+                indicators.setEma34_5min(null);
+                indicators.setEma200_5min(null);
             }
             
             // 15-minute EMA calculation
@@ -143,25 +152,51 @@ public class RuleHelper {
     /**
      * Flatten RSI indicators for all timeframes
      */
-    public void flattenRsiIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, double callRsiThreshold, double putRsiThreshold) {
+    public void flattenRsiIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, double callRsiThreshold, double putRsiThreshold, int rsiMaPeriod, boolean enableRsiMaComparison) {
         try {
-            log.debug("RSI Thresholds - Call: {}, Put: {}", callRsiThreshold, putRsiThreshold);
+            log.debug("RSI Thresholds - Call: {}, Put: {}, MA Period: {}, Enable MA: {}", callRsiThreshold, putRsiThreshold, rsiMaPeriod, enableRsiMaComparison);
             
             // 1-minute RSI calculation - Reduced minimum bars for backtesting
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 10) {
                 double rsi_1min = rsiIndicator.getRsiValue(oneMinSeries, 14);
                 log.debug("1min RSI: {} (BarCount: {})", rsi_1min, oneMinSeries.getBarCount());
 
-                indicators.setRsi_1min_gt_70(rsi_1min > 70);
-                indicators.setRsi_1min_lt_30(rsi_1min < 30);
-                indicators.setRsi_1min_gt_56(rsi_1min > callRsiThreshold);
-                indicators.setRsi_1min_lt_44(rsi_1min < putRsiThreshold);
+                indicators.setRsi_1min_gt_80(rsi_1min > 80);
+                indicators.setRsi_1min_lt_20(rsi_1min < 20);
+                indicators.setRsi_1min_gt_60(rsi_1min > callRsiThreshold);
+                indicators.setRsi_1min_lt_40(rsi_1min < putRsiThreshold);
+                
+                // RSI MA comparison
+                if (enableRsiMaComparison && oneMinSeries.getBarCount() >= rsiMaPeriod) {
+                    double rsiMa_1min = rsiIndicator.getRsiMaValue(oneMinSeries, 14, rsiMaPeriod);
+                    indicators.setRsi_1min_gt_rsi_ma(rsi_1min > rsiMa_1min);
+                    indicators.setRsi_1min_lt_rsi_ma(rsi_1min < rsiMa_1min);
+                } else {
+                    indicators.setRsi_1min_gt_rsi_ma(null);
+                    indicators.setRsi_1min_lt_rsi_ma(null);
+                }
+                
+                // RSI Divergence calculation for 1min
+                if (oneMinSeries.getBarCount() >= 30) {
+                    boolean bullishDivergence = rsiIndicator.isRsiDivergence(oneMinSeries, 14, 20, DivergenceType.BULLISH);
+                    boolean bearishDivergence = rsiIndicator.isRsiDivergence(oneMinSeries, 14, 20, DivergenceType.BEARISH);
+                    indicators.setRsi_bullish_divergence_1min(bullishDivergence);
+                    indicators.setRsi_bearish_divergence_1min(bearishDivergence);
+                    if (bullishDivergence || bearishDivergence) {
+                        log.info("RSI Divergence 1min - Bullish: {}, Bearish: {}", bullishDivergence, bearishDivergence);
+                    }
+                } else {
+                    indicators.setRsi_bullish_divergence_1min(null);
+                    indicators.setRsi_bearish_divergence_1min(null);
+                }
             } else {
                 log.debug("1min BarSeries insufficient data - BarCount: {}", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
-                indicators.setRsi_1min_gt_70(null);
-                indicators.setRsi_1min_lt_30(null);
-                indicators.setRsi_1min_gt_56(null);
-                indicators.setRsi_1min_lt_44(null);
+                indicators.setRsi_1min_gt_80(null);
+                indicators.setRsi_1min_lt_20(null);
+                indicators.setRsi_1min_gt_60(null);
+                indicators.setRsi_1min_lt_40(null);
+                indicators.setRsi_1min_gt_rsi_ma(null);
+                indicators.setRsi_1min_lt_rsi_ma(null);
             }
             
             // 5-minute RSI calculation - Reduced minimum bars for backtesting
@@ -169,16 +204,44 @@ public class RuleHelper {
                 double rsi_5min = rsiIndicator.getRsiValue(fiveMinSeries, 14);
                 log.debug("5min RSI: {} (BarCount: {})", rsi_5min, fiveMinSeries.getBarCount());
 
-                indicators.setRsi_5min_gt_70(rsi_5min > 70);
-                indicators.setRsi_5min_lt_30(rsi_5min < 30);
-                indicators.setRsi_5min_gt_56(rsi_5min > callRsiThreshold);
-                indicators.setRsi_5min_lt_44(rsi_5min < putRsiThreshold);
+                indicators.setRsi_5min_gt_80(rsi_5min > 80);
+                indicators.setRsi_5min_lt_20(rsi_5min < 20);
+                indicators.setRsi_5min_gt_60(rsi_5min > callRsiThreshold);
+                indicators.setRsi_5min_lt_40(rsi_5min < putRsiThreshold);
+                
+                // RSI MA comparison
+                if (enableRsiMaComparison && fiveMinSeries.getBarCount() >= rsiMaPeriod) {
+                    double rsiMa_5min = rsiIndicator.getRsiMaValue(fiveMinSeries, 14, rsiMaPeriod);
+                    indicators.setRsi_5min_gt_rsi_ma(rsi_5min > rsiMa_5min);
+                    indicators.setRsi_5min_lt_rsi_ma(rsi_5min < rsiMa_5min);
+                } else {
+                    indicators.setRsi_5min_gt_rsi_ma(null);
+                    indicators.setRsi_5min_lt_rsi_ma(null);
+                }
+                
+                // RSI Divergence calculation for 5min
+                if (fiveMinSeries.getBarCount() >= 30) {
+                    boolean bullishDivergence = rsiIndicator.isRsiDivergence(fiveMinSeries, 14, 20, DivergenceType.BULLISH);
+                    boolean bearishDivergence = rsiIndicator.isRsiDivergence(fiveMinSeries, 14, 20, DivergenceType.BEARISH);
+                    indicators.setRsi_bullish_divergence_5min(bullishDivergence);
+                    indicators.setRsi_bearish_divergence_5min(bearishDivergence);
+                    if (bullishDivergence || bearishDivergence) {
+                        log.info("RSI Divergence 5min - Bullish: {}, Bearish: {}", bullishDivergence, bearishDivergence);
+                    }
+                } else {
+                    indicators.setRsi_bullish_divergence_5min(null);
+                    indicators.setRsi_bearish_divergence_5min(null);
+                }
             } else {
                 log.debug("5min BarSeries insufficient data - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
-                indicators.setRsi_5min_gt_70(null);
-                indicators.setRsi_5min_lt_30(null);
-                indicators.setRsi_5min_gt_56(null);
-                indicators.setRsi_5min_lt_44(null);
+                indicators.setRsi_5min_gt_80(null);
+                indicators.setRsi_5min_lt_20(null);
+                indicators.setRsi_5min_gt_60(null);
+                indicators.setRsi_5min_lt_40(null);
+                indicators.setRsi_5min_gt_rsi_ma(null);
+                indicators.setRsi_5min_lt_rsi_ma(null);
+                indicators.setRsi_bullish_divergence_5min(null);
+                indicators.setRsi_bearish_divergence_5min(null);
             }
             
             // 15-minute RSI calculation - Reduced minimum bars for backtesting
@@ -186,33 +249,69 @@ public class RuleHelper {
                 double rsi_15min = rsiIndicator.getRsiValue(fifteenMinSeries, 14);
                 log.debug("15min RSI: {} (BarCount: {})", rsi_15min, fifteenMinSeries.getBarCount());
 
-                indicators.setRsi_15min_gt_70(rsi_15min > 70);
-                indicators.setRsi_15min_lt_30(rsi_15min < 30);
-                indicators.setRsi_15min_gt_56(rsi_15min > callRsiThreshold);
-                indicators.setRsi_15min_lt_44(rsi_15min < putRsiThreshold);
+                indicators.setRsi_15min_gt_80(rsi_15min > 80);
+                indicators.setRsi_15min_lt_20(rsi_15min < 20);
+                indicators.setRsi_15min_gt_60(rsi_15min > callRsiThreshold);
+                indicators.setRsi_15min_lt_40(rsi_15min < putRsiThreshold);
+                
+                // RSI MA comparison
+                if (enableRsiMaComparison && fifteenMinSeries.getBarCount() >= rsiMaPeriod) {
+                    double rsiMa_15min = rsiIndicator.getRsiMaValue(fifteenMinSeries, 14, rsiMaPeriod);
+                    indicators.setRsi_15min_gt_rsi_ma(rsi_15min > rsiMa_15min);
+                    indicators.setRsi_15min_lt_rsi_ma(rsi_15min < rsiMa_15min);
+                } else {
+                    indicators.setRsi_15min_gt_rsi_ma(null);
+                    indicators.setRsi_15min_lt_rsi_ma(null);
+                }
+                
+                // RSI Divergence calculation for 15min
+                if (fifteenMinSeries.getBarCount() >= 30) {
+                    boolean bullishDivergence = rsiIndicator.isRsiDivergence(fifteenMinSeries, 14, 20, DivergenceType.BULLISH);
+                    boolean bearishDivergence = rsiIndicator.isRsiDivergence(fifteenMinSeries, 14, 20, DivergenceType.BEARISH);
+                    indicators.setRsi_bullish_divergence_15min(bullishDivergence);
+                    indicators.setRsi_bearish_divergence_15min(bearishDivergence);
+                    if (bullishDivergence || bearishDivergence) {
+                        log.info("RSI Divergence 15min - Bullish: {}, Bearish: {}", bullishDivergence, bearishDivergence);
+                    }
+                } else {
+                    indicators.setRsi_bullish_divergence_15min(null);
+                    indicators.setRsi_bearish_divergence_15min(null);
+                }
             } else {
                 log.debug("15min BarSeries insufficient data - BarCount: {}", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
-                indicators.setRsi_15min_gt_70(null);
-                indicators.setRsi_15min_lt_30(null);
-                indicators.setRsi_15min_gt_56(null);
-                indicators.setRsi_15min_lt_44(null);
+                indicators.setRsi_15min_gt_80(null);
+                indicators.setRsi_15min_lt_20(null);
+                indicators.setRsi_15min_gt_60(null);
+                indicators.setRsi_15min_lt_40(null);
+                indicators.setRsi_15min_gt_rsi_ma(null);
+                indicators.setRsi_15min_lt_rsi_ma(null);
+                indicators.setRsi_bullish_divergence_15min(null);
+                indicators.setRsi_bearish_divergence_15min(null);
             }
             
         } catch (Exception e) {
             log.error("Error flattening RSI indicators", e);
             // Set all to null on error
-            indicators.setRsi_1min_gt_70(null);
-            indicators.setRsi_1min_lt_30(null);
-            indicators.setRsi_1min_gt_56(null);
-            indicators.setRsi_1min_lt_44(null);
-            indicators.setRsi_5min_gt_70(null);
-            indicators.setRsi_5min_lt_30(null);
-            indicators.setRsi_5min_gt_56(null);
-            indicators.setRsi_5min_lt_44(null);
-            indicators.setRsi_15min_gt_70(null);
-            indicators.setRsi_15min_lt_30(null);
-            indicators.setRsi_15min_gt_56(null);
-            indicators.setRsi_15min_lt_44(null);
+            indicators.setRsi_1min_gt_80(null);
+            indicators.setRsi_1min_lt_20(null);
+            indicators.setRsi_1min_gt_60(null);
+            indicators.setRsi_1min_lt_40(null);
+                            indicators.setRsi_1min_gt_rsi_ma(null);
+                indicators.setRsi_1min_lt_rsi_ma(null);
+                indicators.setRsi_bullish_divergence_1min(null);
+                indicators.setRsi_bearish_divergence_1min(null);
+            indicators.setRsi_5min_gt_80(null);
+            indicators.setRsi_5min_lt_20(null);
+            indicators.setRsi_5min_gt_60(null);
+            indicators.setRsi_5min_lt_40(null);
+            indicators.setRsi_5min_gt_rsi_ma(null);
+            indicators.setRsi_5min_lt_rsi_ma(null);
+            indicators.setRsi_15min_gt_80(null);
+            indicators.setRsi_15min_lt_20(null);
+            indicators.setRsi_15min_gt_60(null);
+            indicators.setRsi_15min_lt_40(null);
+            indicators.setRsi_15min_gt_rsi_ma(null);
+            indicators.setRsi_15min_lt_rsi_ma(null);
         }
     }
 
@@ -461,33 +560,33 @@ public class RuleHelper {
         // Enhanced futuresignal calculation using correct RSI thresholds
         boolean oneMinBullish = indicators.getEma5_1min_gt_ema34_1min() != null && 
                                indicators.getEma5_1min_gt_ema34_1min() && 
-                               indicators.getRsi_1min_gt_56() != null && 
-                               indicators.getRsi_1min_gt_56();
+                               indicators.getRsi_1min_gt_60() != null && 
+                               indicators.getRsi_1min_gt_60();
         
         boolean fiveMinBullish = indicators.getEma5_5min_gt_ema34_5min() != null && 
                                 indicators.getEma5_5min_gt_ema34_5min() && 
-                                indicators.getRsi_5min_gt_56() != null && 
-                                indicators.getRsi_5min_gt_56();
+                                indicators.getRsi_5min_gt_60() != null && 
+                                indicators.getRsi_5min_gt_60();
         
         boolean fifteenMinBullish = indicators.getEma5_15min_gt_ema34_15min() != null && 
                                    indicators.getEma5_15min_gt_ema34_15min() && 
-                                   indicators.getRsi_15min_gt_56() != null && 
-                                   indicators.getRsi_15min_gt_56();
+                                   indicators.getRsi_15min_gt_60() != null && 
+                                   indicators.getRsi_15min_gt_60();
         
         boolean oneMinBearish = indicators.getEma5_1min_gt_ema34_1min() != null && 
                                !indicators.getEma5_1min_gt_ema34_1min() && 
-                               indicators.getRsi_1min_lt_44() != null && 
-                               indicators.getRsi_1min_lt_44();
+                               indicators.getRsi_1min_lt_40() != null && 
+                               indicators.getRsi_1min_lt_40();
         
         boolean fiveMinBearish = indicators.getEma5_5min_gt_ema34_5min() != null && 
                                 !indicators.getEma5_5min_gt_ema34_5min() && 
-                                indicators.getRsi_5min_lt_44() != null && 
-                                indicators.getRsi_5min_lt_44();
+                                indicators.getRsi_5min_lt_40() != null && 
+                                indicators.getRsi_5min_lt_40();
         
         boolean fifteenMinBearish = indicators.getEma5_15min_gt_ema34_15min() != null && 
                                    !indicators.getEma5_15min_gt_ema34_15min() && 
-                                   indicators.getRsi_15min_lt_44() != null && 
-                                   indicators.getRsi_15min_lt_44();
+                                   indicators.getRsi_15min_lt_40() != null && 
+                                   indicators.getRsi_15min_lt_40();
         
         // Calculate all timeframes alignment
         boolean allTimeframesBullish = oneMinBullish && fiveMinBullish && fifteenMinBullish;
@@ -528,7 +627,7 @@ public class RuleHelper {
                 
                 // Use the future surge since index surge will always be 0 (no volume)
                 PriceVolumeSurgeIndicator.VolumeSurgeResult strongerSurge = futureSurge;
-                
+
                 // Update indicators based on enhanced analysis
                 indicators.setVolume_surge_multiplier(strongerSurge.getVolumeMultiplier());
                 indicators.setVolume_1min_surge(strongerSurge.isSurge());
@@ -548,13 +647,13 @@ public class RuleHelper {
             } else {
                 // Fallback to simplified calculation if enhanced analysis fails
                 if (futureVolume > 0) {
-                    double volumeMultiplier = Math.min(futureVolume / 1000000.0, 10.0);
+                    double volumeMultiplier = Math.min(futureVolume / 1000000.0, scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolumeMultiplierThreshold());
                     indicators.setVolume_surge_multiplier(volumeMultiplier);
                     
-                    if (volumeMultiplier >= 2.0) {
+                    if (volumeMultiplier >= scoringConfigService.getHighVolumeMultiplier()) {
                         indicators.setVolume_1min_surge(true);
                         indicators.setVolume_5min_surge(true);
-                    } else if (volumeMultiplier >= 1.5) {
+                    } else if (volumeMultiplier >= scoringConfigService.getSurgeMultiplier()) {
                         indicators.setVolume_1min_surge(true);
                         indicators.setVolume_5min_surge(false);
                     } else {
@@ -576,7 +675,7 @@ public class RuleHelper {
     /**
      * Check if market conditions are bullish for CALL entries
      */
-    public boolean isMarketConditionBullish(FlattenedIndicators indicators) {
+    public boolean isMarketConditionBullish(FlattenedIndicators indicators, double ratio) {
         if (indicators == null) return false;
         
         int bullishSignals = 0;
@@ -594,10 +693,10 @@ public class RuleHelper {
         if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) bullishSignals++;
         totalSignals += 3;
         
-        // RSI conditions (bullish when RSI > 56)
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_56())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_56())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_56())) bullishSignals++;
+        // RSI conditions (bullish when RSI > 60)
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_60())) bullishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_60())) bullishSignals++;
         totalSignals += 3;
         
         // Candlestick conditions (bullish patterns)
@@ -606,13 +705,13 @@ public class RuleHelper {
         totalSignals += 2;
         
         // Require at least 60% of signals to be bullish
-        return (double) bullishSignals / totalSignals >= 0.6;
+        return (double) bullishSignals / totalSignals >= ratio;
     }
 
     /**
      * Check if market conditions are bearish for PUT entries
      */
-    public boolean isMarketConditionBearish(FlattenedIndicators indicators) {
+    public boolean isMarketConditionBearish(FlattenedIndicators indicators, double ratio) {
         if (indicators == null) return false;
         
         int bearishSignals = 0;
@@ -630,10 +729,10 @@ public class RuleHelper {
         if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) bearishSignals++;
         totalSignals += 3;
         
-        // RSI conditions (bearish when RSI < 44)
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_44())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_44())) bearishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_44())) bearishSignals++;
+        // RSI conditions (bearish when RSI < 40)
+        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_40())) bearishSignals++;
+        if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_40())) bearishSignals++;
         totalSignals += 3;
         
         // Candlestick conditions (bearish patterns)
@@ -642,6 +741,6 @@ public class RuleHelper {
         totalSignals += 2;
         
         // Require at least 60% of signals to be bearish
-        return (double) bearishSignals / totalSignals >= 0.6;
+        return (double) bearishSignals / totalSignals >= ratio;
     }
 }

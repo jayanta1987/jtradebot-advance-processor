@@ -3,6 +3,7 @@ package com.jtradebot.processor.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,10 @@ import java.io.IOException;
 public class ScoringConfigurationService implements InitializingBean {
 
     private final ObjectMapper objectMapper;
+
+    @Getter
     private ScoringConfig scoringConfig;
+    @Getter
     private ThresholdConfig thresholdConfig;
     private TimingConfig timingConfig;
 
@@ -34,8 +38,7 @@ public class ScoringConfigurationService implements InitializingBean {
                 scoringConfig = objectMapper.treeToValue(scoringNode, ScoringConfig.class);
                 log.info("Scoring configuration loaded successfully");
             } else {
-                log.warn("No scoringConfiguration found in JSON, using default values");
-                scoringConfig = getDefaultScoringConfig();
+                throw new RuntimeException("No scoringConfiguration found in JSON file");
             }
             
             if (rootNode.has("thresholdConfiguration")) {
@@ -43,8 +46,7 @@ public class ScoringConfigurationService implements InitializingBean {
                 thresholdConfig = objectMapper.treeToValue(thresholdNode, ThresholdConfig.class);
                 log.info("Threshold configuration loaded successfully");
             } else {
-                log.warn("No thresholdConfiguration found in JSON, using default values");
-                thresholdConfig = getDefaultThresholdConfig();
+                throw new RuntimeException("No thresholdConfiguration found in JSON file");
             }
             
             if (rootNode.has("timingConfiguration")) {
@@ -52,223 +54,15 @@ public class ScoringConfigurationService implements InitializingBean {
                 timingConfig = objectMapper.treeToValue(timingNode, TimingConfig.class);
                 log.info("Timing configuration loaded successfully");
             } else {
-                log.warn("No timingConfiguration found in JSON, using default values");
-                timingConfig = getDefaultTimingConfig();
+                throw new RuntimeException("No timingConfiguration found in JSON file");
             }
             
         } catch (IOException e) {
-            log.error("Failed to load configuration from JSON, using default values", e);
-            scoringConfig = getDefaultScoringConfig();
-            thresholdConfig = getDefaultThresholdConfig();
-            timingConfig = getDefaultTimingConfig();
+            log.error("Failed to load configuration from JSON file", e);
+            throw new RuntimeException("Failed to load scoring configuration from JSON file", e);
         }
     }
 
-    private ScoringConfig getDefaultScoringConfig() {
-        ScoringConfig config = new ScoringConfig();
-        
-        // Confidence scoring
-        ConfidenceScoring confidenceScoring = new ConfidenceScoring();
-        confidenceScoring.setEmaConfidence(0.2);
-        confidenceScoring.setRsiConfidence(0.2);
-        confidenceScoring.setVolumeConfidence(0.2);
-        confidenceScoring.setPriceActionConfidence(0.2);
-        confidenceScoring.setResistanceConfidence(0.2);
-        confidenceScoring.setMaxConfidence(1.0);
-        config.setConfidenceScoring(confidenceScoring);
-        
-        // EMA scoring
-        EmaScoring emaScoring = new EmaScoring();
-        emaScoring.setBullishScore(1.5);
-        emaScoring.setBearishScore(-1.5);
-        emaScoring.setMaxScore(3.0);
-        emaScoring.setMinScore(-3.0);
-        config.setEmaScoring(emaScoring);
-        
-        // RSI scoring
-        RsiScoring rsiScoring = new RsiScoring();
-        rsiScoring.setBullishScore(1.5);
-        rsiScoring.setBearishScore(-1.5);
-        rsiScoring.setMaxScore(3.0);
-        rsiScoring.setMinScore(-3.0);
-        config.setRsiScoring(rsiScoring);
-        
-        // Volume scoring
-        VolumeScoring volumeScoring = new VolumeScoring();
-        volumeScoring.setVolume5minPoints(2.0);
-        volumeScoring.setVolume1minPoints(1.0);
-        volumeScoring.setMaxScore(5.0);
-        volumeScoring.setMinScore(-5.0);
-        
-        VolumeMultiplierThresholds volumeThresholds = new VolumeMultiplierThresholds();
-        volumeThresholds.setVeryHigh(new VolumeThreshold(3.0, 2.0));
-        volumeThresholds.setHigh(new VolumeThreshold(2.0, 1.0));
-        volumeThresholds.setStandard(new VolumeThreshold(1.5, 0.5));
-        volumeScoring.setVolumeMultiplierThresholds(volumeThresholds);
-        config.setVolumeScoring(volumeScoring);
-        
-        // Price action scoring
-        PriceActionScoring priceActionScoring = new PriceActionScoring();
-        priceActionScoring.setVwapBullishScore(1.5);
-        priceActionScoring.setVwapBearishScore(-1.5);
-        priceActionScoring.setResistanceScore(1.5);
-        priceActionScoring.setSupportScore(-1.5);
-        priceActionScoring.setMaxScore(5.0);
-        priceActionScoring.setMinScore(-5.0);
-        
-        BreakoutStrength breakoutStrength = new BreakoutStrength();
-        breakoutStrength.setStrongBreakout(new BreakoutThreshold(2.0, 2.0));
-        breakoutStrength.setStandardBreakout(new BreakoutThreshold(0.0, 1.0));
-        priceActionScoring.setBreakoutStrength(breakoutStrength);
-        
-        BreakdownStrength breakdownStrength = new BreakdownStrength();
-        breakdownStrength.setStrongBreakdown(new BreakoutThreshold(2.0, 2.0));
-        breakdownStrength.setStandardBreakdown(new BreakoutThreshold(0.0, 1.0));
-        priceActionScoring.setBreakdownStrength(breakdownStrength);
-        config.setPriceActionScoring(priceActionScoring);
-        
-        // Futuresignal scoring
-        FuturesignalScoring futuresignalScoring = new FuturesignalScoring();
-        futuresignalScoring.setBullishScore(2.0);
-        futuresignalScoring.setBearishScore(-2.0);
-        futuresignalScoring.setMaxScore(2.0);
-        futuresignalScoring.setMinScore(-2.0);
-        config.setFuturesignalScoring(futuresignalScoring);
-        
-        // Momentum scoring
-        MomentumScoring momentumScoring = new MomentumScoring();
-        momentumScoring.setWeight(0.15);
-        momentumScoring.setPerfectAlignmentBonus(2.0);
-        momentumScoring.setMajorityAlignmentBonus(1.0);
-        momentumScoring.setRsiAlignmentBonus(1.0);
-        momentumScoring.setMaxScore(3.0);
-        momentumScoring.setMinScore(-3.0);
-        config.setMomentumScoring(momentumScoring);
-        
-        // Quality scoring
-        QualityScoring qualityScoring = new QualityScoring();
-        qualityScoring.setEmaQuality(5.0);
-        qualityScoring.setRsiQuality(5.0);
-        qualityScoring.setPriceActionQuality(5.0);
-        qualityScoring.setFuturesignalQuality(10.0);
-        qualityScoring.setMinQualityThreshold(0.7);
-        
-        VolumeQuality volumeQuality = new VolumeQuality();
-        volumeQuality.setVolume5min(5.0);
-        volumeQuality.setVolume1min(3.0);
-        volumeQuality.setVolumeMultiplier(2.0);
-        volumeQuality.setVolumeMultiplierThreshold(3.0);
-        qualityScoring.setVolumeQuality(volumeQuality);
-        
-        MomentumQuality momentumQuality = new MomentumQuality();
-        momentumQuality.setPerfectAlignment(10.0);
-        momentumQuality.setMajorityAlignment(7.0);
-        momentumQuality.setSingleAlignment(3.0);
-        qualityScoring.setMomentumQuality(momentumQuality);
-        
-        CandlestickQuality candlestickQuality = new CandlestickQuality();
-        candlestickQuality.setHighReliability(3.0);
-        candlestickQuality.setMediumReliability(2.0);
-        candlestickQuality.setLowReliability(1.0);
-        candlestickQuality.setMaxScore(10.0);
-        qualityScoring.setCandlestickQuality(candlestickQuality);
-        config.setQualityScoring(qualityScoring);
-        
-        return config;
-    }
-
-    private ThresholdConfig getDefaultThresholdConfig() {
-        ThresholdConfig config = new ThresholdConfig();
-        
-        RsiThresholds rsiThresholds = new RsiThresholds();
-        rsiThresholds.setCallBullish(56.0);
-        rsiThresholds.setPutBearish(44.0);
-        rsiThresholds.setOverbought(70.0);
-        rsiThresholds.setOversold(30.0);
-        rsiThresholds.setTolerance(0.1);
-        config.setRsiThresholds(rsiThresholds);
-        
-        VolumeThresholds volumeThresholds = new VolumeThresholds();
-        volumeThresholds.setSurgeMultiplier(1.5);
-        volumeThresholds.setHighVolumeMultiplier(2.0);
-        volumeThresholds.setVeryHighVolumeMultiplier(3.0);
-        config.setVolumeThresholds(volumeThresholds);
-        
-        PriceThresholds priceThresholds = new PriceThresholds();
-        priceThresholds.setSupportResistanceTolerance(0.01);
-        priceThresholds.setBreakoutThreshold(0.99);
-        priceThresholds.setBreakdownThreshold(1.01);
-        priceThresholds.setEmaTouchTolerance(0.001);
-        config.setPriceThresholds(priceThresholds);
-        
-        QualityThresholds qualityThresholds = new QualityThresholds();
-        qualityThresholds.setMinConfidenceScore(0.7);
-        qualityThresholds.setMinQualityScore(0.7);
-        qualityThresholds.setMinCandlestickScore(4.0);
-        config.setQualityThresholds(qualityThresholds);
-        
-        return config;
-    }
-
-    private TimingConfig getDefaultTimingConfig() {
-        TimingConfig config = new TimingConfig();
-        config.setEntryCooldownMs(30000);
-        config.setMinDataBars(20);
-        return config;
-    }
-
-    // Getters for scoring configuration
-    public ScoringConfig getScoringConfig() { return scoringConfig; }
-    public ThresholdConfig getThresholdConfig() { return thresholdConfig; }
-    public TimingConfig getTimingConfig() { return timingConfig; }
-
-    // Convenience methods for confidence scoring
-    public double getEmaConfidence() { return scoringConfig.getConfidenceScoring().getEmaConfidence(); }
-    public double getRsiConfidence() { return scoringConfig.getConfidenceScoring().getRsiConfidence(); }
-    public double getVolumeConfidence() { return scoringConfig.getConfidenceScoring().getVolumeConfidence(); }
-    public double getPriceActionConfidence() { return scoringConfig.getConfidenceScoring().getPriceActionConfidence(); }
-    public double getResistanceConfidence() { return scoringConfig.getConfidenceScoring().getResistanceConfidence(); }
-    public double getMaxConfidence() { return scoringConfig.getConfidenceScoring().getMaxConfidence(); }
-
-    // Convenience methods for EMA scoring
-    public double getEmaBullishScore() { return scoringConfig.getEmaScoring().getBullishScore(); }
-    public double getEmaBearishScore() { return scoringConfig.getEmaScoring().getBearishScore(); }
-    public double getEmaMaxScore() { return scoringConfig.getEmaScoring().getMaxScore(); }
-    public double getEmaMinScore() { return scoringConfig.getEmaScoring().getMinScore(); }
-
-    // Convenience methods for RSI scoring
-    public double getRsiBullishScore() { return scoringConfig.getRsiScoring().getBullishScore(); }
-    public double getRsiBearishScore() { return scoringConfig.getRsiScoring().getBearishScore(); }
-    public double getRsiMaxScore() { return scoringConfig.getRsiScoring().getMaxScore(); }
-    public double getRsiMinScore() { return scoringConfig.getRsiScoring().getMinScore(); }
-
-    // Convenience methods for volume scoring
-    public double getVolume5minPoints() { return scoringConfig.getVolumeScoring().getVolume5minPoints(); }
-    public double getVolume1minPoints() { return scoringConfig.getVolumeScoring().getVolume1minPoints(); }
-    public double getVolumeMaxScore() { return scoringConfig.getVolumeScoring().getMaxScore(); }
-    public double getVolumeMinScore() { return scoringConfig.getVolumeScoring().getMinScore(); }
-
-    // Convenience methods for price action scoring
-    public double getVwapBullishScore() { return scoringConfig.getPriceActionScoring().getVwapBullishScore(); }
-    public double getVwapBearishScore() { return scoringConfig.getPriceActionScoring().getVwapBearishScore(); }
-    public double getResistanceScore() { return scoringConfig.getPriceActionScoring().getResistanceScore(); }
-    public double getSupportScore() { return scoringConfig.getPriceActionScoring().getSupportScore(); }
-    public double getPriceActionMaxScore() { return scoringConfig.getPriceActionScoring().getMaxScore(); }
-    public double getPriceActionMinScore() { return scoringConfig.getPriceActionScoring().getMinScore(); }
-
-    // Convenience methods for futuresignal scoring
-    public double getFuturesignalBullishScore() { return scoringConfig.getFuturesignalScoring().getBullishScore(); }
-    public double getFuturesignalBearishScore() { return scoringConfig.getFuturesignalScoring().getBearishScore(); }
-    public double getFuturesignalMaxScore() { return scoringConfig.getFuturesignalScoring().getMaxScore(); }
-    public double getFuturesignalMinScore() { return scoringConfig.getFuturesignalScoring().getMinScore(); }
-
-    // Convenience methods for momentum scoring
-    public double getMomentumWeight() { return scoringConfig.getMomentumScoring().getWeight(); }
-    public double getPerfectAlignmentBonus() { return scoringConfig.getMomentumScoring().getPerfectAlignmentBonus(); }
-    public double getMajorityAlignmentBonus() { return scoringConfig.getMomentumScoring().getMajorityAlignmentBonus(); }
-    public double getRsiAlignmentBonus() { return scoringConfig.getMomentumScoring().getRsiAlignmentBonus(); }
-    public double getMomentumMaxScore() { return scoringConfig.getMomentumScoring().getMaxScore(); }
-    public double getMomentumMinScore() { return scoringConfig.getMomentumScoring().getMinScore(); }
 
     // Convenience methods for quality scoring
     public double getEmaQuality() { return scoringConfig.getQualityScoring().getEmaQuality(); }
@@ -277,31 +71,14 @@ public class ScoringConfigurationService implements InitializingBean {
     public double getFuturesignalQuality() { return scoringConfig.getQualityScoring().getFuturesignalQuality(); }
     public double getMinQualityThreshold() { return scoringConfig.getQualityScoring().getMinQualityThreshold(); }
 
-    // Convenience methods for RSI thresholds
-    public double getCallBullishRsi() { return thresholdConfig.getRsiThresholds().getCallBullish(); }
-    public double getPutBearishRsi() { return thresholdConfig.getRsiThresholds().getPutBearish(); }
-    public double getOverboughtRsi() { return thresholdConfig.getRsiThresholds().getOverbought(); }
-    public double getOversoldRsi() { return thresholdConfig.getRsiThresholds().getOversold(); }
-    public double getRsiTolerance() { return thresholdConfig.getRsiThresholds().getTolerance(); }
-
     // Convenience methods for volume thresholds
     public double getSurgeMultiplier() { return thresholdConfig.getVolumeThresholds().getSurgeMultiplier(); }
     public double getHighVolumeMultiplier() { return thresholdConfig.getVolumeThresholds().getHighVolumeMultiplier(); }
-    public double getVeryHighVolumeMultiplier() { return thresholdConfig.getVolumeThresholds().getVeryHighVolumeMultiplier(); }
-
-    // Convenience methods for price thresholds
-    public double getSupportResistanceTolerance() { return thresholdConfig.getPriceThresholds().getSupportResistanceTolerance(); }
-    public double getBreakoutThreshold() { return thresholdConfig.getPriceThresholds().getBreakoutThreshold(); }
-    public double getBreakdownThreshold() { return thresholdConfig.getPriceThresholds().getBreakdownThreshold(); }
-    public double getEmaTouchTolerance() { return thresholdConfig.getPriceThresholds().getEmaTouchTolerance(); }
 
     // Convenience methods for quality thresholds
-    public double getMinConfidenceScore() { return thresholdConfig.getQualityThresholds().getMinConfidenceScore(); }
     public double getMinQualityScore() { return thresholdConfig.getQualityThresholds().getMinQualityScore(); }
-    public double getMinCandlestickScore() { return thresholdConfig.getQualityThresholds().getMinCandlestickScore(); }
 
     // Convenience methods for timing configuration
-    public long getEntryCooldownMs() { return timingConfig.getEntryCooldownMs(); }
     public int getMinDataBars() { return timingConfig.getMinDataBars(); }
 
     // Data classes
@@ -425,6 +202,8 @@ public class ScoringConfigurationService implements InitializingBean {
         private double putBearish;
         private double overbought;
         private double oversold;
+        private int rsiMaPeriod;
+        private boolean enableRsiMaComparison;
         private double tolerance;
         private String description;
     }
@@ -513,6 +292,7 @@ public class ScoringConfigurationService implements InitializingBean {
         private double perfectAlignment;
         private double majorityAlignment;
         private double singleAlignment;
+        private double rsiDivergenceBonus;
     }
 
     @Data
