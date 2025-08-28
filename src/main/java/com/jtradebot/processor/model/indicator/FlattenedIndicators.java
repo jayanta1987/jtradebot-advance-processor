@@ -61,6 +61,14 @@ public class FlattenedIndicators {
     private Boolean rsi_5min_lt_rsi_ma;
     private Boolean rsi_15min_lt_rsi_ma;
     
+    // RSI Divergence indicators
+    private Boolean rsi_bullish_divergence_1min;
+    private Boolean rsi_bullish_divergence_5min;
+    private Boolean rsi_bullish_divergence_15min;
+    private Boolean rsi_bearish_divergence_1min;
+    private Boolean rsi_bearish_divergence_5min;
+    private Boolean rsi_bearish_divergence_15min;
+    
     // Volume surge indicators
     private Boolean volume_1min_surge;
     private Boolean volume_5min_surge;

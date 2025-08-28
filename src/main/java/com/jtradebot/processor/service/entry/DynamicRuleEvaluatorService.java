@@ -2,6 +2,7 @@ package com.jtradebot.processor.service.entry;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
+import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.model.indicator.EntryQuality;
@@ -32,6 +33,7 @@ public class DynamicRuleEvaluatorService {
     private final ScalpingEntryService scalpingEntryService;
     private final ScoringConfigurationService scoringConfigService;
     private final RuleHelper ruleHelper;
+    private final TradingConfigurationService tradingConfigurationService;
 
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
@@ -94,14 +96,72 @@ public class DynamicRuleEvaluatorService {
 
     public boolean shouldMakePutExit(Tick tick){
         FlattenedIndicators indicators = getFlattenedIndicators(tick);
-        // 40% bearish threshold
-        return ruleHelper.isMarketConditionBullish(indicators, 0.3);
+        
+        // 🔥 CONFIGURABLE: Use exit signal configuration from JSON
+        double putExitThreshold = tradingConfigurationService.getTradingConfig().getExitSignalConfiguration().getExitThresholds().getPutExitThreshold();
+        boolean rsiDivergenceEnabled = tradingConfigurationService.getTradingConfig().getExitSignalConfiguration().getRsiDivergenceExit().isEnabled();
+        boolean marketConditionEnabled = tradingConfigurationService.getTradingConfig().getExitSignalConfiguration().getMarketConditionExit().isEnabled();
+        
+        // Check for RSI bullish divergence as exit signal for PUT orders
+        if (rsiDivergenceEnabled) {
+            boolean rsiBullishDivergence = isRsiBullishDivergencePresent(indicators);
+            if (rsiBullishDivergence) {
+                log.info("🔄 PUT EXIT SIGNAL - RSI Bullish Divergence detected");
+                return true;
+            }
+        }
+        
+        // Check market condition reversal
+        if (marketConditionEnabled) {
+            log.debug("🔍 PUT EXIT CHECK - Threshold: {}, Market Condition: {}", putExitThreshold, "Bullish");
+            return ruleHelper.isMarketConditionBullish(indicators, putExitThreshold);
+        }
+        
+        return false;
     }
 
     public boolean shouldMakeCallExit(Tick tick){
         FlattenedIndicators indicators = getFlattenedIndicators(tick);
-        // 40% bullish threshold
-        return ruleHelper.isMarketConditionBearish(indicators, 0.3);
+        
+        // 🔥 CONFIGURABLE: Use exit signal configuration from JSON
+        double callExitThreshold = tradingConfigurationService.getTradingConfig().getExitSignalConfiguration().getExitThresholds().getCallExitThreshold();
+        boolean rsiDivergenceEnabled = tradingConfigurationService.getTradingConfig().getExitSignalConfiguration().getRsiDivergenceExit().isEnabled();
+        boolean marketConditionEnabled = tradingConfigurationService.getTradingConfig().getExitSignalConfiguration().getMarketConditionExit().isEnabled();
+        
+        // Check for RSI bearish divergence as exit signal for CALL orders
+        if (rsiDivergenceEnabled) {
+            boolean rsiBearishDivergence = isRsiBearishDivergencePresent(indicators);
+            if (rsiBearishDivergence) {
+                log.info("🔄 CALL EXIT SIGNAL - RSI Bearish Divergence detected");
+                return true;
+            }
+        }
+        
+        // Check market condition reversal
+        if (marketConditionEnabled) {
+            log.debug("🔍 CALL EXIT CHECK - Threshold: {}, Market Condition: {}", callExitThreshold, "Bearish");
+            return ruleHelper.isMarketConditionBearish(indicators, callExitThreshold);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if RSI bullish divergence is present in any timeframe
+     */
+    private boolean isRsiBullishDivergencePresent(FlattenedIndicators indicators) {
+        return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1min()) ||
+               Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_5min()) ||
+               Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_15min());
+    }
+    
+    /**
+     * Check if RSI bearish divergence is present in any timeframe
+     */
+    private boolean isRsiBearishDivergencePresent(FlattenedIndicators indicators) {
+        return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1min()) ||
+               Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_5min()) ||
+               Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min());
     }
 
 

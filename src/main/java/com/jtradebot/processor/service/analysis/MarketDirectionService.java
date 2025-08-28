@@ -213,6 +213,26 @@ public class MarketDirectionService {
             if (condition.equals("rsi_15min_lt_rsi_ma")) {
                 return Boolean.TRUE.equals(indicators.getRsi_15min_lt_rsi_ma());
             }
+            
+            // RSI Divergence conditions
+            if (condition.equals("rsi_bullish_divergence_5min")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_5min());
+            }
+            if (condition.equals("rsi_bullish_divergence_1min")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1min());
+            }
+            if (condition.equals("rsi_bullish_divergence_15min")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_15min());
+            }
+            if (condition.equals("rsi_bearish_divergence_5min")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_5min());
+            }
+            if (condition.equals("rsi_bearish_divergence_1min")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1min());
+            }
+            if (condition.equals("rsi_bearish_divergence_15min")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min());
+            }
 
             // Additional candlestick pattern conditions
             if (condition.equals("bullish_morning_star_5min")) {

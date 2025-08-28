@@ -5,6 +5,7 @@ import com.jtradebot.processor.config.ScoringConfigurationService;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
+import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 
@@ -33,6 +35,13 @@ public class UnstableMarketConditionAnalysisService {
 
     public boolean isMarketConditionSuitable(Tick tick, FlattenedIndicators indicators) {
         try {
+            // Check if no-trade-zones filtering is enabled
+            if (configService.isNoTradeZonesEnabled()) {
+                FlexibleFilteringResult filteringResult = checkFlexibleFilteringConditions(tick, indicators);
+                return filteringResult.isConditionsMet();
+            }
+            
+            // Fallback to old flat market filtering if no-trade-zones is not enabled
             if (!configService.isFlatMarketFilteringEnabled()) {
                 return true; // If filtering is disabled, always return suitable
             }
@@ -44,6 +53,187 @@ public class UnstableMarketConditionAnalysisService {
         }
     }
 
+    /**
+     * New flexible filtering method using no-trade-zones configuration
+     */
+    public FlexibleFilteringResult checkFlexibleFilteringConditions(Tick tick, FlattenedIndicators indicators) {
+        try {
+            String instrumentToken = String.valueOf(tick.getInstrumentToken());
+            List<FilterResult> filterResults = new ArrayList<>();
+            
+            // Get configuration
+            ScalpingEntryConfig.NoTradeZonesConfig noTradeZonesConfig = configService.getNoTradeZonesConfig();
+            Map<String, ScalpingEntryConfig.NoTradeFilter> filters = configService.getNoTradeFilters();
+            int maxOptionalFiltersToIgnore = configService.getMaxOptionalFiltersToIgnore();
+            
+            // Configuration info removed to reduce log noise
+            
+            // Reuse existing candle analysis
+            CandleAnalysisResult candleAnalysis = analyzeCandleCharacteristics(tick, indicators);
+            
+            // Check each filter
+            for (Map.Entry<String, ScalpingEntryConfig.NoTradeFilter> entry : filters.entrySet()) {
+                String filterKey = entry.getKey();
+                ScalpingEntryConfig.NoTradeFilter filter = entry.getValue();
+                
+                if (!filter.getEnabled()) {
+                    continue; // Skip disabled filters
+                }
+                
+                FilterResult result = checkIndividualFilter(filterKey, filter, tick, indicators, candleAnalysis);
+                filterResults.add(result);
+                
+                log.debug("🔍 FILTER CHECK - {}: {} - {}", filterKey, result.isPassed() ? "PASS" : "FAIL", result.getDetails());
+            }
+            
+            // Sort by priority (lower number = higher priority)
+            filterResults.sort((a, b) -> Integer.compare(a.getPriority(), b.getPriority()));
+            
+            // Separate mandatory and optional failed filters
+            List<FilterResult> mandatoryFailedFilters = filterResults.stream()
+                    .filter(result -> !result.isPassed() && result.isMandatory())
+                    .collect(Collectors.toList());
+            
+            List<FilterResult> optionalFailedFilters = filterResults.stream()
+                    .filter(result -> !result.isPassed() && !result.isMandatory())
+                    .collect(Collectors.toList());
+            
+            // Check conditions: mandatory filters must all pass, optional filters can fail up to maxOptionalFiltersToIgnore
+            boolean mandatoryConditionsMet = mandatoryFailedFilters.isEmpty();
+            boolean optionalConditionsMet = optionalFailedFilters.size() <= maxOptionalFiltersToIgnore;
+            boolean conditionsMet = mandatoryConditionsMet && optionalConditionsMet;
+            
+            // Combine the two logs into one comprehensive log line
+            if (!mandatoryFailedFilters.isEmpty() || !optionalFailedFilters.isEmpty()) {
+                String mandatoryFailedNames = mandatoryFailedFilters.stream()
+                        .map(FilterResult::getName)
+                        .collect(Collectors.joining(", "));
+                String optionalFailedNames = optionalFailedFilters.stream()
+                        .map(FilterResult::getName)
+                        .collect(Collectors.joining(", "));
+                
+                log.info("🔍 FLEXIBLE FILTERING RESULT - Mandatory failed: {}, Optional failed: {}, Allowed to ignore optional: {}, Conditions met: {} | Mandatory failed: {} | Optional failed: {}", 
+                        mandatoryFailedFilters.size(), optionalFailedFilters.size(), maxOptionalFiltersToIgnore, conditionsMet, 
+                        mandatoryFailedNames.isEmpty() ? "none" : mandatoryFailedNames,
+                        optionalFailedNames.isEmpty() ? "none" : optionalFailedNames);
+            } else {
+                log.info("🔍 FLEXIBLE FILTERING RESULT - All filters passed, Conditions met: {}", conditionsMet);
+            }
+            
+            // Build reason message
+            StringBuilder reason = new StringBuilder();
+            if (conditionsMet) {
+                if (mandatoryFailedFilters.isEmpty() && optionalFailedFilters.isEmpty()) {
+                    reason.append("All no-trade-zone filters passed");
+                } else if (!mandatoryFailedFilters.isEmpty()) {
+                    reason.append(String.format("Mandatory filters failed: %s",
+                            mandatoryFailedFilters.stream()
+                                    .map(FilterResult::getName)
+                                    .collect(Collectors.joining(", "))));
+                } else {
+                    reason.append(String.format("Flexible filtering: %d optional filters failed but %d allowed to ignore. Failed: %s",
+                            optionalFailedFilters.size(), maxOptionalFiltersToIgnore,
+                            optionalFailedFilters.stream()
+                                    .map(FilterResult::getName)
+                                    .collect(Collectors.joining(", "))));
+                }
+            } else {
+                if (!mandatoryFailedFilters.isEmpty()) {
+                    reason.append(String.format("Mandatory filters failed: %s",
+                            mandatoryFailedFilters.stream()
+                                    .map(FilterResult::getName)
+                                    .collect(Collectors.joining(", "))));
+                } else {
+                    reason.append(String.format("Optional filtering failed: %d optional filters failed, only %d allowed to ignore. Failed: %s",
+                            optionalFailedFilters.size(), maxOptionalFiltersToIgnore,
+                            optionalFailedFilters.stream()
+                                    .map(FilterResult::getName)
+                                    .collect(Collectors.joining(", "))));
+                }
+            }
+            
+            return new FlexibleFilteringResult(conditionsMet, filterResults, reason.toString());
+            
+        } catch (Exception e) {
+            log.error("Error checking flexible filtering conditions for tick: {}", tick.getInstrumentToken(), e);
+            return new FlexibleFilteringResult(false, new ArrayList<>(), "Error during flexible filtering check: " + e.getMessage());
+        }
+    }
+    
+    private FilterResult checkIndividualFilter(String filterKey, ScalpingEntryConfig.NoTradeFilter filter, 
+                                             Tick tick, FlattenedIndicators indicators, CandleAnalysisResult candleAnalysis) {
+        boolean passed = false;
+        String details = "";
+        
+        switch (filterKey) {
+            case "candleHeight":
+                passed = candleAnalysis.getCandleHeight() >= filter.getThreshold();
+                details = String.format("Candle height: %.2f (threshold: %.2f)", 
+                        candleAnalysis.getCandleHeight(), filter.getThreshold());
+                break;
+                
+            case "volumeSurge":
+                Double volumeMultiplier = indicators.getVolume_surge_multiplier();
+                passed = volumeMultiplier != null && volumeMultiplier > filter.getThreshold();
+                details = String.format("Volume surge: %.2fx (threshold: %.2fx)", 
+                        volumeMultiplier != null ? volumeMultiplier : 0.0, filter.getThreshold());
+                break;
+                
+            case "bodyRatio":
+                passed = candleAnalysis.getBodyRatio() >= filter.getThreshold();
+                details = String.format("Body ratio: %.2f (threshold: %.2f)", 
+                        candleAnalysis.getBodyRatio(), filter.getThreshold());
+                break;
+                
+            case "ema200Distance":
+                Double ema200Distance5min = indicators.getEma200_distance_5min();
+                Double ema200_5min = indicators.getEma200_5min();
+                double maxAllowedDistance = ema200_5min != null ? ema200_5min * filter.getThreshold() : 0.0;
+                passed = ema200Distance5min != null && Math.abs(ema200Distance5min) <= maxAllowedDistance;
+                details = String.format("EMA 200 distance: %.2f (max allowed: %.2f)", 
+                        ema200Distance5min != null ? Math.abs(ema200Distance5min) : 0.0, maxAllowedDistance);
+                break;
+                
+            case "priceBetweenEma34AndEma200":
+                Double ema34_5min_price = indicators.getEma34_5min();
+                Double ema200_5min_price = indicators.getEma200_5min();
+                double currentIndexPrice = tick.getLastTradedPrice();
+                
+                if (ema34_5min_price != null && ema200_5min_price != null) {
+                    double minEma = Math.min(ema34_5min_price, ema200_5min_price);
+                    double maxEma = Math.max(ema34_5min_price, ema200_5min_price);
+                    boolean priceBetween = currentIndexPrice >= minEma && currentIndexPrice <= maxEma;
+                    passed = !priceBetween; // Filter passes when price is NOT between EMAs
+                    details = String.format("Price: %.2f, EMA34: %.2f, EMA200: %.2f, Between: %s", 
+                            currentIndexPrice, ema34_5min_price, ema200_5min_price, priceBetween);
+                } else {
+                    passed = true; // Pass if EMAs not available
+                    details = "EMA34 or EMA200 not available";
+                }
+                break;
+                
+            case "overboughtOversold":
+                boolean overbought = Boolean.TRUE.equals(indicators.getRsi_1min_gt_80()) ||
+                        Boolean.TRUE.equals(indicators.getRsi_5min_gt_80()) ||
+                        Boolean.TRUE.equals(indicators.getRsi_15min_gt_80());
+                        
+                boolean oversold = Boolean.TRUE.equals(indicators.getRsi_1min_lt_20()) ||
+                        Boolean.TRUE.equals(indicators.getRsi_5min_lt_20()) ||
+                        Boolean.TRUE.equals(indicators.getRsi_15min_lt_20());
+                        
+                passed = !overbought && !oversold;
+                details = String.format("Overbought: %s, Oversold: %s", overbought, oversold);
+                break;
+                
+            default:
+                passed = true; // Unknown filter, pass by default
+                details = "Unknown filter type";
+                break;
+        }
+        
+        return new FilterResult(filter.getName(), filter.getDescription(), filter.getPriority(), 
+                               passed, details, filterKey, filter.getMandatory() != null ? filter.getMandatory() : false);
+    }
 
     public double calculateDirectionalStrength(Tick tick, FlattenedIndicators indicators) {
         try {
@@ -454,6 +644,48 @@ public class UnstableMarketConditionAnalysisService {
             this.ema200Distance5min = ema200Distance5min;
             this.atr5min = atr5min;
             this.reason = reason;
+        }
+    }
+
+    /**
+     * Result class for flexible filtering using no-trade-zones configuration
+     */
+    @Setter
+    @Getter
+    public static class FlexibleFilteringResult {
+        private boolean conditionsMet;
+        private List<FilterResult> filterResults;
+        private String reason;
+
+        public FlexibleFilteringResult(boolean conditionsMet, List<FilterResult> filterResults, String reason) {
+            this.conditionsMet = conditionsMet;
+            this.filterResults = filterResults;
+            this.reason = reason;
+        }
+    }
+
+    /**
+     * Result class for individual filter checks
+     */
+    @Setter
+    @Getter
+    public static class FilterResult {
+        private String name;
+        private String description;
+        private int priority;
+        private boolean passed;
+        private String details;
+        private String filterKey;
+        private boolean mandatory;
+
+        public FilterResult(String name, String description, int priority, boolean passed, String details, String filterKey, boolean mandatory) {
+            this.name = name;
+            this.description = description;
+            this.priority = priority;
+            this.passed = passed;
+            this.details = details;
+            this.filterKey = filterKey;
+            this.mandatory = mandatory;
         }
     }
 

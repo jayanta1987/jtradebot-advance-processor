@@ -59,6 +59,31 @@ public class DynamicStrategyConfigService {
                 scalpingEntryConfig.getFlatMarketFiltering().isEnabled();
     }
 
+    // No-Trade Zones Configuration Methods
+    public ScalpingEntryConfig.NoTradeZonesConfig getNoTradeZonesConfig() {
+        return scalpingEntryConfig.getNoTradeZones();
+    }
+
+    public boolean isNoTradeZonesEnabled() {
+        return scalpingEntryConfig.getNoTradeZones() != null &&
+                scalpingEntryConfig.getNoTradeZones().getEnabled();
+    }
+
+    public int getMaxOptionalFiltersToIgnore() {
+        return scalpingEntryConfig.getNoTradeZones() != null ?
+                scalpingEntryConfig.getNoTradeZones().getMaxOptionalFiltersToIgnore() : 0;
+    }
+    
+    // Legacy method for backward compatibility
+    public int getMaxFiltersToIgnore() {
+        return getMaxOptionalFiltersToIgnore();
+    }
+
+    public Map<String, ScalpingEntryConfig.NoTradeFilter> getNoTradeFilters() {
+        return scalpingEntryConfig.getNoTradeZones() != null ?
+                scalpingEntryConfig.getNoTradeZones().getFilters() : new HashMap<>();
+    }
+
     // New Scenario-based Methods
     public List<ScalpingEntryConfig.Scenario> getScenarios() {
         return scalpingEntryConfig.getScenarios();
@@ -77,6 +102,10 @@ public class DynamicStrategyConfigService {
 
     public Map<String, List<String>> getPutCategories() {
         return scalpingEntryConfig.getPutCategories();
+    }
+
+    public ScalpingEntryConfig getScalpingEntryConfig() {
+        return scalpingEntryConfig;
     }
 
     // Legacy Compatibility Methods (mapped to new config)

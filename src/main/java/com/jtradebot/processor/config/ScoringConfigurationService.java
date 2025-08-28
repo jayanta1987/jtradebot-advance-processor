@@ -292,6 +292,7 @@ public class ScoringConfigurationService implements InitializingBean {
         private double perfectAlignment;
         private double majorityAlignment;
         private double singleAlignment;
+        private double rsiDivergenceBonus;
     }
 
     @Data

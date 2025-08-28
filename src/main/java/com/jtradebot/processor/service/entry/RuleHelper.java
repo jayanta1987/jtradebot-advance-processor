@@ -5,6 +5,7 @@ import com.jtradebot.processor.indicator.MultiEmaIndicator;
 import com.jtradebot.processor.indicator.PriceVolumeSurgeIndicator;
 import com.jtradebot.processor.indicator.RsiIndicator;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
+import com.jtradebot.processor.model.enums.DivergenceType;
 import com.jtradebot.processor.indicator.VWAPIndicator;
 import com.jtradebot.processor.candleStick.CandlestickPattern;
 import com.jtradebot.processor.model.indicator.EmaInfo;
@@ -174,6 +175,20 @@ public class RuleHelper {
                     indicators.setRsi_1min_gt_rsi_ma(null);
                     indicators.setRsi_1min_lt_rsi_ma(null);
                 }
+                
+                // RSI Divergence calculation for 1min
+                if (oneMinSeries.getBarCount() >= 30) {
+                    boolean bullishDivergence = rsiIndicator.isRsiDivergence(oneMinSeries, 14, 20, DivergenceType.BULLISH);
+                    boolean bearishDivergence = rsiIndicator.isRsiDivergence(oneMinSeries, 14, 20, DivergenceType.BEARISH);
+                    indicators.setRsi_bullish_divergence_1min(bullishDivergence);
+                    indicators.setRsi_bearish_divergence_1min(bearishDivergence);
+                    if (bullishDivergence || bearishDivergence) {
+                        log.info("RSI Divergence 1min - Bullish: {}, Bearish: {}", bullishDivergence, bearishDivergence);
+                    }
+                } else {
+                    indicators.setRsi_bullish_divergence_1min(null);
+                    indicators.setRsi_bearish_divergence_1min(null);
+                }
             } else {
                 log.debug("1min BarSeries insufficient data - BarCount: {}", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
                 indicators.setRsi_1min_gt_80(null);
@@ -203,6 +218,20 @@ public class RuleHelper {
                     indicators.setRsi_5min_gt_rsi_ma(null);
                     indicators.setRsi_5min_lt_rsi_ma(null);
                 }
+                
+                // RSI Divergence calculation for 5min
+                if (fiveMinSeries.getBarCount() >= 30) {
+                    boolean bullishDivergence = rsiIndicator.isRsiDivergence(fiveMinSeries, 14, 20, DivergenceType.BULLISH);
+                    boolean bearishDivergence = rsiIndicator.isRsiDivergence(fiveMinSeries, 14, 20, DivergenceType.BEARISH);
+                    indicators.setRsi_bullish_divergence_5min(bullishDivergence);
+                    indicators.setRsi_bearish_divergence_5min(bearishDivergence);
+                    if (bullishDivergence || bearishDivergence) {
+                        log.info("RSI Divergence 5min - Bullish: {}, Bearish: {}", bullishDivergence, bearishDivergence);
+                    }
+                } else {
+                    indicators.setRsi_bullish_divergence_5min(null);
+                    indicators.setRsi_bearish_divergence_5min(null);
+                }
             } else {
                 log.debug("5min BarSeries insufficient data - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
                 indicators.setRsi_5min_gt_80(null);
@@ -211,6 +240,8 @@ public class RuleHelper {
                 indicators.setRsi_5min_lt_40(null);
                 indicators.setRsi_5min_gt_rsi_ma(null);
                 indicators.setRsi_5min_lt_rsi_ma(null);
+                indicators.setRsi_bullish_divergence_5min(null);
+                indicators.setRsi_bearish_divergence_5min(null);
             }
             
             // 15-minute RSI calculation - Reduced minimum bars for backtesting
@@ -232,6 +263,20 @@ public class RuleHelper {
                     indicators.setRsi_15min_gt_rsi_ma(null);
                     indicators.setRsi_15min_lt_rsi_ma(null);
                 }
+                
+                // RSI Divergence calculation for 15min
+                if (fifteenMinSeries.getBarCount() >= 30) {
+                    boolean bullishDivergence = rsiIndicator.isRsiDivergence(fifteenMinSeries, 14, 20, DivergenceType.BULLISH);
+                    boolean bearishDivergence = rsiIndicator.isRsiDivergence(fifteenMinSeries, 14, 20, DivergenceType.BEARISH);
+                    indicators.setRsi_bullish_divergence_15min(bullishDivergence);
+                    indicators.setRsi_bearish_divergence_15min(bearishDivergence);
+                    if (bullishDivergence || bearishDivergence) {
+                        log.info("RSI Divergence 15min - Bullish: {}, Bearish: {}", bullishDivergence, bearishDivergence);
+                    }
+                } else {
+                    indicators.setRsi_bullish_divergence_15min(null);
+                    indicators.setRsi_bearish_divergence_15min(null);
+                }
             } else {
                 log.debug("15min BarSeries insufficient data - BarCount: {}", fifteenMinSeries != null ? fifteenMinSeries.getBarCount() : 0);
                 indicators.setRsi_15min_gt_80(null);
@@ -240,6 +285,8 @@ public class RuleHelper {
                 indicators.setRsi_15min_lt_40(null);
                 indicators.setRsi_15min_gt_rsi_ma(null);
                 indicators.setRsi_15min_lt_rsi_ma(null);
+                indicators.setRsi_bullish_divergence_15min(null);
+                indicators.setRsi_bearish_divergence_15min(null);
             }
             
         } catch (Exception e) {
@@ -249,8 +296,10 @@ public class RuleHelper {
             indicators.setRsi_1min_lt_20(null);
             indicators.setRsi_1min_gt_60(null);
             indicators.setRsi_1min_lt_40(null);
-            indicators.setRsi_1min_gt_rsi_ma(null);
-            indicators.setRsi_1min_lt_rsi_ma(null);
+                            indicators.setRsi_1min_gt_rsi_ma(null);
+                indicators.setRsi_1min_lt_rsi_ma(null);
+                indicators.setRsi_bullish_divergence_1min(null);
+                indicators.setRsi_bearish_divergence_1min(null);
             indicators.setRsi_5min_gt_80(null);
             indicators.setRsi_5min_lt_20(null);
             indicators.setRsi_5min_gt_60(null);

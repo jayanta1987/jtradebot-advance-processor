@@ -171,6 +171,7 @@ public class TradingConfigurationService implements InitializingBean {
         private InvestmentLimits investmentLimits;
         private RiskManagement riskManagement;
         private TradeSettings tradeSettings;
+        private ExitSignalConfiguration exitSignalConfiguration;
     }
 
     @Data
@@ -237,5 +238,33 @@ public class TradingConfigurationService implements InitializingBean {
     @Data
     public static class TradeSettings {
         private long maxTradeHoldingTimeInSec;
+    }
+
+    @Data
+    public static class ExitSignalConfiguration {
+        private boolean enabled;
+        private String description;
+        private ExitThresholds exitThresholds;
+        private RsiDivergenceExit rsiDivergenceExit;
+        private MarketConditionExit marketConditionExit;
+    }
+
+    @Data
+    public static class ExitThresholds {
+        private double callExitThreshold;
+        private double putExitThreshold;
+        private String description;
+    }
+
+    @Data
+    public static class RsiDivergenceExit {
+        private boolean enabled;
+        private String description;
+    }
+
+    @Data
+    public static class MarketConditionExit {
+        private boolean enabled;
+        private String description;
     }
 }

@@ -139,15 +139,30 @@ public class ScalpingEntryService {
         evaluation.setScenarioName(scenario.getName());
         evaluation.setScenario(scenario);
 
-        UnstableMarketConditionAnalysisService.EntryFilteringResult filteringResult =
-                unstableMarketConditionAnalysisService.checkEntryFilteringConditions(tick, indicators);
-
-        if (!filteringResult.isConditionsMet()) {
+        // Use the pre-calculated market condition result to avoid redundant calculations
+        boolean marketConditionSuitable = preCalculatedMarketCondition != null ? preCalculatedMarketCondition : 
+            unstableMarketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+        
+        if (!marketConditionSuitable) {
             evaluation.setPassed(false);
             evaluation.setScore(0.0);
-            evaluation.setReason(filteringResult.getReason());
-            log.warn("Scenario '{}' failed entry filtering: {}", scenario.getName(), filteringResult.getReason());
+            
+            // Get detailed filtering result for logging
+            if (configService.isNoTradeZonesEnabled()) {
+                UnstableMarketConditionAnalysisService.FlexibleFilteringResult flexibleResult = 
+                    unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
+                evaluation.setReason(flexibleResult.getReason());
+                log.warn("Scenario '{}' failed flexible entry filtering: {}", scenario.getName(), flexibleResult.getReason());
+            } else {
+                // Fallback to old filtering for detailed reason
+                UnstableMarketConditionAnalysisService.EntryFilteringResult filteringResult =
+                    unstableMarketConditionAnalysisService.checkEntryFilteringConditions(tick, indicators);
+                evaluation.setReason(filteringResult.getReason());
+                log.warn("Scenario '{}' failed entry filtering: {}", scenario.getName(), filteringResult.getReason());
+            }
             return evaluation;
+        } else {
+            log.info("✅ FLEXIBLE FILTERING PASSED - Scenario '{}' passed market condition filtering", scenario.getName());
         }
         
         ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
@@ -191,12 +206,7 @@ public class ScalpingEntryService {
         // Use the market direction passed as parameter
         boolean isCallDirection = "CALL".equals(marketDirection);
         
-        log.debug("🔍 MARKET DIRECTION ANALYSIS - Direction: {}", marketDirection);
-        log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}", 
-                callCategoryCounts.getOrDefault("ema", 0), callCategoryCounts.getOrDefault("futureAndVolume", 0),
-                callCategoryCounts.getOrDefault("candlestick", 0), callCategoryCounts.getOrDefault("momentum", 0),
-                putCategoryCounts.getOrDefault("ema", 0), putCategoryCounts.getOrDefault("futureAndVolume", 0),
-                putCategoryCounts.getOrDefault("candlestick", 0), putCategoryCounts.getOrDefault("momentum", 0));
+        // Category breakdown is now included in the main UnifiedIndicatorService log
         
         // Use only the appropriate category counts based on market direction
         if (requirements.getEma_min_count() != null) {
@@ -264,6 +274,9 @@ public class ScalpingEntryService {
         StringBuilder reason = new StringBuilder();
         if (passed) {
             reason.append("All entry conditions met");
+            log.info("🎯 SCENARIO PASSED - '{}' - Quality: {}/{} ({}), Categories: {}, Market Direction: {}", 
+                    scenario.getName(), preCalculatedQualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL", 
+                    categoryScores, marketDirection);
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
@@ -273,6 +286,10 @@ public class ScalpingEntryService {
                 failures.add("Failed categories: " + String.join(", ", failedCategories));
             }
             reason.append(String.join("; ", failures));
+            
+            log.warn("❌ SCENARIO FAILED - '{}' - Quality: {}/{} ({}), Categories: {}, Failed: {}", 
+                    scenario.getName(), preCalculatedQualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL", 
+                    categoryScores, String.join(", ", failures));
         }
         evaluation.setReason(reason.toString());
         
@@ -463,6 +480,26 @@ public class ScalpingEntryService {
             return Boolean.TRUE.equals(indicators.getRsi_15min_lt_rsi_ma());
         }
         
+        // RSI Divergence conditions
+        if (condition.equals("rsi_bullish_divergence_5min")) {
+            return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_5min());
+        }
+        if (condition.equals("rsi_bullish_divergence_1min")) {
+            return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1min());
+        }
+        if (condition.equals("rsi_bullish_divergence_15min")) {
+            return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_15min());
+        }
+        if (condition.equals("rsi_bearish_divergence_5min")) {
+            return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_5min());
+        }
+        if (condition.equals("rsi_bearish_divergence_1min")) {
+            return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1min());
+        }
+        if (condition.equals("rsi_bearish_divergence_15min")) {
+            return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min());
+        }
+        
         return false; // Default to false for unknown conditions
         } catch (Exception e) {
             log.warn("Error evaluating condition '{}': {}", condition, e.getMessage());
@@ -540,6 +577,16 @@ public class ScalpingEntryService {
         if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) rsiScore += scoringConfigService.getRsiQuality();
         if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_60())) rsiScore += scoringConfigService.getRsiQuality();
         if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_60())) rsiScore += scoringConfigService.getRsiQuality();
+        
+        // RSI Divergence Bonus (CALL - bullish divergence)
+        if (Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_5min()) || 
+            Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1min()) || 
+            Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_15min())) {
+            rsiScore += scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus();
+            log.info("🎯 RSI BULLISH DIVERGENCE BONUS - Added {} points to CALL quality score", 
+                    scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus());
+        }
+        
         // Cap RSI score at configured maximum
         rsiScore = Math.min(rsiScore, scoringConfigService.getRsiQuality());
         
@@ -619,6 +666,16 @@ public class ScalpingEntryService {
         if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) rsiScore += scoringConfigService.getRsiQuality();
         if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_40())) rsiScore += scoringConfigService.getRsiQuality();
         if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_40())) rsiScore += scoringConfigService.getRsiQuality();
+        
+        // RSI Divergence Bonus (PUT - bearish divergence)
+        if (Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_5min()) || 
+            Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1min()) || 
+            Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min())) {
+            rsiScore += scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus();
+            log.info("🎯 RSI BEARISH DIVERGENCE BONUS - Added {} points to PUT quality score", 
+                    scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus());
+        }
+        
         // Cap RSI score at configured maximum
         rsiScore = Math.min(rsiScore, scoringConfigService.getRsiQuality());
         

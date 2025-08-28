@@ -28,6 +28,7 @@ public class ScalpingEntryConfig {
     private LoggingConfig logging;
     private WeightsConfig weights;
     private FlatMarketFilteringConfig flatMarketFiltering;
+    private NoTradeZonesConfig noTradeZones;
     
     @Data
     @Builder
@@ -151,5 +152,33 @@ public class ScalpingEntryConfig {
         private Double volumeSurgeWeight;
         private Double priceActionWeight;
         private Double futuresignalsWeight;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class NoTradeZonesConfig {
+        private Boolean enabled;
+        private String description;
+        private Integer maxOptionalFiltersToIgnore;
+        private Map<String, NoTradeFilter> filters;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class NoTradeFilter {
+        private Boolean enabled;
+        private Boolean mandatory;
+        private String name;
+        private String description;
+        private Double threshold;
+        private Integer priority;
+        private Double overboughtThreshold;
+        private Double oversoldThreshold;
     }
 }

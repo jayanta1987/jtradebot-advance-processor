@@ -18,7 +18,8 @@
       "momentumQuality": {
         "perfectAlignment": 10.0,
         "majorityAlignment": 7.0,
-        "singleAlignment": 3.0
+        "singleAlignment": 3.0,
+        "rsiDivergenceBonus": 5.0
       },
       "candlestickQuality": {
         "highReliability": 3.0,

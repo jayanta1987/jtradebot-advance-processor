@@ -1,10 +1,12 @@
 package com.jtradebot.processor.service.logging;
 
+import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.model.indicator.EntryQuality;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.analysis.SignalDeterminationService;
+import com.jtradebot.processor.service.analysis.MarketDirectionService;
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,8 @@ public class UnifiedIndicatorService {
 
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     private final SignalDeterminationService signalDeterminationService;
+    private final DynamicStrategyConfigService configService;
+    private final MarketDirectionService marketDirectionService;
 
     /**
      * Main method to log all indicator information using pre-calculated data
@@ -124,11 +128,54 @@ public class UnifiedIndicatorService {
                 String dominantTrend = analysisResult.getCallQuality().getQualityScore() > analysisResult.getPutQuality().getQualityScore() ? "CALL" : "PUT";
                 double dominantQuality = Math.max(analysisResult.getCallQuality().getQualityScore(), analysisResult.getPutQuality().getQualityScore());
                 
-                return String.format("🎯 %s (%.1f/10)", dominantTrend, dominantQuality);
+                // Get category breakdown with requirements
+                String categoryBreakdown = getCategoryBreakdownWithRequirements(entryDecision, indicators);
+                
+                return String.format("🎯 %s (%.1f/10) | %s", dominantTrend, dominantQuality, categoryBreakdown);
             }
             
         } catch (Exception e) {
             return "🎯 ERROR";
+        }
+    }
+    
+    /**
+     * Get category breakdown with requirements
+     */
+    private String getCategoryBreakdownWithRequirements(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators) {
+        try {
+            // Get requirements from SAFE_ENTRY_SIGNAL scenario
+            var scenario = configService.getScenarioByName("SAFE_ENTRY_SIGNAL");
+            if (scenario == null || scenario.getRequirements() == null) {
+                return "";
+            }
+            
+            var requirements = scenario.getRequirements();
+            int emaRequired = requirements.getEma_min_count() != null ? requirements.getEma_min_count() : 0;
+            int fvRequired = requirements.getFutureAndVolume_min_count() != null ? requirements.getFutureAndVolume_min_count() : 0;
+            int csRequired = requirements.getCandlestick_min_count() != null ? requirements.getCandlestick_min_count() : 0;
+            int mRequired = requirements.getMomentum_min_count() != null ? requirements.getMomentum_min_count() : 0;
+            
+            // Get actual category scores for both directions from MarketDirectionService
+            Map<String, Integer> callCategoryCounts = marketDirectionService.getCategoryScores(indicators, "CALL");
+            Map<String, Integer> putCategoryCounts = marketDirectionService.getCategoryScores(indicators, "PUT");
+            
+            // Format the breakdown with actual scores for both directions
+            String callEma = callCategoryCounts.getOrDefault("ema", 0) + "/" + emaRequired;
+            String callFv = callCategoryCounts.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
+            String callCs = callCategoryCounts.getOrDefault("candlestick", 0) + "/" + csRequired;
+            String callM = callCategoryCounts.getOrDefault("momentum", 0) + "/" + mRequired;
+            
+            String putEma = putCategoryCounts.getOrDefault("ema", 0) + "/" + emaRequired;
+            String putFv = putCategoryCounts.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
+            String putCs = putCategoryCounts.getOrDefault("candlestick", 0) + "/" + csRequired;
+            String putM = putCategoryCounts.getOrDefault("momentum", 0) + "/" + mRequired;
+            
+            return String.format("Call: EMA=%s, FV=%s, CS=%s, M=%s | Put: EMA=%s, FV=%s, CS=%s, M=%s", 
+                    callEma, callFv, callCs, callM, putEma, putFv, putCs, putM);
+            
+        } catch (Exception e) {
+            return "";
         }
     }
 
@@ -137,10 +184,10 @@ public class UnifiedIndicatorService {
      * Log trend analysis
      */
     private void logTrendAnalysis(Tick tick, String trendInfo) {
-        log.info("📊 {} | 💰 {} | {}{}", 
+        log.info("📊 {} | 💰 {} | {}", 
             tick.getTickTimestamp(), 
             tick.getLastTradedPrice(), 
-            trendInfo, "");
+            trendInfo);
     }
 
     /**
