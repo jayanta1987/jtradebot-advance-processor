@@ -225,6 +225,30 @@ public class UnstableMarketConditionAnalysisService {
                 details = String.format("Overbought: %s, Oversold: %s", overbought, oversold);
                 break;
                 
+            case "directionalStrength":
+                double directionalStrength = calculateDirectionalStrength(tick, indicators);
+                passed = directionalStrength >= filter.getThreshold();
+                details = String.format("Directional strength: %.2f (threshold: %.2f)", 
+                        directionalStrength, filter.getThreshold());
+                break;
+                
+            case "consecutiveSameColorCandles":
+                String instrumentToken = String.valueOf(tick.getInstrumentToken());
+                
+                // Get timeframe from filter configuration, default to FIVE_MIN
+                String timeframeStr = filter.getTimeframe() != null ? filter.getTimeframe() : "FIVE_MIN";
+                com.jtradebot.processor.model.enums.CandleTimeFrameEnum timeframe = com.jtradebot.processor.model.enums.CandleTimeFrameEnum.valueOf(timeframeStr);
+                
+                // Get analysis window from filter configuration, default to 10
+                int analysisWindow = filter.getAnalysisWindow() != null ? filter.getAnalysisWindow() : 10;
+                
+                BarSeries barSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, timeframe);
+                int consecutiveSameColorCount = calculateConsecutiveSameColorCandles(barSeries, analysisWindow);
+                passed = consecutiveSameColorCount < filter.getMaxConsecutiveCount();
+                details = String.format("Consecutive same color candles: %d (max allowed: %d, timeframe: %s, analysis window: %d)", 
+                        consecutiveSameColorCount, filter.getMaxConsecutiveCount(), timeframeStr, analysisWindow);
+                break;
+                
             default:
                 passed = true; // Unknown filter, pass by default
                 details = "Unknown filter type";
@@ -377,6 +401,65 @@ public class UnstableMarketConditionAnalysisService {
 
         } catch (Exception e) {
             log.error("Error analyzing recent candles: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Calculate the number of consecutive same color candles
+     * @param barSeries The bar series to analyze
+     * @param lookbackBars Number of bars to look back (default 10)
+     * @return Number of consecutive same color candles
+     */
+    private int calculateConsecutiveSameColorCandles(BarSeries barSeries, int lookbackBars) {
+        try {
+            if (barSeries.getBarCount() < lookbackBars) {
+                return 0;
+            }
+
+            int consecutiveCount = 0;
+            String currentColor = null;
+
+            // Start from the most recent bar and go backwards
+            for (int i = barSeries.getBarCount() - 1; i >= barSeries.getBarCount() - lookbackBars; i--) {
+                Bar bar = barSeries.getBar(i);
+                String candleColor = determineCandleColor(bar);
+
+                if (currentColor == null) {
+                    // First candle
+                    currentColor = candleColor;
+                    consecutiveCount = 1;
+                } else if (candleColor.equals(currentColor)) {
+                    // Same color as previous
+                    consecutiveCount++;
+                } else {
+                    // Different color, break the streak
+                    break;
+                }
+            }
+
+            return consecutiveCount;
+
+        } catch (Exception e) {
+            log.error("Error calculating consecutive same color candles: {}", e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Determine the color of a candle (GREEN, RED, or NEUTRAL)
+     * @param bar The bar to analyze
+     * @return Color of the candle
+     */
+    private String determineCandleColor(Bar bar) {
+        double openPrice = bar.getOpenPrice().doubleValue();
+        double closePrice = bar.getClosePrice().doubleValue();
+        
+        if (closePrice > openPrice) {
+            return "GREEN";
+        } else if (closePrice < openPrice) {
+            return "RED";
+        } else {
+            return "NEUTRAL"; // Doji or neutral candle
         }
     }
 

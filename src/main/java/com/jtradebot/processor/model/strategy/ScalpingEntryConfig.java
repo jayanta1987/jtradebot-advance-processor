@@ -180,5 +180,9 @@ public class ScalpingEntryConfig {
         private Integer priority;
         private Double overboughtThreshold;
         private Double oversoldThreshold;
+        private String timeframe;
+        private Integer lookbackBars;
+        private Integer maxConsecutiveCount;
+        private Integer analysisWindow;
     }
 }

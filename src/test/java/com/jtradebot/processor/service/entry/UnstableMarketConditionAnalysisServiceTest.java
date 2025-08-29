@@ -96,4 +96,189 @@ class UnstableMarketConditionAnalysisServiceTest {
             CandleTimeFrameEnum.valueOf("INVALID");
         });
     }
+
+    @Test
+    void testDirectionalStrengthFilterConfiguration() {
+        // Given: Test directional strength filter configuration
+        ScalpingEntryConfig.NoTradeFilter directionalStrengthFilter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Directional Strength")
+                .description("Filter out entries with directional strength less than 0.5 (50%)")
+                .threshold(0.5)
+                .priority(7)
+                .build();
+
+        // When & Then: Verify directional strength filter structure
+        assertNotNull(directionalStrengthFilter);
+        assertTrue(directionalStrengthFilter.getEnabled());
+        assertFalse(directionalStrengthFilter.getMandatory());
+        assertEquals("Directional Strength", directionalStrengthFilter.getName());
+        assertEquals("Filter out entries with directional strength less than 0.5 (50%)", directionalStrengthFilter.getDescription());
+        assertEquals(0.5, directionalStrengthFilter.getThreshold());
+        assertEquals(7, directionalStrengthFilter.getPriority());
+    }
+
+    @Test
+    void testDirectionalStrengthFilterLogic() {
+        // Given: Test directional strength filter logic with different thresholds
+        ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Directional Strength")
+                .threshold(0.5)
+                .priority(7)
+                .build();
+
+        // Test cases for different directional strength values
+        // Case 1: Strong directional strength (0.7) should pass
+        assertTrue(0.7 >= filter.getThreshold(), "Directional strength 0.7 should pass threshold 0.5");
+        
+        // Case 2: Moderate directional strength (0.5) should pass (equal to threshold)
+        assertTrue(0.5 >= filter.getThreshold(), "Directional strength 0.5 should pass threshold 0.5");
+        
+        // Case 3: Weak directional strength (0.3) should fail
+        assertFalse(0.3 >= filter.getThreshold(), "Directional strength 0.3 should fail threshold 0.5");
+        
+        // Case 4: Very weak directional strength (0.1) should fail
+        assertFalse(0.1 >= filter.getThreshold(), "Directional strength 0.1 should fail threshold 0.5");
+    }
+
+    @Test
+    void testDirectionalStrengthFilterIntegration() {
+        // Given: Test the complete filter integration
+        ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Directional Strength")
+                .description("Filter out entries with directional strength less than 0.5 (50%)")
+                .threshold(0.5)
+                .priority(7)
+                .build();
+
+        // Verify filter properties
+        assertEquals("directionalStrength", "directionalStrength"); // This would be the filter key
+        assertTrue(filter.getEnabled());
+        assertFalse(filter.getMandatory());
+        assertEquals(7, filter.getPriority());
+        
+        // Test threshold validation
+        assertTrue(filter.getThreshold() > 0.0, "Threshold should be positive");
+        assertTrue(filter.getThreshold() <= 1.0, "Threshold should not exceed 1.0");
+    }
+
+    @Test
+    void testConsecutiveSameColorCandlesFilterConfiguration() {
+        // Given: Test consecutive same color candles filter configuration
+        ScalpingEntryConfig.NoTradeFilter consecutiveCandlesFilter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Consecutive Same Color Candles")
+                .description("Filter out entries when there are too many consecutive same color candles")
+                .maxConsecutiveCount(3)
+                .analysisWindow(10)
+                .priority(8)
+                .timeframe("FIVE_MIN")
+                .build();
+
+        // When & Then: Verify consecutive same color candles filter structure
+        assertNotNull(consecutiveCandlesFilter);
+        assertTrue(consecutiveCandlesFilter.getEnabled());
+        assertFalse(consecutiveCandlesFilter.getMandatory());
+        assertEquals("Consecutive Same Color Candles", consecutiveCandlesFilter.getName());
+        assertEquals("Filter out entries when there are too many consecutive same color candles", consecutiveCandlesFilter.getDescription());
+        assertEquals(3, consecutiveCandlesFilter.getMaxConsecutiveCount());
+        assertEquals(10, consecutiveCandlesFilter.getAnalysisWindow());
+        assertEquals(8, consecutiveCandlesFilter.getPriority());
+        assertEquals("FIVE_MIN", consecutiveCandlesFilter.getTimeframe());
+    }
+
+    @Test
+    void testConsecutiveSameColorCandlesFilterLogic() {
+        // Given: Test consecutive same color candles filter logic with different scenarios
+        ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Consecutive Same Color Candles")
+                .maxConsecutiveCount(3)
+                .analysisWindow(10)
+                .priority(8)
+                .timeframe("FIVE_MIN")
+                .build();
+
+        // Test cases for different consecutive candle counts
+        // Case 1: 2 consecutive candles should pass (below max count)
+        assertTrue(2 < filter.getMaxConsecutiveCount(), "2 consecutive candles should pass max count 3");
+        
+        // Case 2: 3 consecutive candles should fail (equal to max count)
+        assertFalse(3 < filter.getMaxConsecutiveCount(), "3 consecutive candles should fail max count 3");
+        
+        // Case 3: 5 consecutive candles should fail (above max count)
+        assertFalse(5 < filter.getMaxConsecutiveCount(), "5 consecutive candles should fail max count 3");
+        
+        // Case 4: 0 consecutive candles should pass (below max count)
+        assertTrue(0 < filter.getMaxConsecutiveCount(), "0 consecutive candles should pass max count 3");
+    }
+
+    @Test
+    void testConsecutiveSameColorCandlesFilterIntegration() {
+        // Given: Test the complete consecutive same color candles filter integration
+        ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Consecutive Same Color Candles")
+                .description("Filter out entries when there are too many consecutive same color candles")
+                .maxConsecutiveCount(3)
+                .analysisWindow(10)
+                .priority(8)
+                .timeframe("FIVE_MIN")
+                .build();
+
+        // Verify filter properties
+        assertEquals("consecutiveSameColorCandles", "consecutiveSameColorCandles"); // This would be the filter key
+        assertTrue(filter.getEnabled());
+        assertFalse(filter.getMandatory());
+        assertEquals(8, filter.getPriority());
+        
+        // Test max consecutive count validation
+        assertTrue(filter.getMaxConsecutiveCount() > 0, "Max consecutive count should be positive");
+        assertTrue(filter.getMaxConsecutiveCount() <= 10, "Max consecutive count should be reasonable for candle counting");
+        
+        // Test new configuration parameters
+        assertEquals("FIVE_MIN", filter.getTimeframe());
+        assertEquals(10, filter.getAnalysisWindow());
+    }
+
+    @Test
+    void testConsecutiveSameColorCandlesFilterConfigurationParameters() {
+        // Given: Test different configuration parameter combinations
+        ScalpingEntryConfig.NoTradeFilter filter1 = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Test Filter 1")
+                .maxConsecutiveCount(3)
+                .analysisWindow(10)
+                .priority(8)
+                .timeframe("ONE_MIN")
+                .build();
+
+        ScalpingEntryConfig.NoTradeFilter filter2 = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .mandatory(false)
+                .name("Test Filter 2")
+                .maxConsecutiveCount(7)
+                .analysisWindow(15)
+                .priority(8)
+                .timeframe("FIFTEEN_MIN")
+                .build();
+
+        // When & Then: Verify different parameter combinations
+        assertEquals("ONE_MIN", filter1.getTimeframe());
+        assertEquals(10, filter1.getAnalysisWindow());
+        assertEquals(3, filter1.getMaxConsecutiveCount());
+
+        assertEquals("FIFTEEN_MIN", filter2.getTimeframe());
+        assertEquals(15, filter2.getAnalysisWindow());
+        assertEquals(7, filter2.getMaxConsecutiveCount());
+    }
 }

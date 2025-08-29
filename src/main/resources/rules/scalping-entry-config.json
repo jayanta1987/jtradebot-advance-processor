@@ -155,6 +155,24 @@
         "overboughtThreshold": 80.0,
         "oversoldThreshold": 20.0,
         "priority": 6
+      },
+      "directionalStrength": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Directional Strength",
+        "description": "Filter out entries with directional strength less than 0.5 (50%)",
+        "threshold": 0.5,
+        "priority": 7
+      },
+      "consecutiveSameColorCandles": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Consecutive Same Color Candles",
+        "description": "Filter out entries when there are too many consecutive same color candles",
+        "maxConsecutiveCount": 3,
+        "analysisWindow": 10,
+        "priority": 8,
+        "timeframe": "FIVE_MIN"
       }
     }
   },
