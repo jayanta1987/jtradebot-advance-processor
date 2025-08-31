@@ -372,10 +372,18 @@ public class RuleHelper {
                         indicators.setBreakdownStrength((nearestSupport - tick.getLastTradedPrice()) / nearestSupport * 100);
                     }
                     
+                    // Calculate near support/resistance indicators
+                    indicators.setNear_support_resistance_zone(supportResistanceIndicator.isVeryNearSupportResistance(tick.getLastTradedPrice(), supports, resistances));
+                    indicators.setNear_round_figure_level(supportResistanceIndicator.isNearRoundFigureLevel(tick.getLastTradedPrice()));
+                    indicators.setNear_support_resistance_or_round_figure(supportResistanceIndicator.isNearSupportResistanceOrRoundFigure(tick.getLastTradedPrice(), supports, resistances));
+                    
                 } catch (Exception e) {
                     log.warn("Error calculating support/resistance levels", e);
                     indicators.setPrice_above_resistance(false);
                     indicators.setPrice_below_support(false);
+                    indicators.setNear_support_resistance_zone(false);
+                    indicators.setNear_round_figure_level(false);
+                    indicators.setNear_support_resistance_or_round_figure(false);
                 }
             }
             

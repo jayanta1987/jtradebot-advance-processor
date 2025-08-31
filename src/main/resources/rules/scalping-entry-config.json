@@ -155,6 +155,44 @@
         "overboughtThreshold": 80.0,
         "oversoldThreshold": 20.0,
         "priority": 6
+      },
+      "directionalStrength": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Directional Strength",
+        "description": "Filter out entries with directional strength less than 0.5 (50%)",
+        "threshold": 0.5,
+        "priority": 7
+      },
+      "consecutiveSameColorCandles": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Consecutive Same Color Candles",
+        "description": "Filter out entries when there are too many consecutive same color candles",
+        "maxConsecutiveCount": 5,
+        "analysisWindow": 7,
+        "priority": 8,
+        "timeframe": "FIVE_MIN"
+      },
+      "nearToSupportResistance": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Near Support/Resistance Filter",
+        "description": "Filter out entries when price is very near support/resistance levels or round figure index prices",
+        "priority": 9,
+        "supportResistanceBuffer": 5,
+        "roundFigureBuffer": 5
+      },
+      "tradingHours": {
+        "enabled": true,
+        "mandatory": true,
+        "name": "Trading Hours Filter",
+        "description": "Filter out entries outside of trading hours (9:15 AM to 3:30 PM IST)",
+        "priority": 10,
+        "startHour": 9,
+        "startMinute": 15,
+        "endHour": 15,
+        "endMinute": 15
       }
     }
   },
@@ -265,5 +303,9 @@
         "description": "Exit on market condition reversal"
       }
     }
+  },
+  "marketEndScheduler": {
+    "enabled": true,
+    "description": "Close all active trades when market hours are crossed (runs every 5 minutes to check)"
   }
 }

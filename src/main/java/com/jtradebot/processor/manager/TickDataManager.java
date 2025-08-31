@@ -11,7 +11,9 @@ import com.jtradebot.processor.model.indicator.Support;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.TrendEnum;
 import com.zerodhatech.models.Tick;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
@@ -38,6 +40,10 @@ public class TickDataManager {
 
     private final ReentrantLock lock = new ReentrantLock();
 
+    @Setter
+    @Getter
+    private Date lastTickTime;
+
     public void initialize(String instrumentToken, Date latestWorkingDay) {
         barSeriesManager.initializeBarSeriesData(instrumentToken, latestWorkingDay);
     }
@@ -50,14 +56,14 @@ public class TickDataManager {
         lock.lock();
         try {
             barSeriesManager.addTick(instrumentToken, tick);
-            if(instrumentToken.equals(kiteInstrumentHandler.getNifty50Token().toString())){
+           /* if(instrumentToken.equals(kiteInstrumentHandler.getNifty50Token().toString())){
                 addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_MIN);
                 addIndexData(instrumentToken, tick, CandleTimeFrameEnum.THREE_MIN);
                 addIndexData(instrumentToken, tick, CandleTimeFrameEnum.FIVE_MIN);
                 addIndexData(instrumentToken, tick, CandleTimeFrameEnum.FIFTEEN_MIN);
                 addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_HOUR);
                 addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_DAY);
-            }
+            }*/
         } catch (Exception e) {
             log.error("Error adding tick to Nifty50 - {}", e.getMessage());
         } finally {
@@ -65,7 +71,7 @@ public class TickDataManager {
         }
     }
 
-    private void addIndexData(String instrumentToken, Tick tick, CandleTimeFrameEnum timeFrame) {
+    /*private void addIndexData(String instrumentToken, Tick tick, CandleTimeFrameEnum timeFrame) {
         BarSeries barSeriesForTimeFrame = getBarSeriesForTimeFrame(instrumentToken, timeFrame);
         EmaIndicatorInfo emaIndicatorInfo = multiEmaIndicator.createEmaInfoForTimeframes(barSeriesForTimeFrame, timeFrame);
         EmaInfo emaValues = multiEmaIndicator.calculateEmaValues(barSeriesForTimeFrame, timeFrame);
@@ -85,7 +91,7 @@ public class TickDataManager {
                 .trend(trend)
                 .build();
         indexDataMap.put(timeFrame, indexData);
-    }
+    }*/
 
     public BarSeries getBarSeriesForTimeFrame(String instrumentToken, CandleTimeFrameEnum timeFrame) {
         return barSeriesManager.getBarSeriesForTimeFrame(instrumentToken, timeFrame);
