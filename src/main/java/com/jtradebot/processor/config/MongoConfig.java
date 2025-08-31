@@ -30,6 +30,7 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
     @Bean
     public MongoClient mongoClient() {
         log.info("Creating MongoDB client with URI: {}", mongoUri.replaceAll(":[^:@]*@", ":****@"));
+        log.info("🚀 FORCE DEPLOYMENT TEST - MongoDB client initialization at: {}", java.time.LocalDateTime.now());
         return MongoClients.create(mongoUri);
     }
 }

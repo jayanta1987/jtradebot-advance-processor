@@ -1,0 +1,1082 @@
+[{
+  "_id": "9613202d-395a-4f75-9d20-161708b75820",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 13:28:07 IST",
+  "exitTime": "11 Aug 2025 13:28:12 IST",
+  "entryPrice": 244.9435,
+  "exitPrice": 249.59350000000146,
+  "entryIndexPrice": 24494.35,
+  "exitIndexPrice": 24499,
+  "stopLossPrice": 249.9435,
+  "targetPrice": 264.9435,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": 4.650000000001455,
+  "totalProfit": 1046.2500000003274,
+  "lastUpdated": "25 Aug 2025 17:39:12 IST",
+  "createdAt": "25 Aug 2025 17:39:09 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 249.9435,
+      "targetHit": true,
+      "profitAtMilestone": 5
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 254.9435,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 259.9435,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 264.9435,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [
+    "Target milestone 1 hit at price: 249.99, profit: 5.00",
+    "Stop loss updated to 249.94 (milestone 1 price) after milestone 1 hit"
+  ],
+  "minIndexPrice": 24493.65,
+  "maxIndexPrice": 24499.4,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.7/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.7/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 4",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 15.68x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 9.2,
+    "isLongBody": true,
+    "bodyRatio": 0.89,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24464.43,
+    "volumeSurgeMultiplier": 15.68,
+    "ema200Distance5min": 28.07,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24452.25
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.714285714285714,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 4,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "b160c89f-2a24-458f-a2e9-9f624eb2c31c",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 13:28:13 IST",
+  "exitTime": "11 Aug 2025 13:28:31 IST",
+  "entryPrice": 244.99450000000002,
+  "exitPrice": 239.0444999999993,
+  "entryIndexPrice": 24499.45,
+  "exitIndexPrice": 24493.5,
+  "stopLossPrice": 239.99450000000002,
+  "targetPrice": 264.9945,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": -5.950000000000728,
+  "totalProfit": -1338.7500000001637,
+  "lastUpdated": "25 Aug 2025 17:39:27 IST",
+  "createdAt": "25 Aug 2025 17:39:13 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 249.99450000000002,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 254.99450000000002,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 259.9945,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 264.9945,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [],
+  "minIndexPrice": 24493.5,
+  "maxIndexPrice": 24501.45,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.9/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.9/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 5",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 15.68x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 14.3,
+    "isLongBody": true,
+    "bodyRatio": 0.93,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24464.5,
+    "volumeSurgeMultiplier": 15.68,
+    "ema200Distance5min": 34.95,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24452.65
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.857142857142858,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 5,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "5b3ac645-47d0-45f4-862e-d3788dab4249",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 13:32:43 IST",
+  "exitTime": "11 Aug 2025 13:34:23 IST",
+  "entryPrice": 244.968,
+  "exitPrice": 246.31800000000217,
+  "entryIndexPrice": 24496.8,
+  "exitIndexPrice": 24498.15,
+  "stopLossPrice": 239.968,
+  "targetPrice": 264.96799999999996,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "TIME_BASED_EXIT",
+  "totalPoints": 1.3500000000021828,
+  "totalProfit": 303.7500000004911,
+  "lastUpdated": "25 Aug 2025 17:43:35 IST",
+  "createdAt": "25 Aug 2025 17:42:22 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 249.968,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 254.968,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 259.96799999999996,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 264.96799999999996,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [],
+  "minIndexPrice": 24492.75,
+  "maxIndexPrice": 24498.95,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.1/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.1/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 4",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 16.11x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 12.6,
+    "isLongBody": true,
+    "bodyRatio": 0.81,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24464.68,
+    "volumeSurgeMultiplier": 16.11,
+    "ema200Distance5min": 32.12,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24454.41
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.142857142857142,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 4,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "314f9f54-a3d9-43e0-9586-9672be801688",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 13:57:43 IST",
+  "exitTime": "11 Aug 2025 13:59:23 IST",
+  "entryPrice": 245.1585,
+  "exitPrice": 249.10850000000073,
+  "entryIndexPrice": 24515.85,
+  "exitIndexPrice": 24519.8,
+  "stopLossPrice": 250.1585,
+  "targetPrice": 265.1585,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": 3.9500000000007276,
+  "totalProfit": 888.7500000001637,
+  "lastUpdated": "25 Aug 2025 18:01:34 IST",
+  "createdAt": "25 Aug 2025 18:00:23 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.1585,
+      "targetHit": true,
+      "profitAtMilestone": 5
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.1585,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.1585,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.1585,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [
+    "Target milestone 1 hit at price: 251.41, profit: 5.00",
+    "Stop loss updated to 250.16 (milestone 1 price) after milestone 1 hit"
+  ],
+  "minIndexPrice": 24512.45,
+  "maxIndexPrice": 24522.1,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.3/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.3/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 3",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 17.91x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 9.05,
+    "isLongBody": true,
+    "bodyRatio": 0.91,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24466.86,
+    "volumeSurgeMultiplier": 17.91,
+    "ema200Distance5min": 48.99,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24468.48
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.285714285714286,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 3,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "01ed22db-d0a6-4f35-b2d0-1a4aa6cc8801",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 14:01:41 IST",
+  "exitTime": "11 Aug 2025 14:02:28 IST",
+  "entryPrice": 245.327,
+  "exitPrice": 239.827,
+  "entryIndexPrice": 24532.7,
+  "exitIndexPrice": 24527.2,
+  "stopLossPrice": 240.327,
+  "targetPrice": 265.327,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": -5.5,
+  "totalProfit": -1237.5,
+  "lastUpdated": "25 Aug 2025 18:03:50 IST",
+  "createdAt": "25 Aug 2025 18:03:12 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.327,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.327,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.327,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.327,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [],
+  "minIndexPrice": 24527.2,
+  "maxIndexPrice": 24534.2,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.3/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.3/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 3",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 18.15x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 8.75,
+    "isLongBody": true,
+    "bodyRatio": 0.81,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24467.57,
+    "volumeSurgeMultiplier": 18.15,
+    "ema200Distance5min": 65.13,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24472.41
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.285714285714286,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 3,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "7202e4fe-a9eb-4d56-aa76-67e7255b8c23",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 14:30:57 IST",
+  "exitTime": "11 Aug 2025 14:31:07 IST",
+  "entryPrice": 245.54700000000003,
+  "exitPrice": 250.54700000000003,
+  "entryIndexPrice": 24554.7,
+  "exitIndexPrice": 24559.7,
+  "stopLossPrice": 250.54700000000003,
+  "targetPrice": 265.547,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": 5,
+  "totalProfit": 1125,
+  "lastUpdated": "25 Aug 2025 18:23:47 IST",
+  "createdAt": "25 Aug 2025 18:23:38 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.54700000000003,
+      "targetHit": true,
+      "profitAtMilestone": 5
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.54700000000003,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.547,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.547,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [
+    "Target milestone 1 hit at price: 250.80, profit: 5.00",
+    "Stop loss updated to 250.55 (milestone 1 price) after milestone 1 hit"
+  ],
+  "minIndexPrice": 24554.7,
+  "maxIndexPrice": 24559.95,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.7/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.7/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 4",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 21.43x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 12.15,
+    "isLongBody": true,
+    "bodyRatio": 0.98,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24471.87,
+    "volumeSurgeMultiplier": 21.43,
+    "ema200Distance5min": 82.83,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24493.08
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.714285714285714,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 4,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "3873f3d1-e997-4bd6-b192-54c81bec2b15",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 14:31:13 IST",
+  "exitTime": "11 Aug 2025 14:32:41 IST",
+  "entryPrice": 245.6475,
+  "exitPrice": 250.49749999999855,
+  "entryIndexPrice": 24564.75,
+  "exitIndexPrice": 24569.6,
+  "stopLossPrice": 250.6475,
+  "targetPrice": 265.64750000000004,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": 4.849999999998545,
+  "totalProfit": 1091.2499999996726,
+  "lastUpdated": "25 Aug 2025 18:25:09 IST",
+  "createdAt": "25 Aug 2025 18:23:52 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.6475,
+      "targetHit": true,
+      "profitAtMilestone": 5
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.6475,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.64750000000004,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.64750000000004,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [
+    "Target milestone 1 hit at price: 250.85, profit: 5.00",
+    "Stop loss updated to 250.65 (milestone 1 price) after milestone 1 hit"
+  ],
+  "minIndexPrice": 24562.5,
+  "maxIndexPrice": 24569.95,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.3/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.3/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 3",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 21.61x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 8.9,
+    "isLongBody": true,
+    "bodyRatio": 1,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24471.97,
+    "volumeSurgeMultiplier": 21.61,
+    "ema200Distance5min": 92.78,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24493.65
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.285714285714286,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 3,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "14ce408b-a272-44bb-9e8e-2bbed02faaf8",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 14:36:10 IST",
+  "exitTime": "11 Aug 2025 14:36:20 IST",
+  "entryPrice": 245.688,
+  "exitPrice": 249.938,
+  "entryIndexPrice": 24568.8,
+  "exitIndexPrice": 24573.05,
+  "stopLossPrice": 250.688,
+  "targetPrice": 265.688,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": 4.25,
+  "totalProfit": 956.25,
+  "lastUpdated": "25 Aug 2025 18:28:04 IST",
+  "createdAt": "25 Aug 2025 18:27:55 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.688,
+      "targetHit": true,
+      "profitAtMilestone": 5
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.688,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.688,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.688,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [
+    "Target milestone 1 hit at price: 251.19, profit: 5.00",
+    "Stop loss updated to 250.69 (milestone 1 price) after milestone 1 hit"
+  ],
+  "minIndexPrice": 24568.5,
+  "maxIndexPrice": 24574.3,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.7/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.7/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 4",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 22.80x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 9,
+    "isLongBody": true,
+    "bodyRatio": 0.93,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24472.95,
+    "volumeSurgeMultiplier": 22.8,
+    "ema200Distance5min": 95.85,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24498.01
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.714285714285714,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 4,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "8fb531cc-969d-408e-be43-e503732e420f",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 14:36:21 IST",
+  "exitTime": "11 Aug 2025 14:36:42 IST",
+  "entryPrice": 245.753,
+  "exitPrice": 240.4530000000007,
+  "entryIndexPrice": 24575.3,
+  "exitIndexPrice": 24570,
+  "stopLossPrice": 240.753,
+  "targetPrice": 265.753,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": -5.299999999999272,
+  "totalProfit": -1192.4999999998363,
+  "lastUpdated": "25 Aug 2025 18:28:21 IST",
+  "createdAt": "25 Aug 2025 18:28:04 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.753,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.753,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.753,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.753,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [],
+  "minIndexPrice": 24570,
+  "maxIndexPrice": 24578.95,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.7/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.7/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 4",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 22.82x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 15.5,
+    "isLongBody": true,
+    "bodyRatio": 0.96,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24473,
+    "volumeSurgeMultiplier": 22.82,
+    "ema200Distance5min": 101.3,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24498.33
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.714285714285714,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 4,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "102c6232-05ec-4c2c-a6d8-6f5acd21f09d",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 14:38:42 IST",
+  "exitTime": "11 Aug 2025 14:39:00 IST",
+  "entryPrice": 245.822,
+  "exitPrice": 240.72199999999782,
+  "entryIndexPrice": 24582.2,
+  "exitIndexPrice": 24577.1,
+  "stopLossPrice": 240.822,
+  "targetPrice": 265.822,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": -5.100000000002183,
+  "totalProfit": -1147.5000000004911,
+  "lastUpdated": "25 Aug 2025 18:30:05 IST",
+  "createdAt": "25 Aug 2025 18:29:52 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.822,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.822,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.822,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.822,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [],
+  "minIndexPrice": 24577.1,
+  "maxIndexPrice": 24583.3,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.3/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.3/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 3",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 22.98x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 12.45,
+    "isLongBody": true,
+    "bodyRatio": 0.92,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24473.08,
+    "volumeSurgeMultiplier": 22.98,
+    "ema200Distance5min": 109.12,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24498.78
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.285714285714286,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 3,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+},
+{
+  "_id": "84e622dc-6302-492a-97b2-9e5f7fff421e",
+  "orderType": "CALL_BUY",
+  "tradingSymbol": "TEST_OPTION_CE",
+  "instrumentToken": {
+    "$numberLong": "0"
+  },
+  "entryTime": "11 Aug 2025 14:49:43 IST",
+  "exitTime": "11 Aug 2025 14:49:57 IST",
+  "entryPrice": 245.8185,
+  "exitPrice": 240.3185,
+  "entryIndexPrice": 24581.85,
+  "exitIndexPrice": 24576.35,
+  "stopLossPrice": 240.8185,
+  "targetPrice": 265.8185,
+  "quantity": 225,
+  "status": "EXITED",
+  "exitReason": "STOPLOSS_HIT",
+  "totalPoints": -5.5,
+  "totalProfit": -1237.5,
+  "lastUpdated": "25 Aug 2025 18:37:59 IST",
+  "createdAt": "25 Aug 2025 18:37:48 IST",
+  "targetMilestones": [
+    {
+      "milestoneNumber": 1,
+      "points": 5,
+      "targetPrice": 250.8185,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 2,
+      "points": 10,
+      "targetPrice": 255.8185,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 3,
+      "points": 15,
+      "targetPrice": 260.8185,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    },
+    {
+      "milestoneNumber": 4,
+      "points": 20,
+      "targetPrice": 265.8185,
+      "targetHit": false,
+      "profitAtMilestone": 0
+    }
+  ],
+  "milestoneHistory": [],
+  "minIndexPrice": 24576.35,
+  "maxIndexPrice": 24581.85,
+  "entryConditions": [
+    "Scenario: SAFE_ENTRY_SIGNAL",
+    "Confidence: 8.7/10",
+    "Reason: All entry conditions met",
+    "Quality Score: 8.7/10",
+    "--- CATEGORY SCORES ---",
+    "futureAndVolume: 6",
+    "candlestick: 4",
+    "ema: 3",
+    "momentum: 3",
+    "--- FUTURESIGNALS ---",
+    "✓ All timeframes bullish",
+    "Volume Surge Multiplier: 25.78x"
+  ],
+  "entryMarketConditionSuitable": true,
+  "entryMarketConditionDetails": {
+    "directionalStrength": 0.5,
+    "candleHeight": 8.8,
+    "isLongBody": true,
+    "bodyRatio": 0.86,
+    "consecutiveSmallCandles": 0,
+    "consecutiveSpinningTop": 0,
+    "ema200_5min": 24474.85,
+    "volumeSurgeMultiplier": 25.78,
+    "ema200Distance5min": 104.25,
+    "isDoji": false,
+    "entryFilteringPassed": true,
+    "marketSuitable": true,
+    "consecutiveDoji": 0,
+    "ema34_5min": 24505.92
+  },
+  "entryScenarioName": "SAFE_ENTRY_SIGNAL",
+  "entryScenarioDescription": "All entry conditions met",
+  "entryScenarioConfidence": 8.714285714285714,
+  "entryCategoryScores": {
+    "futureAndVolume": 6,
+    "candlestick": 4,
+    "ema": 3,
+    "momentum": 3
+  },
+  "_class": "com.jtradebot.processor.repository.document.JtradeOrder"
+}]
