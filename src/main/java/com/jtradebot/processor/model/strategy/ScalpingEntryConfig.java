@@ -184,5 +184,10 @@ public class ScalpingEntryConfig {
         private Integer lookbackBars;
         private Integer maxConsecutiveCount;
         private Integer analysisWindow;
+        // Trading hours fields
+        private Integer startHour;
+        private Integer startMinute;
+        private Integer endHour;
+        private Integer endMinute;
     }
 }

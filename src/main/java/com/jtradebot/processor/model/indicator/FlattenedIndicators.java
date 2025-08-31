@@ -87,6 +87,11 @@ public class FlattenedIndicators {
     private Boolean price_above_resistance;
     private Boolean price_below_support;
     
+    // Near support/resistance indicators
+    private Boolean near_support_resistance_zone;
+    private Boolean near_round_figure_level;
+    private Boolean near_support_resistance_or_round_figure;
+    
     // Breakout strength indicators
     private Double breakoutStrength; // Percentage above resistance
     private Double breakdownStrength; // Percentage below support

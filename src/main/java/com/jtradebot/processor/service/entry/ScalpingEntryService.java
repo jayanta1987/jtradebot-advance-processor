@@ -91,40 +91,7 @@ public class ScalpingEntryService {
                     .build();
         }
     }
-    
-    /**
-     * Evaluates entry conditions for standalone usage (when market condition is not pre-calculated)
-     * This method will calculate market condition internally when needed
-     */
 
-    public ScalpingEntryDecision evaluateEntryStandalone(Tick tick, FlattenedIndicators indicators) {
-        // For standalone usage, we calculate market condition internally when needed
-        // This avoids passing null and provides a clean API
-        return evaluateEntry(tick, indicators, null, null);
-    }
-    
-    /**
-     * Step 1: Calculate category counts for given indicators and categories
-     */
-    private Map<String, Integer> calculateCategoryCounts(FlattenedIndicators indicators, Map<String, List<String>> categories) {
-        Map<String, Integer> categoryCounts = new HashMap<>();
-        
-        for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
-            String categoryName = entry.getKey();
-            List<String> conditions = entry.getValue();
-            
-            int satisfiedCount = 0;
-            for (String condition : conditions) {
-                if (evaluateCondition(condition, indicators)) {
-                    satisfiedCount++;
-                }
-            }
-            categoryCounts.put(categoryName, satisfiedCount);
-        }
-        
-        return categoryCounts;
-    }
-    
     private ScenarioEvaluation evaluateScenario(ScalpingEntryConfig.Scenario scenario, 
                                                FlattenedIndicators indicators, 
                                                Map<String, Integer> callCategoryCounts,

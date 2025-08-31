@@ -11,5 +11,6 @@ public enum ExitReasonEnum {
     MAX_DAY_LOSS_REACHED,
     BAD_ENTRY,
     MAX_DAY_PROFIT_REACHED,
-    FORCE_EXIT
+    FORCE_EXIT,
+    MARKET_END_CLOSURE
 }

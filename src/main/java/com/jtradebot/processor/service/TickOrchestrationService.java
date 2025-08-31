@@ -1,5 +1,6 @@
 package com.jtradebot.processor.service;
 
+import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
@@ -30,6 +31,7 @@ public class TickOrchestrationService {
     private final TickSetupService tickSetupService;
     private final TickEventTracker tickEventTracker;
     private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final TradingHoursConfig tradingHoursConfig;
 
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
@@ -37,9 +39,24 @@ public class TickOrchestrationService {
     private final UnifiedIndicatorService unifiedIndicatorService;
     private final ExitStrategyService exitStrategyService;
 
-    public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) throws Exception {
-        if (!skipMarketHoursCheck && !DateTimeHandler.isMarketOpen()) {
-            log.info("Market not started yet. Skipping tick processing. Current time: {}", new Date());
+    public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) {
+
+        // Get trading hours from configuration
+        int startHour = tradingHoursConfig.getMarketStartHour();
+        int startMinute = tradingHoursConfig.getMarketStartMinute();
+        int endHour = tradingHoursConfig.getMarketEndHour();
+        int endMinute = tradingHoursConfig.getMarketEndMinute();
+
+        if(ticks.isEmpty()){
+            log.warn("No ticks to process");
+            return;
+        }
+        Date lastTickTimestamp = ticks.get(0).getTickTimestamp();
+        tickDataManager.setLastTickTime(lastTickTimestamp);
+
+        if (!skipMarketHoursCheck
+                & !DateTimeHandler.isMarketOpen(tickDataManager.getLastTickTime(), startHour, startMinute, endHour, endMinute)) {
+            log.info("Market is closed. Skipping tick processing. Current time: {}", lastTickTimestamp);
             return;
         }
         processLiveTicks(ticks);
@@ -99,7 +116,7 @@ public class TickOrchestrationService {
         if (tickDataManager.isNotInitialized(String.valueOf(tick.getInstrumentToken()))) {
             log.info("Initializing tickDataManager for instrument: {}", tick.getInstrumentToken());
             tickSetupService.connect();
-            tickDataManager.initialize(String.valueOf(tick.getInstrumentToken()), DateTimeHandler.getLastMarketTime(tick.getTickTimestamp()));
+            tickDataManager.initialize(String.valueOf(tick.getInstrumentToken()), tradingHoursConfig.getLastMarketTime(tick.getTickTimestamp()));
         }
     }
 

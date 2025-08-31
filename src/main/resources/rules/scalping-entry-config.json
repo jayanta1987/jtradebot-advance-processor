@@ -169,10 +169,30 @@
         "mandatory": false,
         "name": "Consecutive Same Color Candles",
         "description": "Filter out entries when there are too many consecutive same color candles",
-        "maxConsecutiveCount": 3,
-        "analysisWindow": 10,
+        "maxConsecutiveCount": 5,
+        "analysisWindow": 7,
         "priority": 8,
         "timeframe": "FIVE_MIN"
+      },
+      "nearToSupportResistance": {
+        "enabled": true,
+        "mandatory": false,
+        "name": "Near Support/Resistance Filter",
+        "description": "Filter out entries when price is very near support/resistance levels or round figure index prices",
+        "priority": 9,
+        "supportResistanceBuffer": 5,
+        "roundFigureBuffer": 5
+      },
+      "tradingHours": {
+        "enabled": true,
+        "mandatory": true,
+        "name": "Trading Hours Filter",
+        "description": "Filter out entries outside of trading hours (9:15 AM to 3:30 PM IST)",
+        "priority": 10,
+        "startHour": 9,
+        "startMinute": 15,
+        "endHour": 15,
+        "endMinute": 0
       }
     }
   },
@@ -283,5 +303,9 @@
         "description": "Exit on market condition reversal"
       }
     }
+  },
+  "marketEndScheduler": {
+    "enabled": true,
+    "description": "Close all active trades when market hours are crossed (runs every 5 minutes to check)"
   }
 }

@@ -2,6 +2,7 @@ package com.jtradebot.processor.service.entry;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
+import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
@@ -26,12 +27,15 @@ class UnstableMarketConditionAnalysisServiceTest {
 
     @Mock
     private ScoringConfigurationService scoringConfigService;
+    
+    @Mock
+    private SupportResistanceIndicator supportResistanceIndicator;
 
     private UnstableMarketConditionAnalysisService service;
 
     @BeforeEach
     void setUp() {
-        service = new UnstableMarketConditionAnalysisService(tickDataManager, configService, scoringConfigService);
+        service = new UnstableMarketConditionAnalysisService(tickDataManager, configService, scoringConfigService, supportResistanceIndicator);
     }
 
     @Test

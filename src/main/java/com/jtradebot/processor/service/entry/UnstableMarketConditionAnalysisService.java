@@ -2,6 +2,8 @@ package com.jtradebot.processor.service.entry;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
+import com.jtradebot.processor.handler.DateTimeHandler;
+import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
@@ -32,6 +34,7 @@ public class UnstableMarketConditionAnalysisService {
     private final TickDataManager tickDataManager;
     private final DynamicStrategyConfigService configService;
     private final ScoringConfigurationService scoringConfigService;
+    private final SupportResistanceIndicator supportResistanceIndicator;
 
     public boolean isMarketConditionSuitable(Tick tick, FlattenedIndicators indicators) {
         try {
@@ -92,11 +95,11 @@ public class UnstableMarketConditionAnalysisService {
             // Separate mandatory and optional failed filters
             List<FilterResult> mandatoryFailedFilters = filterResults.stream()
                     .filter(result -> !result.isPassed() && result.isMandatory())
-                    .collect(Collectors.toList());
+                    .toList();
             
             List<FilterResult> optionalFailedFilters = filterResults.stream()
                     .filter(result -> !result.isPassed() && !result.isMandatory())
-                    .collect(Collectors.toList());
+                    .toList();
             
             // Check conditions: mandatory filters must all pass, optional filters can fail up to maxOptionalFiltersToIgnore
             boolean mandatoryConditionsMet = mandatoryFailedFilters.isEmpty();
@@ -247,6 +250,29 @@ public class UnstableMarketConditionAnalysisService {
                 passed = consecutiveSameColorCount < filter.getMaxConsecutiveCount();
                 details = String.format("Consecutive same color candles: %d (max allowed: %d, timeframe: %s, analysis window: %d)", 
                         consecutiveSameColorCount, filter.getMaxConsecutiveCount(), timeframeStr, analysisWindow);
+                break;
+                
+            case "nearToSupportResistance":
+                // Check if price is near support/resistance or round figures
+                boolean nearSupportResistance = Boolean.TRUE.equals(indicators.getNear_support_resistance_or_round_figure());
+                passed = !nearSupportResistance; // Filter passes when NOT near support/resistance
+                details = String.format("Near support/resistance check: %s (Price: %.2f)", 
+                        nearSupportResistance ? "NEAR" : "CLEAR", tick.getLastTradedPrice());
+                break;
+                
+            case "tradingHours":
+                // Check if current time is within trading hours
+                boolean withinTradingHours = DateTimeHandler.withinTradingHours(
+                    filter.getStartHour(), filter.getStartMinute(), 
+                    filter.getEndHour(), filter.getEndMinute(), 
+                    tick.getTickTimestamp()
+                );
+                passed = withinTradingHours; // Filter passes when within trading hours
+                details = String.format("Trading hours check: %s (Time: %s, Start: %02d:%02d, End: %02d:%02d)", 
+                        withinTradingHours ? "WITHIN" : "OUTSIDE", 
+                        new java.text.SimpleDateFormat("HH:mm:ss").format(tick.getTickTimestamp()),
+                        filter.getStartHour(), filter.getStartMinute(),
+                        filter.getEndHour(), filter.getEndMinute());
                 break;
                 
             default:

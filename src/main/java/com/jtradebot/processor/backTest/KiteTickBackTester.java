@@ -1,6 +1,7 @@
 package com.jtradebot.processor.backTest;
 
 
+import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.ScheduleManager;
@@ -31,6 +32,7 @@ public class KiteTickBackTester {
     private final TickOrchestrationService tickOrchestrationService;
     private final BackTestDataFactory backTestDataFactory;
     private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final TradingHoursConfig tradingHoursConfig;
 
     private Queue<Tick> tickQueue = new LinkedList<>();
 
@@ -40,7 +42,7 @@ public class KiteTickBackTester {
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
             Date fromDate = formatter.parse(fromDateStr);
             Date toDate = formatter.parse(toDateStr);
-            Date lastMarketTime = DateTimeHandler.getLastMarketTime(fromDate);
+            Date lastMarketTime = tradingHoursConfig.getLastMarketTime(fromDate);
             tickSetupService.connect();
             //tickDataManager.initialize(kiteInstrumentHandler.getNifty50Token().toString(), DateTimeHandler.getLastMarketTime(lastMarketTime));
 
@@ -72,7 +74,7 @@ public class KiteTickBackTester {
             List<Tick> tickList = new ArrayList<>();
             tickList.add(tick);
             try {
-                tickOrchestrationService.processLiveTicks(tickList, true); // true = skip market hours check
+                tickOrchestrationService.processLiveTicks(tickList, false); // true = skip market hours check
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

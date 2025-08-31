@@ -194,6 +194,69 @@ public class SupportResistanceIndicator {
         return supportLevels.size() >= 2 * resistanceLevels.size();
     }
 
+    /**
+     * Check if price is very near to support/resistance levels (within 5 points)
+     * This helps prevent entries in choppy zones near key levels
+     */
+    public boolean isVeryNearSupportResistance(double ltp, Set<Support> supportLevels, Set<Resistance> resistanceLevels) {
+        // Check if price is very close to any support level
+        for (Support support : supportLevels) {
+            if (Math.abs(ltp - support.getSupportValue()) <= VERY_MIN_SUPPORT_RESISTANCE_DISTANCE_BUFFER) {
+                log.debug("Price {} is very near support level: {}", ltp, support.getSupportValue());
+                return true;
+            }
+        }
+        
+        // Check if price is very close to any resistance level
+        for (Resistance resistance : resistanceLevels) {
+            if (Math.abs(ltp - resistance.getResistanceValue()) <= VERY_MIN_SUPPORT_RESISTANCE_DISTANCE_BUFFER) {
+                log.debug("Price {} is very near resistance level: {}", ltp, resistance.getResistanceValue());
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Check if price is near round figure index levels (like 24500, 25000, etc.)
+     * Round figures often act as psychological support/resistance levels
+     * Uses modulo operation to detect levels every 500 points
+     */
+    public boolean isNearRoundFigureLevel(double ltp) {
+        // Round figure levels are every 500 points
+        int roundFigureInterval = 500;
+        int buffer = 10; // Buffer around round figures
+        
+        // Find the nearest round figure level
+        int nearestRoundLevel = (int) Math.round(ltp / roundFigureInterval) * roundFigureInterval;
+        
+        // Check if price is within buffer of the nearest round figure
+        if (Math.abs(ltp - nearestRoundLevel) <= buffer) {
+            log.debug("Price {} is near round figure level: {}", ltp, nearestRoundLevel);
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Check if price is near support/resistance levels or round figures
+     * This is an optional filter to prevent entries in choppy zones
+     */
+    public boolean isNearSupportResistanceOrRoundFigure(double ltp, Set<Support> supportLevels, Set<Resistance> resistanceLevels) {
+        boolean nearSupportResistance = isVeryNearSupportResistance(ltp, supportLevels, resistanceLevels);
+        boolean nearRoundFigure = isNearRoundFigureLevel(ltp);
+        
+        if (nearSupportResistance || nearRoundFigure) {
+            log.info("🚫 NEAR SUPPORT/RESISTANCE - Price: {}, Near Support/Resistance: {}, Near Round Figure: {}", 
+                    ltp, nearSupportResistance, nearRoundFigure);
+            return true;
+        }
+        
+        return false;
+    }
+
     public double findDistanceToNearestSupport(double ltp, Set<Support> supportLevels) {
         Support defaultSupport = new Support();
         defaultSupport.setSupportValue((int)ltp);
