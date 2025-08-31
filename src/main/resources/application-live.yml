@@ -14,4 +14,3 @@ logging:
     org:
       mongodb:
         driver: INFO
-    com.jtradebot.processor: DEBUG
