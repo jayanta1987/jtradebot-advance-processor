@@ -21,9 +21,6 @@ spring:
       uri: mongodb+srv://jtradebotuser:ByQMNv50k6wWZDXj@jtradebot-prod.joexsjf.mongodb.net/jtradebot?retryWrites=true&w=majority&appName=jtradebot-prod
       database: jtradebot
       auto-index-creation: true
-      # Explicitly disable localhost fallback
-      host: jtradebot-prod.joexsjf.mongodb.net
-      port: 27017
 
 aws:
   region: ap-south-1
@@ -60,9 +57,6 @@ logging:
     com.jtradebot.processor.service.impl.ScalpingEntryServiceImpl: INFO
     com.jtradebot.processor.service.impl.DynamicIndicatorFlattenerServiceImpl: INFO
     com.jtradebot.processor.service.impl.ScalpingVolumeSurgeServiceImpl: INFO
-    org.springframework.data.mongodb: DEBUG
-    org.mongodb.driver: DEBUG
-    org.springframework.boot.autoconfigure: DEBUG
   
   # Backtest Data Collection Configuration
   backtest-data:
