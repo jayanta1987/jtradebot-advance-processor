@@ -6,7 +6,7 @@ server:
 spring:
   timezone: Asia/Kolkata
   profiles:
-    active: local
+    active: live
   application:
     name: jtradebot-advance-processor
   kafka:
@@ -14,11 +14,16 @@ spring:
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='QVHT6GTXZNDX2H4R' password='mkg7xHLzmOZy3hOhBSCUU+q2Bxx7JleWeHS35qwxZ3l2rVhkWbcxik+AhZzkxkU3';
+      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='QVHT6GTXZNDX2H4R' password='mkg7xHLzmOZy3hOhBSCUU+q2Bxx7JleWeHS35qwxZlk2rVhkWbcxik+AhZzkxkU3';
       session.timeout.ms: 45000
   data:
     mongodb:
       uri: mongodb+srv://jtradebotuser:ByQMNv50k6wWZDXj@jtradebot-prod.joexsjf.mongodb.net/jtradebot?retryWrites=true&w=majority&appName=jtradebot-prod
+      database: jtradebot
+      auto-index-creation: true
+      # Explicitly disable localhost fallback
+      host: jtradebot-prod.joexsjf.mongodb.net
+      port: 27017
 
 aws:
   region: ap-south-1
@@ -55,6 +60,9 @@ logging:
     com.jtradebot.processor.service.impl.ScalpingEntryServiceImpl: INFO
     com.jtradebot.processor.service.impl.DynamicIndicatorFlattenerServiceImpl: INFO
     com.jtradebot.processor.service.impl.ScalpingVolumeSurgeServiceImpl: INFO
+    org.springframework.data.mongodb: DEBUG
+    org.mongodb.driver: DEBUG
+    org.springframework.boot.autoconfigure: DEBUG
   
   # Backtest Data Collection Configuration
   backtest-data:

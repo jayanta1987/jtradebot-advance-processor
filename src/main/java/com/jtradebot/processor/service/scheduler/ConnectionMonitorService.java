@@ -44,6 +44,10 @@ public class ConnectionMonitorService {
         int endHour = tradingHoursConfig.getMarketEndHour();
         int endMinute = tradingHoursConfig.getMarketEndMinute();
 
+        if (tickDataManager.getLastTickTime() == null) {
+            return;
+        }
+
         if (DateTimeHandler.isMarketOpen(tickDataManager.getLastTickTime(), startHour, startMinute, endHour, endMinute)) {
             log.warn("Market is not open. Skipping connection check.");
             return;
