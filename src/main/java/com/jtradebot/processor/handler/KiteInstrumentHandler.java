@@ -55,6 +55,8 @@ public class KiteInstrumentHandler {
         if (cachedFutureToken != null && lastCacheTime != null) {
             Duration timeSinceLastCache = Duration.between(lastCacheTime, LocalDateTime.now());
             if (timeSinceLastCache.compareTo(CACHE_DURATION) < 0) {
+                log.debug("Using cached Nifty future token: {} (cached {} ago)", 
+                        cachedFutureToken, timeSinceLastCache);
                 return Optional.of(cachedFutureToken);
             }
         }
@@ -93,6 +95,11 @@ public class KiteInstrumentHandler {
                     long daysUntilExpiry = java.time.temporal.ChronoUnit.DAYS.between(now, expiryDate);
 
                     if (daysUntilExpiry > 7) {
+                        // Update cache for current month future
+                        cachedFutureToken = currentMonthInstrument.getInstrumentToken();
+                        lastCacheTime = LocalDateTime.now();
+                        log.info("Cached current month Nifty future token: {} (expires in {} days)", 
+                                cachedFutureToken, daysUntilExpiry);
                         return Optional.of(currentMonthInstrument.getInstrumentToken());
                     }
                 } catch (Exception e) {
@@ -139,10 +146,15 @@ public class KiteInstrumentHandler {
                     // Update cache
                     cachedFutureToken = future.getInstrumentToken();
                     lastCacheTime = LocalDateTime.now();
+                    log.info("Cached selected Nifty future token: {} (expires in {} days)", 
+                            cachedFutureToken, daysUntilExpiry);
 
                     return Optional.of(future.getInstrumentToken());
                 } catch (Exception e) {
                     log.error("Error calculating days until expiry for selected future: {}", e.getMessage());
+                    // Still update cache even if there's an error parsing expiry
+                    cachedFutureToken = future.getInstrumentToken();
+                    lastCacheTime = LocalDateTime.now();
                     return Optional.of(future.getInstrumentToken());
                 }
             } else {
@@ -155,10 +167,15 @@ public class KiteInstrumentHandler {
                     // Update cache
                     cachedFutureToken = firstFuture.getInstrumentToken();
                     lastCacheTime = LocalDateTime.now();
+                    log.info("Cached first available Nifty future token: {} (expires in {} days)", 
+                            cachedFutureToken, daysUntilExpiry);
 
                     return Optional.of(firstFuture.getInstrumentToken());
                 } catch (Exception e) {
                     log.error("Error calculating days until expiry for first future: {}", e.getMessage());
+                    // Still update cache even if there's an error parsing expiry
+                    cachedFutureToken = firstFuture.getInstrumentToken();
+                    lastCacheTime = LocalDateTime.now();
                     return Optional.of(firstFuture.getInstrumentToken());
                 }
             }
@@ -226,6 +243,29 @@ public class KiteInstrumentHandler {
 
     public void deleteInstruments() {
         instrumentRepository.deleteAll();
+    }
+
+    /**
+     * Manually refresh the cache for Nifty future token
+     * This can be useful when instruments are updated or when cache needs to be refreshed
+     */
+    public void refreshNiftyFutureTokenCache() {
+        log.info("Manually refreshing Nifty future token cache");
+        cachedFutureToken = null;
+        lastCacheTime = null;
+    }
+
+    /**
+     * Get cache status information for debugging
+     */
+    public String getCacheStatus() {
+        if (cachedFutureToken == null || lastCacheTime == null) {
+            return "Cache is empty";
+        }
+        Duration timeSinceLastCache = Duration.between(lastCacheTime, LocalDateTime.now());
+        Duration remainingTime = CACHE_DURATION.minus(timeSinceLastCache);
+        return String.format("Cached token: %s, Last updated: %s, Remaining cache time: %s", 
+                cachedFutureToken, lastCacheTime, remainingTime);
     }
 
 }

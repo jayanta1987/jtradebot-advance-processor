@@ -21,12 +21,16 @@ public class TickEventTracker {
     private final ConcurrentHashMap<String, Long> lastTickEventTimeStampMap = new ConcurrentHashMap<>();
 
     private static final long CLEANUP_INTERVAL = 10000;
+    
+    // Cache for instrument tokens to avoid repeated calls
+    private volatile String cachedNiftyToken;
+    private volatile String cachedNiftyFutureToken;
+    private volatile long lastTokenCacheTime;
+    private static final long TOKEN_CACHE_DURATION = 60000; // 1 minute cache
 
     @Scheduled(fixedRate = 10000)
     public void cleanUp() {
-        List<String> instruments = new ArrayList<>();
-        instruments.add(kiteInstrumentHandler.getNifty50Token().toString());
-        instruments.add(kiteInstrumentHandler.getNifty50FutureToken().toString());
+        List<String> instruments = getCachedInstruments();
 
         AtomicBoolean isReset = new AtomicBoolean(false);
         instruments.forEach(instrumentToken -> {
@@ -42,6 +46,29 @@ public class TickEventTracker {
         if (isReset.get()) {
             tickDataManager.reset();
         }
+    }
+
+    /**
+     * Get cached instrument tokens to avoid repeated calls to KiteInstrumentHandler
+     */
+    private List<String> getCachedInstruments() {
+        long currentTime = System.currentTimeMillis();
+        
+        // Check if we need to refresh the cache
+        if (cachedNiftyToken == null || cachedNiftyFutureToken == null || 
+            (currentTime - lastTokenCacheTime) > TOKEN_CACHE_DURATION) {
+            
+            log.debug("Refreshing instrument token cache");
+            cachedNiftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            cachedNiftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
+            lastTokenCacheTime = currentTime;
+        }
+        
+        List<String> instruments = new ArrayList<>();
+        instruments.add(cachedNiftyToken);
+        instruments.add(cachedNiftyFutureToken);
+        
+        return instruments;
     }
 
     public void setLastTickEventTimestamp(String instrumentToken, Long timestamp) {
