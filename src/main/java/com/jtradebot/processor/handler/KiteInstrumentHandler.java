@@ -6,6 +6,7 @@ import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,8 +18,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.jtradebot.processor.handler.DateTimeHandler.formatDate;
-
-import org.springframework.cache.annotation.Cacheable;
 
 
 @Service
@@ -60,7 +59,11 @@ public class KiteInstrumentHandler {
                 return Optional.of(cachedFutureToken);
             }
         }
+        return getNiftyFutureTokenFromDB();
+    }
 
+    @NotNull
+    private Optional<Long> getNiftyFutureTokenFromDB() {
         try {
             LocalDate now = LocalDate.now();
 
@@ -98,7 +101,7 @@ public class KiteInstrumentHandler {
                         // Update cache for current month future
                         cachedFutureToken = currentMonthInstrument.getInstrumentToken();
                         lastCacheTime = LocalDateTime.now();
-                        log.info("Cached current month Nifty future token: {} (expires in {} days)", 
+                        log.info("Cached current month Nifty future token: {} (expires in {} days)",
                                 cachedFutureToken, daysUntilExpiry);
                         return Optional.of(currentMonthInstrument.getInstrumentToken());
                     }
@@ -146,7 +149,7 @@ public class KiteInstrumentHandler {
                     // Update cache
                     cachedFutureToken = future.getInstrumentToken();
                     lastCacheTime = LocalDateTime.now();
-                    log.info("Cached selected Nifty future token: {} (expires in {} days)", 
+                    log.info("Cached selected Nifty future token: {} (expires in {} days)",
                             cachedFutureToken, daysUntilExpiry);
 
                     return Optional.of(future.getInstrumentToken());
@@ -167,7 +170,7 @@ public class KiteInstrumentHandler {
                     // Update cache
                     cachedFutureToken = firstFuture.getInstrumentToken();
                     lastCacheTime = LocalDateTime.now();
-                    log.info("Cached first available Nifty future token: {} (expires in {} days)", 
+                    log.info("Cached first available Nifty future token: {} (expires in {} days)",
                             cachedFutureToken, daysUntilExpiry);
 
                     return Optional.of(firstFuture.getInstrumentToken());
@@ -220,7 +223,7 @@ public class KiteInstrumentHandler {
         }
     }
 
-    public void setInstrumentTokens(String exchange) throws IOException, KiteException {
+    public void saveInstrumentTokens(String exchange) throws IOException, KiteException {
         List<com.zerodhatech.models.Instrument> instruments = kiteConnect.getInstruments(exchange);
         instruments
                 .forEach(instrument -> {
@@ -253,19 +256,6 @@ public class KiteInstrumentHandler {
         log.info("Manually refreshing Nifty future token cache");
         cachedFutureToken = null;
         lastCacheTime = null;
-    }
-
-    /**
-     * Get cache status information for debugging
-     */
-    public String getCacheStatus() {
-        if (cachedFutureToken == null || lastCacheTime == null) {
-            return "Cache is empty";
-        }
-        Duration timeSinceLastCache = Duration.between(lastCacheTime, LocalDateTime.now());
-        Duration remainingTime = CACHE_DURATION.minus(timeSinceLastCache);
-        return String.format("Cached token: %s, Last updated: %s, Remaining cache time: %s", 
-                cachedFutureToken, lastCacheTime, remainingTime);
     }
 
 }

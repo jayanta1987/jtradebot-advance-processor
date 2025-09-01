@@ -35,7 +35,7 @@ public class KiteSetupHandler {
 
     public void generateInstruments() throws IOException, KiteException {
         kiteInstrumentHandler.deleteInstruments();
-        kiteInstrumentHandler.setInstrumentTokens("NFO");
+        kiteInstrumentHandler.saveInstrumentTokens("NFO");
     }
 
     public void subscribeToken(String token) {

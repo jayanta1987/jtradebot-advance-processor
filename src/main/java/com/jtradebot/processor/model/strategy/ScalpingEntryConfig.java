@@ -27,7 +27,6 @@ public class ScalpingEntryConfig {
     private List<Scenario> scenarios;
     private LoggingConfig logging;
     private WeightsConfig weights;
-    private FlatMarketFilteringConfig flatMarketFiltering;
     private NoTradeZonesConfig noTradeZones;
     
     @Data
@@ -162,7 +161,7 @@ public class ScalpingEntryConfig {
     public static class NoTradeZonesConfig {
         private Boolean enabled;
         private String description;
-        private Integer maxOptionalFiltersToIgnore;
+        private Integer maxAllowedNTP;
         private Map<String, NoTradeFilter> filters;
     }
     
@@ -173,10 +172,12 @@ public class ScalpingEntryConfig {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class NoTradeFilter {
         private Boolean enabled;
-        private Boolean mandatory;
+        private Double ntp;
         private String name;
         private String description;
         private Double threshold;
+        private Double minThreshold;
+        private Double maxThreshold;
         private Integer priority;
         private Double overboughtThreshold;
         private Double oversoldThreshold;
@@ -189,5 +190,8 @@ public class ScalpingEntryConfig {
         private Integer startMinute;
         private Integer endHour;
         private Integer endMinute;
+        // Support/Resistance fields
+        private Integer supportResistanceBuffer;
+        private Integer roundFigureBuffer;
     }
 }

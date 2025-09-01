@@ -51,7 +51,7 @@ class TradingHoursFilterTest {
         // Create trading hours filter configuration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(true)
+                .ntp(3.0)
                 .name("Trading Hours Filter")
                 .startHour(9)
                 .startMinute(15)
@@ -80,7 +80,7 @@ class TradingHoursFilterTest {
         // Create trading hours filter configuration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(true)
+                .ntp(3.0)
                 .name("Trading Hours Filter")
                 .startHour(9)
                 .startMinute(15)
@@ -109,7 +109,7 @@ class TradingHoursFilterTest {
         // Create trading hours filter configuration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(true)
+                .ntp(3.0)
                 .name("Trading Hours Filter")
                 .startHour(9)
                 .startMinute(15)
@@ -138,7 +138,7 @@ class TradingHoursFilterTest {
         // Create trading hours filter configuration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(true)
+                .ntp(3.0)
                 .name("Trading Hours Filter")
                 .startHour(9)
                 .startMinute(15)
@@ -167,7 +167,7 @@ class TradingHoursFilterTest {
         // Create trading hours filter configuration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(true)
+                .ntp(3.0)
                 .name("Trading Hours Filter")
                 .startHour(9)
                 .startMinute(15)
@@ -196,7 +196,7 @@ class TradingHoursFilterTest {
         // Create trading hours filter configuration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(true)
+                .ntp(3.0)
                 .name("Trading Hours Filter")
                 .startHour(9)
                 .startMinute(15)

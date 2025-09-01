@@ -32,7 +32,7 @@ class FlexibleFilteringIntegrationTest {
     void testFlexibleFilteringDisabled() {
         // Given: No-trade-zones filtering is disabled
         when(configService.isNoTradeZonesEnabled()).thenReturn(false);
-        when(configService.isFlatMarketFilteringEnabled()).thenReturn(false);
+
 
         // When: Check market condition suitability
         Tick tick = createMockTick();
@@ -50,14 +50,14 @@ class FlexibleFilteringIntegrationTest {
         ScalpingEntryConfig.NoTradeZonesConfig config = ScalpingEntryConfig.NoTradeZonesConfig.builder()
                 .enabled(true)
                 .description("Test config")
-                .maxOptionalFiltersToIgnore(2)
+                .maxAllowedNTP(2)
                 .build();
 
         // When & Then: Verify configuration structure
         assertNotNull(config);
         assertTrue(config.getEnabled());
         assertEquals("Test config", config.getDescription());
-        assertEquals(2, config.getMaxOptionalFiltersToIgnore());
+        assertEquals(2, config.getMaxAllowedNTP());
     }
 
     private Tick createMockTick() {

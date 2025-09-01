@@ -50,14 +50,14 @@ class UnstableMarketConditionAnalysisServiceTest {
         ScalpingEntryConfig.NoTradeZonesConfig config = ScalpingEntryConfig.NoTradeZonesConfig.builder()
                 .enabled(true)
                 .description("Test config")
-                .maxOptionalFiltersToIgnore(2)
+                .maxAllowedNTP(2)
                 .build();
 
         // When & Then: Verify configuration structure
         assertNotNull(config);
         assertTrue(config.getEnabled());
         assertEquals("Test config", config.getDescription());
-        assertEquals(2, config.getMaxOptionalFiltersToIgnore());
+        assertEquals(2, config.getMaxAllowedNTP());
     }
 
     @Test
@@ -65,7 +65,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test filter structure
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(true)
+                .ntp(3.0)
                 .name("Test Filter")
                 .description("Test filter description")
                 .threshold(10.0)
@@ -75,7 +75,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // When & Then: Verify filter structure
         assertNotNull(filter);
         assertTrue(filter.getEnabled());
-        assertTrue(filter.getMandatory());
+        assertEquals(3.0, filter.getNtp());
         assertEquals("Test Filter", filter.getName());
         assertEquals("Test filter description", filter.getDescription());
         assertEquals(10.0, filter.getThreshold());
@@ -106,7 +106,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test directional strength filter configuration
         ScalpingEntryConfig.NoTradeFilter directionalStrengthFilter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Directional Strength")
                 .description("Filter out entries with directional strength less than 0.5 (50%)")
                 .threshold(0.5)
@@ -116,7 +116,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // When & Then: Verify directional strength filter structure
         assertNotNull(directionalStrengthFilter);
         assertTrue(directionalStrengthFilter.getEnabled());
-        assertFalse(directionalStrengthFilter.getMandatory());
+        assertEquals(1.0, directionalStrengthFilter.getNtp());
         assertEquals("Directional Strength", directionalStrengthFilter.getName());
         assertEquals("Filter out entries with directional strength less than 0.5 (50%)", directionalStrengthFilter.getDescription());
         assertEquals(0.5, directionalStrengthFilter.getThreshold());
@@ -128,7 +128,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test directional strength filter logic with different thresholds
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Directional Strength")
                 .threshold(0.5)
                 .priority(7)
@@ -153,7 +153,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test the complete filter integration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Directional Strength")
                 .description("Filter out entries with directional strength less than 0.5 (50%)")
                 .threshold(0.5)
@@ -163,7 +163,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Verify filter properties
         assertEquals("directionalStrength", "directionalStrength"); // This would be the filter key
         assertTrue(filter.getEnabled());
-        assertFalse(filter.getMandatory());
+        assertEquals(1, filter.getNtp());
         assertEquals(7, filter.getPriority());
         
         // Test threshold validation
@@ -176,7 +176,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test consecutive same color candles filter configuration
         ScalpingEntryConfig.NoTradeFilter consecutiveCandlesFilter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Consecutive Same Color Candles")
                 .description("Filter out entries when there are too many consecutive same color candles")
                 .maxConsecutiveCount(3)
@@ -188,7 +188,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // When & Then: Verify consecutive same color candles filter structure
         assertNotNull(consecutiveCandlesFilter);
         assertTrue(consecutiveCandlesFilter.getEnabled());
-        assertFalse(consecutiveCandlesFilter.getMandatory());
+        assertEquals(1, consecutiveCandlesFilter.getNtp());
         assertEquals("Consecutive Same Color Candles", consecutiveCandlesFilter.getName());
         assertEquals("Filter out entries when there are too many consecutive same color candles", consecutiveCandlesFilter.getDescription());
         assertEquals(3, consecutiveCandlesFilter.getMaxConsecutiveCount());
@@ -202,7 +202,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test consecutive same color candles filter logic with different scenarios
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Consecutive Same Color Candles")
                 .maxConsecutiveCount(3)
                 .analysisWindow(10)
@@ -229,7 +229,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test the complete consecutive same color candles filter integration
         ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Consecutive Same Color Candles")
                 .description("Filter out entries when there are too many consecutive same color candles")
                 .maxConsecutiveCount(3)
@@ -241,7 +241,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Verify filter properties
         assertEquals("consecutiveSameColorCandles", "consecutiveSameColorCandles"); // This would be the filter key
         assertTrue(filter.getEnabled());
-        assertFalse(filter.getMandatory());
+        assertEquals(1, filter.getNtp());
         assertEquals(8, filter.getPriority());
         
         // Test max consecutive count validation
@@ -258,7 +258,7 @@ class UnstableMarketConditionAnalysisServiceTest {
         // Given: Test different configuration parameter combinations
         ScalpingEntryConfig.NoTradeFilter filter1 = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Test Filter 1")
                 .maxConsecutiveCount(3)
                 .analysisWindow(10)
@@ -268,7 +268,7 @@ class UnstableMarketConditionAnalysisServiceTest {
 
         ScalpingEntryConfig.NoTradeFilter filter2 = ScalpingEntryConfig.NoTradeFilter.builder()
                 .enabled(true)
-                .mandatory(false)
+                .ntp(1.0)
                 .name("Test Filter 2")
                 .maxConsecutiveCount(7)
                 .analysisWindow(15)
@@ -284,5 +284,52 @@ class UnstableMarketConditionAnalysisServiceTest {
         assertEquals("FIFTEEN_MIN", filter2.getTimeframe());
         assertEquals(15, filter2.getAnalysisWindow());
         assertEquals(7, filter2.getMaxConsecutiveCount());
+    }
+
+    @Test
+    void testAtr5MinFilterStructure() {
+        // Given: Test ATR 5-minute filter structure
+        ScalpingEntryConfig.NoTradeFilter atrFilter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .ntp(1.5)
+                .name("ATR 5-Minute Filter")
+                .description("Filter out entries when 5-minute ATR is less than 15.0 (low volatility)")
+                .threshold(15.0)
+                .priority(8)
+                .build();
+
+        // When & Then: Verify ATR filter structure
+        assertNotNull(atrFilter);
+        assertTrue(atrFilter.getEnabled());
+        assertEquals(1.5, atrFilter.getNtp());
+        assertEquals("ATR 5-Minute Filter", atrFilter.getName());
+        assertEquals("Filter out entries when 5-minute ATR is less than 15.0 (low volatility)", atrFilter.getDescription());
+        assertEquals(15.0, atrFilter.getThreshold());
+        assertEquals(8, atrFilter.getPriority());
+    }
+
+    @Test
+    void testAtr5MinFilterLogic() {
+        // Given: Test ATR 5-minute filter logic with different scenarios
+        ScalpingEntryConfig.NoTradeFilter filter = ScalpingEntryConfig.NoTradeFilter.builder()
+                .enabled(true)
+                .ntp(1.5)
+                .name("ATR 5-Minute Filter")
+                .threshold(15.0)
+                .priority(8)
+                .build();
+
+        // Test cases for different ATR values
+        // Case 1: ATR = 20.0 should pass (above threshold)
+        assertTrue(20.0 >= filter.getThreshold(), "ATR 20.0 should pass threshold 15.0");
+        
+        // Case 2: ATR = 15.0 should pass (equal to threshold)
+        assertTrue(15.0 >= filter.getThreshold(), "ATR 15.0 should pass threshold 15.0");
+        
+        // Case 3: ATR = 10.0 should fail (below threshold)
+        assertFalse(10.0 >= filter.getThreshold(), "ATR 10.0 should fail threshold 15.0");
+        
+        // Case 4: ATR = 0.0 should fail (below threshold)
+        assertFalse(0.0 >= filter.getThreshold(), "ATR 0.0 should fail threshold 15.0");
     }
 }

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ProfitableTradeFilterConfig;
-import com.jtradebot.processor.model.strategy.FlatMarketFilteringConfig;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -50,14 +50,7 @@ public class DynamicStrategyConfigService {
     // Dynamic Configuration Methods - Dynamic indicator config removed as it was not being used
 
     // Flat Market Filtering Configuration Methods
-    public FlatMarketFilteringConfig getFlatMarketFilteringConfig() {
-        return scalpingEntryConfig.getFlatMarketFiltering();
-    }
 
-    public boolean isFlatMarketFilteringEnabled() {
-        return scalpingEntryConfig.getFlatMarketFiltering() != null &&
-                scalpingEntryConfig.getFlatMarketFiltering().isEnabled();
-    }
 
     // No-Trade Zones Configuration Methods
     public ScalpingEntryConfig.NoTradeZonesConfig getNoTradeZonesConfig() {
@@ -70,8 +63,12 @@ public class DynamicStrategyConfigService {
     }
 
     public int getMaxOptionalFiltersToIgnore() {
+        return getMaxAllowedNTP();
+    }
+    
+    public int getMaxAllowedNTP() {
         return scalpingEntryConfig.getNoTradeZones() != null ?
-                scalpingEntryConfig.getNoTradeZones().getMaxOptionalFiltersToIgnore() : 0;
+                scalpingEntryConfig.getNoTradeZones().getMaxAllowedNTP() : 2;
     }
     
     // Legacy method for backward compatibility

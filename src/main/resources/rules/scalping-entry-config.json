@@ -105,12 +105,12 @@
   
   "noTradeZones": {
     "enabled": true,
-    "description": "Flexible market condition filtering with configurable relaxation",
-    "maxOptionalFiltersToIgnore": 2,
+    "description": "Weightage-based market condition filtering using NTP (No Trading Point) system",
+    "maxAllowedNTP": 2,
     "filters": {
       "candleHeight": {
         "enabled": true,
-        "mandatory": true,
+        "ntp": 3,
         "name": "Minimum Candle Height",
         "description": "Filter out entries with candle height less than 8.0",
         "threshold": 4.0,
@@ -118,7 +118,7 @@
       },
       "volumeSurge": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 1,
         "name": "Volume Surge Multiplier",
         "description": "Filter out entries with volume surge less than configured threshold",
         "threshold": 10.0,
@@ -126,7 +126,7 @@
       },
       "bodyRatio": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 1,
         "name": "Candle Body Ratio",
         "description": "Filter out entries with body ratio less than 0.50",
         "threshold": 0.50,
@@ -134,22 +134,23 @@
       },
       "ema200Distance": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 1.5,
         "name": "EMA 200 Distance",
-        "description": "Filter out entries with EMA 200 distance more than 0.6% of EMA 200",
-        "threshold": 0.006,
+        "description": "Filter out entries with EMA 200 distance more than 0.6% or less than 0.1% of EMA 200",
+        "maxThreshold": 0.006,
+        "minThreshold": 0.002,
         "priority": 4
       },
       "priceBetweenEma34AndEma200": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 1,
         "name": "Price Between EMA34 and EMA200",
         "description": "Filter out entries when price is between EMA34 and EMA200",
         "priority": 5
       },
       "overboughtOversold": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 1,
         "name": "Overbought/Oversold RSI",
         "description": "Filter out entries when RSI is overbought (>80) or oversold (<20)",
         "overboughtThreshold": 80.0,
@@ -158,37 +159,45 @@
       },
       "directionalStrength": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 1,
         "name": "Directional Strength",
         "description": "Filter out entries with directional strength less than 0.5 (50%)",
         "threshold": 0.5,
         "priority": 7
       },
+      "atr5Min": {
+        "enabled": true,
+        "ntp": 1.5,
+        "name": "ATR 5-Minute Filter",
+        "description": "Filter out entries when 5-minute ATR is less than 15.0 (low volatility)",
+        "threshold": 15.0,
+        "priority": 8
+      },
       "consecutiveSameColorCandles": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 2,
         "name": "Consecutive Same Color Candles",
-        "description": "Filter out entries when there are too many consecutive same color candles",
+        "description": "BLOCK entries when there are too many consecutive same color candles (negative signal - indicates overextension)",
         "maxConsecutiveCount": 5,
         "analysisWindow": 7,
-        "priority": 8,
+        "priority": 9,
         "timeframe": "FIVE_MIN"
       },
       "nearToSupportResistance": {
         "enabled": true,
-        "mandatory": false,
+        "ntp": 1,
         "name": "Near Support/Resistance Filter",
         "description": "Filter out entries when price is very near support/resistance levels or round figure index prices",
-        "priority": 9,
+        "priority": 10,
         "supportResistanceBuffer": 5,
         "roundFigureBuffer": 5
       },
       "tradingHours": {
         "enabled": true,
-        "mandatory": true,
+        "ntp": 3,
         "name": "Trading Hours Filter",
         "description": "Filter out entries outside of trading hours (9:15 AM to 3:30 PM IST)",
-        "priority": 10,
+        "priority": 11,
         "startHour": 9,
         "startMinute": 15,
         "endHour": 15,
@@ -197,47 +206,7 @@
     }
   },
   
-  "flatMarketFiltering": {
-    "enabled": true,
-    "description": "Filter to prevent entries in flat or non-directional markets",
-    "requirements": {
-      "minDirectionalStrength": 0.35,
-      "maxConsecutiveDoji": 2,
-      "maxConsecutiveSpinningTop": 2,
-      "maxConsecutiveSmallCandles": 5
-    },
-    "thresholds": {
-      "volatilityScore": {
-        "lowThreshold": 0.35,
-        "veryLowThreshold": 0.15
-      },
-      "directionalStrength": {
-        "veryLowThreshold": 0.25
-      },
-      "comprehensiveChecks": {
-        "emaAlignmentScore": 0.35,
-        "volumeConsistencyScore": 0.35,
-        "priceActionScore": 0.45,
-        "overallScore": 0.35
-      },
-      "flatMarketAdjustments": {
-        "categoryIncrement": 1,
-        "minQualityScore": 7.0
-      },
-      "volumeConsistency": {
-        "minVolumeMultiplier": 1.2,
-        "requiredVolumeSignals": 1
-      }
-    },
-    "atrSettings": {
-      "period": 14,
-      "minATR": 20.0
-    },
-    "lookbackSettings": {
-      "candleAnalysis": 10,
-      "volatilityAnalysis": 10
-    }
-  },
+
   
   "tradingConfiguration": {
     "quantitySettings": {

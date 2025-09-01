@@ -18,6 +18,7 @@ import com.jtradebot.processor.service.price.OptionPricingService;
 import com.jtradebot.processor.service.risk.DynamicRiskManagementService;
 import com.jtradebot.processor.service.analysis.CategoryAnalysisService;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
+
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
@@ -44,6 +45,7 @@ public class OrderExecutionService {
     private final EntryConditionAnalysisService entryConditionAnalysisService;
     private final LiveOptionPricingService liveOptionPricingService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
+
     private final TradingConfigurationService tradingConfigService;
     private final CategoryAnalysisService categoryAnalysisService;
     private final DynamicRiskManagementService dynamicRiskManagementService;
@@ -256,6 +258,9 @@ public class OrderExecutionService {
                 Map<String, Object> marketConditionDetails = unstableMarketConditionAnalysisService.getStructuredMarketConditionDetails(tick, indicators);
                 order.setEntryMarketConditionDetails(marketConditionDetails);
 
+                // Capture filter failure information
+                captureFilterFailureInfo(order, tick, indicators);
+
                 // Force database update to ensure order is saved
                 exitStrategyService.updateOrdersToDatabase();
 
@@ -288,6 +293,49 @@ public class OrderExecutionService {
         }
     }
 
+
+    /**
+     * Capture filter failure information and store in order
+     */
+    private void captureFilterFailureInfo(JtradeOrder order, Tick tick, FlattenedIndicators indicators) {
+        try {
+            // Get the flexible filtering result
+            UnstableMarketConditionAnalysisService.FlexibleFilteringResult flexibleResult = 
+                unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
+            
+            // Count filter results using NTP system
+            int totalFilters = flexibleResult.getFilterResults().size();
+            double totalNTP = flexibleResult.getFilterResults().stream()
+                    .filter(r -> !r.isPassed())
+                    .mapToDouble(r -> r.getNtp())
+                    .sum();
+            int failedFiltersCount = (int) flexibleResult.getFilterResults().stream()
+                    .filter(r -> !r.isPassed()).count();
+            
+            // Create list of failed filter names with NTP values
+            List<String> failedFilterReasons = flexibleResult.getFilterResults().stream()
+                    .filter(r -> !r.isPassed())
+                    .map(r -> String.format("%s (NTP: %.1f)", r.getName(), r.getNtp()))
+                    .collect(java.util.stream.Collectors.toList());
+            
+            // Store in order
+            order.setTotalFiltersChecked(totalFilters);
+            order.setMandatoryFiltersFailed(failedFiltersCount); // Store failed count for backward compatibility
+            order.setOptionalFiltersFailed((int) Math.round(totalNTP)); // Store total NTP for backward compatibility
+            order.setFilterFailureReason(failedFilterReasons);
+            
+            log.info("📊 NTP FILTER INFO STORED - Total: {}, Failed: {}, Total NTP: {}, Failed Filters: {}", 
+                    totalFilters, failedFiltersCount, totalNTP, failedFilterReasons);
+            
+        } catch (Exception e) {
+            log.error("Error capturing filter failure info: {}", e.getMessage());
+            // Set default values on error
+            order.setTotalFiltersChecked(0);
+            order.setMandatoryFiltersFailed(0);
+            order.setOptionalFiltersFailed(0);
+            order.setFilterFailureReason(java.util.Arrays.asList("Error capturing filter info: " + e.getMessage()));
+        }
+    }
 
     /**
      * Update live P&L for active trades

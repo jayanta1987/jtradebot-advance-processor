@@ -2,27 +2,19 @@
 
 ## Overview
 
-This document outlines the comprehensive implementation for restricting trading entries in flat markets with small or non-directional candles. The solution provides multiple layers of filtering to ensure trades only occur in favorable market conditions.
+This document outlines the comprehensive implementation for restricting trading entries in flat markets with small or non-directional candles. The solution uses the **No-Trade-Zones (NTP) system** to ensure trades only occur in favorable market conditions.
 
 ## Key Components Implemented
 
 ### 1. Enhanced Configuration Files
 
-#### A. Scoring Configuration (`scoring-config.json`)
-Added new `marketConditionConfiguration` section with:
+#### A. Scalping Entry Configuration (`scalping-entry-config.json`)
+Uses the `noTradeZones` section with:
 
-- **Flat Market Detection**: Configurable thresholds for detecting flat markets
-- **Candle Size Thresholds**: Minimum requirements for candle height and body ratio
-- **Volatility Thresholds**: ATR and price range minimums
-- **Directional Strength**: Requirements for strong directional movement
-- **Volume Requirements**: Minimum volume multipliers and trends
-
-#### B. Scalping Entry Configuration (`scalping-entry-config.json`)
-Added new `flatMarketFiltering` section with:
-
-- **Requirements**: Specific thresholds for market conditions
-- **Penalties**: Scoring penalties for flat market conditions
-- **New Scenarios**: Added "STRONG_DIRECTIONAL_ENTRY" scenario with stricter requirements
+- **NTP System**: Weighted filtering with No-Trade-Points
+- **Multiple Filters**: Candle height, volume surge, body ratio, directional strength
+- **Flexible Thresholds**: Configurable thresholds for each filter
+- **Priority System**: Filters have different priority levels and NTP values
 
 ### 2. Market Condition Analysis Service
 
@@ -55,57 +47,56 @@ Implements comprehensive analysis including:
 
 ## Configuration Parameters
 
-### Flat Market Detection Thresholds
+### No-Trade-Zones (NTP) System Configuration
 
 ```json
 {
-  "flatMarketDetection": {
+  "noTradeZones": {
     "enabled": true,
-    "candleSizeThresholds": {
-      "minCandleHeight": 15.0,
-      "minCandleBodyRatio": 0.3,
-      "maxDojiRatio": 0.1,
-      "maxSpinningTopRatio": 0.2
-    },
-    "volatilityThresholds": {
-      "minPriceRange": 20.0,
-      "minATR": 25.0,
-      "maxSidewaysBars": 5
-    },
-    "directionalStrength": {
-      "minTrendStrength": 0.6,
-      "minConsecutiveDirectionalBars": 3,
-      "maxNeutralBars": 2
-    },
-    "volumeRequirements": {
-      "minVolumeMultiplier": 1.2,
-      "minVolumeTrend": 0.1
-    }
-  }
-}
-```
-
-### Scalping Entry Filtering
-
-```json
-{
-  "flatMarketFiltering": {
-    "enabled": true,
-    "requirements": {
-      "minCandleHeight": 15.0,
-      "minCandleBodyRatio": 0.3,
-      "maxSmallCandleRatio": 0.4,
-      "minPriceRange": 20.0,
-      "minVolumeMultiplier": 1.2,
-      "minDirectionalStrength": 0.6,
-      "maxConsecutiveDoji": 2,
-      "maxConsecutiveSpinningTop": 3
-    },
-    "penalties": {
-      "flatMarketPenalty": -5.0,
-      "smallCandlePenalty": -3.0,
-      "lowVolumePenalty": -2.0,
-      "weakDirectionPenalty": -4.0
+    "description": "Weightage-based market condition filtering using NTP (No Trading Point) system",
+    "maxAllowedNTP": 2,
+    "filters": {
+      "candleHeight": {
+        "enabled": true,
+        "ntp": 3,
+        "name": "Minimum Candle Height",
+        "description": "Filter out entries with candle height less than 8.0",
+        "threshold": 4.0,
+        "priority": 1
+      },
+      "volumeSurge": {
+        "enabled": true,
+        "ntp": 1,
+        "name": "Volume Surge Multiplier",
+        "description": "Filter out entries with volume surge less than configured threshold",
+        "threshold": 10.0,
+        "priority": 2
+      },
+      "bodyRatio": {
+        "enabled": true,
+        "ntp": 1,
+        "name": "Candle Body Ratio",
+        "description": "Filter out entries with body ratio less than 0.50",
+        "threshold": 0.50,
+        "priority": 3
+      },
+      "directionalStrength": {
+        "enabled": true,
+        "ntp": 1,
+        "name": "Directional Strength",
+        "description": "Filter out entries with directional strength less than 0.5 (50%)",
+        "threshold": 0.5,
+        "priority": 7
+      },
+      "consecutiveSameColorCandles": {
+        "enabled": true,
+        "ntp": 2,
+        "name": "Consecutive Same Color Candles",
+        "description": "BLOCK entries when there are too many consecutive same color candles",
+        "maxConsecutiveCount": 5,
+        "analysisWindow": 7,
+        "priority": 8
+      }
     }
   }
 }

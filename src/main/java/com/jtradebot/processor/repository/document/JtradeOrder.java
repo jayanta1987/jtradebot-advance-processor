@@ -81,6 +81,12 @@ public class JtradeOrder {
     private Map<String, Integer> entryCategoryScores;
     private Map<String, List<String>> entryMatchedConditions;
     
+    // Filter Failure Tracking
+    private Integer mandatoryFiltersFailed;
+    private Integer optionalFiltersFailed;
+    private Integer totalFiltersChecked;
+    private List<String> filterFailureReason; // List of failed filter names with NTP values
+    
     // Helper methods
     public boolean isActive() {
         return "ACTIVE".equals(status);
