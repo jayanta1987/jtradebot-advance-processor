@@ -18,6 +18,7 @@ import com.jtradebot.processor.service.price.OptionPricingService;
 import com.jtradebot.processor.service.risk.DynamicRiskManagementService;
 import com.jtradebot.processor.service.analysis.CategoryAnalysisService;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
+import com.jtradebot.processor.service.notification.OrderNotificationService;
 
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
@@ -50,6 +51,7 @@ public class OrderExecutionService {
     private final CategoryAnalysisService categoryAnalysisService;
     private final DynamicRiskManagementService dynamicRiskManagementService;
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
+    private final OrderNotificationService orderNotificationService;
 
     public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
         exitStrategyService.checkAndProcessExitsWithStrategy(indexTick);

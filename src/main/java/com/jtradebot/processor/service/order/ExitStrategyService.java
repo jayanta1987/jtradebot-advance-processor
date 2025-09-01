@@ -11,6 +11,7 @@ import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
+import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
 import com.zerodhatech.models.Tick;
@@ -43,6 +44,7 @@ public class ExitStrategyService {
     private final LiveOptionPricingService liveOptionPricingService;
     private final BarSeriesManager barSeriesManager;
     private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final OrderNotificationService orderNotificationService;
 
     // In-memory storage for active orders
     private final Map<String, JtradeOrder> activeOrdersMap = new ConcurrentHashMap<>();
@@ -157,6 +159,13 @@ public class ExitStrategyService {
         log.info("Created new order entry with scenario: {} - {} @ {} (SL: {}, Target: {}) - Scenario: {} (Confidence: {})",
                 orderType, tradingSymbol, entryPrice, stopLossPrice, targetPrice, scenarioName, scenarioConfidence);
 
+        // Send notification for order creation
+        try {
+            orderNotificationService.sendOrderCreationNotification(order);
+        } catch (Exception e) {
+            log.error("Failed to send order creation notification for order: {}", order.getId(), e);
+        }
+
         return order;
     }
 
@@ -203,6 +212,13 @@ public class ExitStrategyService {
         log.info("EXIT Details - Entry: {}, Exit: {}, Index Entry: {}, Index Exit: {}, Duration: {} minutes",
                 order.getEntryPrice(), exitPrice, order.getEntryIndexPrice(), exitIndexPrice,
                 calculateOrderDurationMinutes(order));
+
+        // Send notification for order exit
+        try {
+            orderNotificationService.sendOrderExitNotification(order, exitReason, exitPrice, exitIndexPrice);
+        } catch (Exception e) {
+            log.error("Failed to send order exit notification for order: {}", order.getId(), e);
+        }
     }
 
     /**

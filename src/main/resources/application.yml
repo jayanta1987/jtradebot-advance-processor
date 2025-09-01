@@ -34,7 +34,7 @@ aws:
     queue-url: https://sqs.ap-south-1.amazonaws.com/644885005419/liveTickProcessor.fifo
     region: ap-south-1
   sns:
-    topic-arn: arn:aws:sns:ap-south-1:644885005419:jtradebot-notification
+    topic-arn: arn:aws:sns:ap-south-1:692859939395:jtradebot-notifications
 
 management:
   endpoints:
