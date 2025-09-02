@@ -38,23 +38,21 @@ public class ConnectionMonitorService {
             return;
         }
 
+        if (!tickSetupService.isAccessTokensPresent()) {
+            log.warn("access tokens are not present.");
+            return;
+        }
+
         // Get trading hours from configuration
         int startHour = tradingHoursConfig.getMarketStartHour();
         int startMinute = tradingHoursConfig.getMarketStartMinute();
         int endHour = tradingHoursConfig.getMarketEndHour();
         int endMinute = tradingHoursConfig.getMarketEndMinute();
 
-        if (tickDataManager.getLastTickTime() == null) {
-            return;
-        }
 
-        if (DateTimeHandler.isMarketOpen(tickDataManager.getLastTickTime(), startHour, startMinute, endHour, endMinute)) {
+        if (tickDataManager.getLastTickTime() != null
+                && DateTimeHandler.isMarketOpen(tickDataManager.getLastTickTime(), startHour, startMinute, endHour, endMinute)) {
             log.warn("Market is not open. Skipping connection check.");
-            return;
-        }
-
-        if (!tickSetupService.isAccessTokensPresent()) {
-            log.warn("access tokens are not present.");
             return;
         }
 
