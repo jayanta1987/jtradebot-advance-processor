@@ -6,6 +6,7 @@ import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.EntryConditionAnalysisService;
@@ -55,18 +56,13 @@ public class OrderExecutionService {
         }
     }
 
-    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend) {
-
+    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend, double qualityScore, Map<String, Integer> callScores, Map<String, Integer> putScores, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         try {
-            // Check if we can execute the order (no active orders)
             boolean hasActiveOrder = exitStrategyService.hasActiveOrder();
-
-            log.debug("🔍 ORDER VALIDATION - HasActiveOrder: {}", hasActiveOrder);
-
             if (!hasActiveOrder) {
                 // Determine order type based on entry decision
                 String orderType = determineOrderType(dominantTrend);
-                createTradeOrder(tick, orderType, entryDecision, inTradingZone);
+                createTradeOrder(tick, orderType, entryDecision, inTradingZone, qualityScore, callScores, putScores, dominantTrend, detailedCallScores, detailedPutScores);
             } else {
                 log.warn("⚠️ ACTIVE ORDER EXISTS - Cannot create new order.");
             }
@@ -78,7 +74,8 @@ public class OrderExecutionService {
     }
 
 
-    public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, double qualityScore, String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores) {
+    public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
+                                                double qualityScore, String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         // Get entry decision directly from DynamicRuleEvaluatorService
         ScalpingEntryDecision scenarioDecision = null;
         try {
@@ -89,7 +86,7 @@ public class OrderExecutionService {
         }
 
         if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
-            validateAndExecuteOrder(indexTick, scenarioDecision, result.isConditionsMet(), dominantTrend);
+            validateAndExecuteOrder(indexTick, scenarioDecision, result.isConditionsMet(), dominantTrend, qualityScore, callScores, putScores, detailedCallScores, detailedPutScores);
         }
     }
 
@@ -97,7 +94,8 @@ public class OrderExecutionService {
         return dominantTrend.concat("_BUY");
     }
 
-    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable) throws KiteException {
+    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable, double qualityScore, Map<String, Integer> callScores, Map<String, Integer> putScores, String dominantTrend,
+                                  Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) throws KiteException {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
 
@@ -178,7 +176,14 @@ public class OrderExecutionService {
                         entryDecision.getCategoryScores(),
                         entryDecision.getMatchedConditions(),
                         entryMarketConditionSuitable, // Market condition suitable flag
-                        tick.getTickTimestamp() // Use tick timestamp instead of current time
+                        tick.getTickTimestamp(), // Use tick timestamp instead of current time
+                        // 🔥 NEW: Pass quality score and direction scores
+                        qualityScore,
+                        callScores,
+                        putScores,
+                        dominantTrend,
+                        detailedCallScores,
+                        detailedPutScores
                 );
             } else {
                 log.warn("❌ ENTRY DECISION INVALID - Cannot create order without valid scenario");
@@ -203,6 +208,19 @@ public class OrderExecutionService {
                     }
                     if (order.getEntryMatchedConditions() != null) {
                         log.info("✅ MATCHED CONDITIONS - {}", order.getEntryMatchedConditions());
+                    }
+                    // 🔥 NEW: Log quality score and direction scores
+                    if (order.getEntryQualityScore() != null) {
+                        log.info("🎯 QUALITY SCORE - {}/10", String.format("%.1f", order.getEntryQualityScore()));
+                    }
+                    if (order.getEntryCallScores() != null) {
+                        log.info("📈 CALL SCORES - {}", order.getEntryCallScores());
+                    }
+                    if (order.getEntryPutScores() != null) {
+                        log.info("📉 PUT SCORES - {}", order.getEntryPutScores());
+                    }
+                    if (order.getEntryDominantTrend() != null) {
+                        log.info("🎯 DOMINANT TREND - {}", order.getEntryDominantTrend());
                     }
                 }
 

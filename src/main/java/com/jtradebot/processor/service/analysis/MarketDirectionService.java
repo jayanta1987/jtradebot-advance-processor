@@ -1,12 +1,14 @@
 package com.jtradebot.processor.service.analysis;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
-import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
+import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +94,31 @@ public class MarketDirectionService {
         }
     }
 
-
+    /**
+     * 🔥 NEW: Get detailed category scores with individual indicator breakdowns
+     */
+    public Map<String, DetailedCategoryScore> getDetailedCategoryScores(FlattenedIndicators indicators, String direction) {
+        try {
+            ScalpingEntryConfig config = configService.getScalpingEntryConfig();
+            if (config == null || config.getCategoryScoring() == null) {
+                log.warn("Category scoring configuration not found, cannot provide detailed scores");
+                return new HashMap<>();
+            }
+            
+            if ("CALL".equalsIgnoreCase(direction)) {
+                return calculateDetailedCategoryScores(indicators, config.getCategoryScoring().getCallCategories());
+            } else if ("PUT".equalsIgnoreCase(direction)) {
+                return calculateDetailedCategoryScores(indicators, config.getCategoryScoring().getPutCategories());
+            } else {
+                log.warn("Invalid market direction: {}. Returning empty map.", direction);
+                return new HashMap<>();
+            }
+        } catch (Exception e) {
+            log.error("Error getting detailed category scores for direction {}: {}", direction, e.getMessage(), e);
+            return new HashMap<>();
+        }
+    }
+    
     private Map<String, Integer> calculateCategoryCounts(FlattenedIndicators indicators, Map<String, List<String>> categories) {
         Map<String, Integer> categoryCounts = new HashMap<>();
         
@@ -137,6 +163,33 @@ public class MarketDirectionService {
         }
         
         return categoryScores;
+    }
+
+    /**
+     * 🔥 NEW: Calculate detailed category scores with individual indicator breakdowns
+     */
+    private Map<String, DetailedCategoryScore> calculateDetailedCategoryScores(FlattenedIndicators indicators, Map<String, ScalpingEntryConfig.CategoryIndicatorScoring> categories) {
+        Map<String, DetailedCategoryScore> detailedScores = new HashMap<>();
+
+        for (Map.Entry<String, ScalpingEntryConfig.CategoryIndicatorScoring> entry : categories.entrySet()) {
+            String categoryName = entry.getKey();
+            ScalpingEntryConfig.CategoryIndicatorScoring categoryScoring = entry.getValue();
+
+            DetailedCategoryScore detailedScore = new DetailedCategoryScore();
+            detailedScore.setCategoryName(categoryName);
+
+            if (categoryScoring != null && categoryScoring.getIndicators() != null) {
+                for (Map.Entry<String, Integer> indicatorEntry : categoryScoring.getIndicators().entrySet()) {
+                    String indicatorName = indicatorEntry.getKey();
+                    Integer weightage = indicatorEntry.getValue();
+
+                    boolean isSatisfied = evaluateCondition(indicatorName, indicators);
+                    detailedScore.addIndicatorScore(indicatorName, weightage, isSatisfied);
+                }
+            }
+            detailedScores.put(categoryName, detailedScore);
+        }
+        return detailedScores;
     }
 
     /**
