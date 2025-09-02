@@ -100,6 +100,10 @@ public class CategoryAnalysisService {
             if (Boolean.TRUE.equals(indicators.getBullish_morning_star_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getHammer_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getHammer_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getMarubozu_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getMarubozu_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getInside_bar_breakout_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_1min())) candlestickCount++;
         } else {
             if (Boolean.TRUE.equals(indicators.getRed_candle_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getRed_candle_1min())) candlestickCount++;
@@ -111,6 +115,10 @@ public class CategoryAnalysisService {
             if (Boolean.TRUE.equals(indicators.getBearish_evening_star_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getShooting_star_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getShooting_star_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getMarubozu_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getMarubozu_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getInside_bar_breakdown_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_1min())) candlestickCount++;
         }
         return candlestickCount;
     }

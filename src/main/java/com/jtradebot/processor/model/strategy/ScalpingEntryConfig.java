@@ -28,6 +28,7 @@ public class ScalpingEntryConfig {
     private LoggingConfig logging;
     private WeightsConfig weights;
     private NoTradeZonesConfig noTradeZones;
+    private CategoryScoring categoryScoring;
     
     @Data
     @Builder
@@ -107,13 +108,12 @@ public class ScalpingEntryConfig {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ScenarioRequirements {
-        private Integer ema_min_count;
-        private Integer futureAndVolume_min_count;
-        private Integer candlestick_min_count;
-        private Integer momentum_min_count;
+        private Integer ema_min_score;
+        private Integer futureAndVolume_min_score;
+        private Integer candlestick_min_score;
+        private Integer momentum_min_score;
         private Double minQualityScore;
         private Boolean flatMarketFilter;
-        private Double minDirectionalStrength;
     }
     
     @Data
@@ -163,6 +163,25 @@ public class ScalpingEntryConfig {
         private String description;
         private Integer maxAllowedNTP;
         private Map<String, NoTradeFilter> filters;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class CategoryScoring {
+        private Map<String, CategoryIndicatorScoring> callCategories;
+        private Map<String, CategoryIndicatorScoring> putCategories;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class CategoryIndicatorScoring {
+        private Map<String, Integer> indicators;
     }
     
     @Data

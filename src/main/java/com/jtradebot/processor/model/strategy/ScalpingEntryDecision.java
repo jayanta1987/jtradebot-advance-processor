@@ -1,6 +1,5 @@
 package com.jtradebot.processor.model.strategy;
 
-import com.jtradebot.processor.model.indicator.EntryQuality;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,10 +26,7 @@ public class ScalpingEntryDecision {
     
     // Market direction determined during evaluation
     private String marketDirection; // "CALL" or "PUT"
-    
-    // Quality scores for both directions
-    private EntryQuality callQuality;
-    private EntryQuality putQuality;
+
     
     // Explicit signal flags for consistency
     private boolean shouldCall;

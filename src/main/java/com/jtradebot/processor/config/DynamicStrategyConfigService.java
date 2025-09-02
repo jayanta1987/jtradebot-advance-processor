@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ProfitableTradeFilterConfig;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class DynamicStrategyConfigService {
 
     private final TradingConfigurationService tradingConfigurationService;
+    @Getter
     private ScalpingEntryConfig scalpingEntryConfig;
 
     @PostConstruct
@@ -99,10 +101,6 @@ public class DynamicStrategyConfigService {
 
     public Map<String, List<String>> getPutCategories() {
         return scalpingEntryConfig.getPutCategories();
-    }
-
-    public ScalpingEntryConfig getScalpingEntryConfig() {
-        return scalpingEntryConfig;
     }
 
     // Legacy Compatibility Methods (mapped to new config)
@@ -283,6 +281,27 @@ public class DynamicStrategyConfigService {
 
     public boolean isPutRequirePriceBelowSupport() {
         return true; // Always required in new system
+    }
+
+
+    public double getMinQualityThresholdFromScenario(String scenarioName) {
+        try {
+            var scenario = getScenarioByName(scenarioName);
+            if (scenario == null) {
+                throw new IllegalStateException("SAFE_ENTRY_SIGNAL scenario not found in configuration");
+            }
+            if (scenario.getRequirements() == null) {
+                throw new IllegalStateException("Requirements not found in SAFE_ENTRY_SIGNAL scenario");
+            }
+            if (scenario.getRequirements().getMinQualityScore() == null) {
+                throw new IllegalStateException("minQualityScore not found in SAFE_ENTRY_SIGNAL scenario requirements");
+            }
+
+            return scenario.getRequirements().getMinQualityScore();
+        } catch (Exception e) {
+            log.error("❌ CRITICAL ERROR: Cannot read minQualityScore from scenario configuration: {}", e.getMessage());
+            throw new RuntimeException("Failed to read quality score threshold from configuration", e);
+        }
     }
 
 

@@ -446,6 +446,9 @@ public class RuleHelper {
             setPatternIndicator(indicators, "long_body", timeframe, CandlestickPattern.isLongBody(currentBar));
             setPatternIndicator(indicators, "short_body", timeframe, CandlestickPattern.isShortBody(currentBar));
             
+            // Additional patterns
+            setPatternIndicator(indicators, "wick_rejection_filter", timeframe, CandlestickPattern.isWickRejectionFilter(currentBar));
+            
             // Candle color patterns (for directional confirmation)
             setPatternIndicator(indicators, "green_candle", timeframe, CandlestickPattern.isGreenCandle(currentBar));
             setPatternIndicator(indicators, "red_candle", timeframe, CandlestickPattern.isRedCandle(currentBar));
@@ -465,6 +468,10 @@ public class RuleHelper {
             setPatternIndicator(indicators, "bearish_engulfing", timeframe, CandlestickPattern.isBearishEngulfing(previousBar, currentBar));
             setPatternIndicator(indicators, "bearish_harami", timeframe, CandlestickPattern.isBearishHarami(previousBar, currentBar));
             setPatternIndicator(indicators, "bearish_doji_star", timeframe, CandlestickPattern.isBearishDojiStar(previousBar, currentBar));
+            
+            // Additional patterns
+            setPatternIndicator(indicators, "inside_bar_breakout", timeframe, CandlestickPattern.isInsideBarBreakout(previousBar, currentBar));
+            setPatternIndicator(indicators, "inside_bar_breakdown", timeframe, CandlestickPattern.isInsideBarBreakdown(previousBar, currentBar));
         }
         
         // Three candle patterns
@@ -558,6 +565,17 @@ public class RuleHelper {
             case "red_candle_1min": indicators.setRed_candle_1min(value); break;
             case "red_candle_3min": indicators.setRed_candle_3min(value); break;
             case "red_candle_5min": indicators.setRed_candle_5min(value); break;
+            
+            // Additional patterns
+            case "inside_bar_breakout_1min": indicators.setInside_bar_breakout_1min(value); break;
+            case "inside_bar_breakout_3min": indicators.setInside_bar_breakout_3min(value); break;
+            case "inside_bar_breakout_5min": indicators.setInside_bar_breakout_5min(value); break;
+            case "inside_bar_breakdown_1min": indicators.setInside_bar_breakdown_1min(value); break;
+            case "inside_bar_breakdown_3min": indicators.setInside_bar_breakdown_3min(value); break;
+            case "inside_bar_breakdown_5min": indicators.setInside_bar_breakdown_5min(value); break;
+            case "wick_rejection_filter_1min": indicators.setWick_rejection_filter_1min(value); break;
+            case "wick_rejection_filter_3min": indicators.setWick_rejection_filter_3min(value); break;
+            case "wick_rejection_filter_5min": indicators.setWick_rejection_filter_5min(value); break;
         }
     }
 

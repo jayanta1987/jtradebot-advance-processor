@@ -36,7 +36,8 @@ public class UnstableMarketConditionAnalysisService {
     private final ScoringConfigurationService scoringConfigService;
     private final SupportResistanceIndicator supportResistanceIndicator;
 
-    public boolean isMarketConditionSuitable(Tick tick, FlattenedIndicators indicators) {
+
+    public boolean inTradingZone(Tick tick, FlattenedIndicators indicators) {
         try {
             // Check if no-trade-zones filtering is enabled
             if (configService.isNoTradeZonesEnabled()) {
@@ -221,13 +222,6 @@ public class UnstableMarketConditionAnalysisService {
                 details = String.format("Overbought: %s, Oversold: %s", overbought, oversold);
                 break;
                 
-            case "directionalStrength":
-                double directionalStrength = calculateDirectionalStrength(tick, indicators);
-                passed = directionalStrength >= filter.getThreshold();
-                details = String.format("Directional strength: %.2f (threshold: %.2f)", 
-                        directionalStrength, filter.getThreshold());
-                break;
-                
             case "atr5Min":
                 // Calculate 5-minute ATR
                 String atrInstrumentToken = String.valueOf(tick.getInstrumentToken());
@@ -254,10 +248,11 @@ public class UnstableMarketConditionAnalysisService {
                 int analysisWindow = filter.getAnalysisWindow() != null ? filter.getAnalysisWindow() : 10;
                 
                 BarSeries barSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, timeframe);
+                // Count consecutive same color/neutral candles from the last candle backwards (neutral candles act as bridges)
                 int consecutiveSameColorCount = calculateConsecutiveSameColorCandles(barSeries, analysisWindow);
                 passed = consecutiveSameColorCount < filter.getMaxConsecutiveCount();
-                details = String.format("Consecutive same color candles: %d (max allowed: %d, timeframe: %s, analysis window: %d)", 
-                        consecutiveSameColorCount, filter.getMaxConsecutiveCount(), timeframeStr, analysisWindow);
+                details = String.format("Consecutive same color/neutral candles from last: %d (max allowed: %d, timeframe: %s)", 
+                        consecutiveSameColorCount, filter.getMaxConsecutiveCount(), timeframeStr);
                 break;
                 
             case "nearToSupportResistance":
@@ -292,58 +287,6 @@ public class UnstableMarketConditionAnalysisService {
         return new FilterResult(filter.getName(), filter.getDescription(), filter.getPriority(), 
                                passed, details, filterKey, filter.getNtp() != null ? filter.getNtp() : 1.0);
     }
-
-    public double calculateDirectionalStrength(Tick tick, FlattenedIndicators indicators) {
-        try {
-            int bullishSignals = 0;
-            int bearishSignals = 0;
-            int totalSignals = 0;
-
-            // EMA signals
-            if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishSignals++;
-
-            if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) bearishSignals++;
-            totalSignals += 6;
-
-            // RSI signals
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_60())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_60())) bullishSignals++;
-
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_40())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_40())) bearishSignals++;
-            totalSignals += 6;
-
-            // Price action signals
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) bullishSignals++;
-
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) bearishSignals++;
-            totalSignals += 6;
-
-            // Calculate directional strength as the ratio of dominant signals
-
-            int dominantSignals = Math.max(bullishSignals, bearishSignals);
-            double directionalStrength = (double) dominantSignals / totalSignals;
-
-            log.info("directionalStrength calculation - Bullish: {}, Bearish: {}, Total: {}, Strength: {}",
-                    bullishSignals, bearishSignals, totalSignals, String.format("%.2f", directionalStrength));
-            return Math.min(directionalStrength, 1.0);
-
-        } catch (Exception e) {
-            log.error("Error calculating directional strength: {}", e.getMessage());
-            return 0.0;
-        }
-    }
-
 
     public CandleAnalysisResult analyzeCandleCharacteristics(Tick tick, FlattenedIndicators indicators) {
         try {
@@ -384,34 +327,40 @@ public class UnstableMarketConditionAnalysisService {
 
 
     /**
-     * Calculate the number of consecutive same color candles
+     * Calculate the number of consecutive same color candles from the immediate last candle backwards
+     * Neutral candles act as bridges between same colors, allowing continuation of the streak
      * @param barSeries The bar series to analyze
      * @param lookbackBars Number of bars to look back (default 10)
-     * @return Number of consecutive same color candles
+     * @return Number of consecutive same color/neutral candles from the last candle backwards
      */
-    private int calculateConsecutiveSameColorCandles(BarSeries barSeries, int lookbackBars) {
+    int calculateConsecutiveSameColorCandles(BarSeries barSeries, int lookbackBars) {
         try {
             if (barSeries.getBarCount() < lookbackBars) {
                 return 0;
             }
 
             int consecutiveCount = 0;
-            String currentColor = null;
+            String targetColor = null; // The color we're looking for (from the last candle)
+            boolean foundDifferentColor = false;
 
-            // Start from the most recent bar and go backwards
+            // Start from the most recent completed bar and go backwards
             for (int i = barSeries.getBarCount() - 2; i >= barSeries.getBarCount() - lookbackBars; i--) { // -2 means skip current forming candle
                 Bar bar = barSeries.getBar(i);
                 String candleColor = determineCandleColor(bar);
 
-                if (currentColor == null) {
-                    // First candle
-                    currentColor = candleColor;
+                if (targetColor == null) {
+                    // First candle (most recent completed candle) - this is our target color
+                    targetColor = candleColor;
                     consecutiveCount = 1;
-                } else if (candleColor.equals(currentColor)) {
-                    // Same color as previous
+                } else if (candleColor.equals(targetColor)) {
+                    // Same color as target, continue counting
+                    consecutiveCount++;
+                } else if (candleColor.equals("NEUTRAL")) {
+                    // Neutral candle - can act as a bridge, continue counting
                     consecutiveCount++;
                 } else {
-                    // Different color, break the streak
+                    // Different color (not neutral), stop counting
+                    foundDifferentColor = true;
                     break;
                 }
             }
@@ -429,7 +378,7 @@ public class UnstableMarketConditionAnalysisService {
      * @param bar The bar to analyze
      * @return Color of the candle
      */
-    private String determineCandleColor(Bar bar) {
+    String determineCandleColor(Bar bar) {
         double openPrice = bar.getOpenPrice().doubleValue();
         double closePrice = bar.getClosePrice().doubleValue();
         
@@ -631,10 +580,6 @@ public class UnstableMarketConditionAnalysisService {
             marketDetails.put("atr15min", atr15min);
             marketDetails.put("atr1min", atr1min);
 
-            // Directional strength (kept for reference)
-            double directionalStrength = calculateDirectionalStrength(tick, indicators);
-            marketDetails.put("directionalStrength", Math.round(directionalStrength * 100.0) / 100.0);
-
             // Candle analysis details (simplified)
             CandleAnalysisResult candleAnalysis = analyzeCandleCharacteristics(tick, indicators);
             if (candleAnalysis != null) {
@@ -646,7 +591,7 @@ public class UnstableMarketConditionAnalysisService {
             }
 
             // Market suitability status
-            boolean isMarketSuitable = isMarketConditionSuitable(tick, indicators);
+            boolean isMarketSuitable = inTradingZone(tick, indicators);
             marketDetails.put("marketSuitable", isMarketSuitable);
 
             return marketDetails;

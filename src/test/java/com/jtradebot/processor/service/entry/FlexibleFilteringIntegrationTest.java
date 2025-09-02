@@ -38,7 +38,7 @@ class FlexibleFilteringIntegrationTest {
         Tick tick = createMockTick();
         FlattenedIndicators indicators = createMockIndicators();
         
-        boolean result = service.isMarketConditionSuitable(tick, indicators);
+        boolean result = service.inTradingZone(tick, indicators);
 
         // Then: Should pass because filtering is disabled
         assertTrue(result, "Should pass when filtering is disabled");

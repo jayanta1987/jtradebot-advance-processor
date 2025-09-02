@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service.analysis;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
+import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +22,13 @@ public class MarketDirectionService {
 
     public String determineMarketDirection(FlattenedIndicators indicators) {
         try {
-            // Calculate category counts for both CALL and PUT strategies
-            Map<String, Integer> callCategoryCounts = calculateCategoryCounts(indicators, configService.getCallCategories());
-            Map<String, Integer> putCategoryCounts = calculateCategoryCounts(indicators, configService.getPutCategories());
+            // Calculate weighted category scores for both CALL and PUT strategies
+            Map<String, Integer> callCategoryScores = getWeightedCategoryScores(indicators, "CALL");
+            Map<String, Integer> putCategoryScores = getWeightedCategoryScores(indicators, "PUT");
 
             // Calculate total scores for each direction
-            int callTotalScore = callCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
-            int putTotalScore = putCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
+            int callTotalScore = callCategoryScores.values().stream().mapToInt(Integer::intValue).sum();
+            int putTotalScore = putCategoryScores.values().stream().mapToInt(Integer::intValue).sum();
 
             // Determine market direction based on total scores
             boolean isCallDirection = callTotalScore >= putTotalScore;
@@ -36,10 +37,10 @@ public class MarketDirectionService {
             log.debug("🔍 MARKET DIRECTION ANALYSIS - CallTotalScore: {}, PutTotalScore: {}, Direction: {}", 
                     callTotalScore, putTotalScore, marketDirection);
             log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}", 
-                    callCategoryCounts.getOrDefault("ema", 0), callCategoryCounts.getOrDefault("futureAndVolume", 0),
-                    callCategoryCounts.getOrDefault("candlestick", 0), callCategoryCounts.getOrDefault("momentum", 0),
-                    putCategoryCounts.getOrDefault("ema", 0), putCategoryCounts.getOrDefault("futureAndVolume", 0),
-                    putCategoryCounts.getOrDefault("candlestick", 0), putCategoryCounts.getOrDefault("momentum", 0));
+                    callCategoryScores.getOrDefault("ema", 0), callCategoryScores.getOrDefault("futureAndVolume", 0),
+                    callCategoryScores.getOrDefault("candlestick", 0), callCategoryScores.getOrDefault("momentum", 0),
+                    putCategoryScores.getOrDefault("ema", 0), putCategoryScores.getOrDefault("futureAndVolume", 0),
+                    putCategoryScores.getOrDefault("candlestick", 0), putCategoryScores.getOrDefault("momentum", 0));
 
             return marketDirection;
 
@@ -65,6 +66,31 @@ public class MarketDirectionService {
             return new HashMap<>();
         }
     }
+    
+    /**
+     * Get weighted category scores using the new scoring structure
+     */
+    public Map<String, Integer> getWeightedCategoryScores(FlattenedIndicators indicators, String direction) {
+        try {
+            ScalpingEntryConfig config = configService.getScalpingEntryConfig();
+            if (config == null || config.getCategoryScoring() == null) {
+                log.warn("Category scoring configuration not found, falling back to count-based scoring");
+                return getCategoryScores(indicators, direction);
+            }
+            
+            if ("CALL".equalsIgnoreCase(direction)) {
+                return calculateWeightedCategoryScores(indicators, config.getCategoryScoring().getCallCategories());
+            } else if ("PUT".equalsIgnoreCase(direction)) {
+                return calculateWeightedCategoryScores(indicators, config.getCategoryScoring().getPutCategories());
+            } else {
+                log.warn("Invalid market direction: {}. Returning empty map.", direction);
+                return new HashMap<>();
+            }
+        } catch (Exception e) {
+            log.error("Error getting weighted category scores for direction {}: {}", direction, e.getMessage(), e);
+            return new HashMap<>();
+        }
+    }
 
 
     private Map<String, Integer> calculateCategoryCounts(FlattenedIndicators indicators, Map<String, List<String>> categories) {
@@ -84,6 +110,33 @@ public class MarketDirectionService {
         }
         
         return categoryCounts;
+    }
+    
+    /**
+     * Calculate weighted category scores using the new scoring structure
+     */
+    private Map<String, Integer> calculateWeightedCategoryScores(FlattenedIndicators indicators, Map<String, ScalpingEntryConfig.CategoryIndicatorScoring> categories) {
+        Map<String, Integer> categoryScores = new HashMap<>();
+        
+        for (Map.Entry<String, ScalpingEntryConfig.CategoryIndicatorScoring> entry : categories.entrySet()) {
+            String categoryName = entry.getKey();
+            ScalpingEntryConfig.CategoryIndicatorScoring categoryScoring = entry.getValue();
+            
+            int totalScore = 0;
+            if (categoryScoring != null && categoryScoring.getIndicators() != null) {
+                for (Map.Entry<String, Integer> indicatorEntry : categoryScoring.getIndicators().entrySet()) {
+                    String indicatorName = indicatorEntry.getKey();
+                    Integer weightage = indicatorEntry.getValue();
+                    
+                    if (evaluateCondition(indicatorName, indicators)) {
+                        totalScore += weightage != null ? weightage : 1;
+                    }
+                }
+            }
+            categoryScores.put(categoryName, totalScore);
+        }
+        
+        return categoryScores;
     }
 
     /**
@@ -270,6 +323,111 @@ public class MarketDirectionService {
             }
             if (condition.equals("shooting_star_3min")) {
                 return Boolean.TRUE.equals(indicators.getShooting_star_3min());
+            }
+
+            // Additional candlestick patterns
+            if (condition.equals("inverted_hammer_5min")) {
+                return Boolean.TRUE.equals(indicators.getInverted_hammer_5min());
+            }
+            if (condition.equals("inverted_hammer_1min")) {
+                return Boolean.TRUE.equals(indicators.getInverted_hammer_1min());
+            }
+            if (condition.equals("inverted_hammer_3min")) {
+                return Boolean.TRUE.equals(indicators.getInverted_hammer_3min());
+            }
+            if (condition.equals("long_lower_shadow_5min")) {
+                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_5min());
+            }
+            if (condition.equals("long_lower_shadow_1min")) {
+                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_1min());
+            }
+            if (condition.equals("long_lower_shadow_3min")) {
+                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_3min());
+            }
+            if (condition.equals("long_upper_shadow_5min")) {
+                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_5min());
+            }
+            if (condition.equals("long_upper_shadow_1min")) {
+                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_1min());
+            }
+            if (condition.equals("long_upper_shadow_3min")) {
+                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_3min());
+            }
+            if (condition.equals("bullish_harami_5min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_harami_5min());
+            }
+            if (condition.equals("bullish_harami_1min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_harami_1min());
+            }
+            if (condition.equals("bullish_harami_3min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_harami_3min());
+            }
+            if (condition.equals("bearish_harami_5min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_harami_5min());
+            }
+            if (condition.equals("bearish_harami_1min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_harami_1min());
+            }
+            if (condition.equals("bearish_harami_3min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_harami_3min());
+            }
+            if (condition.equals("bullish_doji_star_5min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_doji_star_5min());
+            }
+            if (condition.equals("bullish_doji_star_1min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_doji_star_1min());
+            }
+            if (condition.equals("bullish_doji_star_3min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_doji_star_3min());
+            }
+            if (condition.equals("bearish_doji_star_5min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_doji_star_5min());
+            }
+            if (condition.equals("bearish_doji_star_1min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_doji_star_1min());
+            }
+            if (condition.equals("bearish_doji_star_3min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_doji_star_3min());
+            }
+
+            // Additional candlestick patterns
+            if (condition.equals("inside_bar_breakout_5min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_5min());
+            }
+            if (condition.equals("inside_bar_breakout_1min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_1min());
+            }
+            if (condition.equals("inside_bar_breakout_3min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_3min());
+            }
+            if (condition.equals("inside_bar_breakdown_5min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_5min());
+            }
+            if (condition.equals("inside_bar_breakdown_1min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_1min());
+            }
+            if (condition.equals("inside_bar_breakdown_3min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_3min());
+            }
+            if (condition.equals("wick_rejection_filter_1min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_1min());
+            }
+            if (condition.equals("wick_rejection_filter_5min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_5min());
+            }
+            if (condition.equals("wick_rejection_filter_3min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_3min());
+            }
+
+            // Marubozu conditions
+            if (condition.equals("marubozu_5min")) {
+                return Boolean.TRUE.equals(indicators.getMarubozu_5min());
+            }
+            if (condition.equals("marubozu_1min")) {
+                return Boolean.TRUE.equals(indicators.getMarubozu_1min());
+            }
+            if (condition.equals("marubozu_3min")) {
+                return Boolean.TRUE.equals(indicators.getMarubozu_3min());
             }
 
             // Candle color conditions

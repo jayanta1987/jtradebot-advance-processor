@@ -752,9 +752,7 @@ public class ExitStrategyService {
         }
 
         for (JtradeOrder order : activeOrdersMap.values()) {
-            // Note: This method is called from checkAndProcessExitsWithStrategy where we have the actual option price
-            // For now, we'll use a placeholder since we don't have the actual option price in this context
-            // In practice, this should be called with the actual option price from the tick data
+
             Double currentLTP = calculateCurrentLTP(order, currentIndexPrice); // Keep this for now as fallback
             Double profitLoss = optionPricingService.calculateProfitLoss(
                     order.getEntryPrice(),
