@@ -81,6 +81,16 @@ public class JtradeOrder {
     private Map<String, Integer> entryCategoryScores;
     private Map<String, List<String>> entryMatchedConditions;
     
+    // 🔥 NEW: Quality Score and Direction Scores at Entry Time
+    private Double entryQualityScore;
+    private Map<String, Integer> entryCallScores;
+    private Map<String, Integer> entryPutScores;
+    private String entryDominantTrend;
+    
+    // 🔥 NEW: Detailed Category Scores with Individual Indicator Breakdowns
+    private Map<String, Object> entryDetailedCallScores;
+    private Map<String, Object> entryDetailedPutScores;
+    
     // Filter Failure Tracking
     private Integer mandatoryFiltersFailed;
     private Integer optionalFiltersFailed;

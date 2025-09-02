@@ -6,6 +6,7 @@ import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.analysis.MarketDirectionService;
@@ -96,6 +97,10 @@ public class TickOrchestrationService {
                     // Step 3: Calculate Category Scores and Quality Score
                     Map<String, Integer> callScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
                     Map<String, Integer> putScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
+                    
+                    // 🔥 NEW: Get detailed category scores with individual indicator breakdowns
+                    Map<String, DetailedCategoryScore> detailedCallScores = marketDirectionService.getDetailedCategoryScores(indicators, "CALL");
+                    Map<String, DetailedCategoryScore> detailedPutScores = marketDirectionService.getDetailedCategoryScores(indicators, "PUT");
 
                     int callTotal = callScores.values().stream().mapToInt(Integer::intValue).sum();
                     int putTotal = putScores.values().stream().mapToInt(Integer::intValue).sum();
@@ -116,7 +121,7 @@ public class TickOrchestrationService {
 
                     // Step 6: Execute orders if signals are generated
                     if (filtersPassed) {
-                        orderExecutionService.executeOrdersIfSignalsGenerated(tick, indicators, result, qualityScore, dominantTrend, callScores, putScores);
+                        orderExecutionService.executeOrdersIfSignalsGenerated(tick, indicators, result, qualityScore, dominantTrend, callScores, putScores, detailedCallScores, detailedPutScores);
                     }
 
                     // Step 7: Handle order management

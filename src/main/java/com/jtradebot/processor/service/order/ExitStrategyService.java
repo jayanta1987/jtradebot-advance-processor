@@ -8,6 +8,7 @@ import com.jtradebot.processor.manager.BarSeriesManager;
 import com.jtradebot.processor.model.MilestoneSystem.Milestone;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
+import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
@@ -108,7 +109,15 @@ public class ExitStrategyService {
                                                     Map<String, Integer> categoryScores,
                                                     Map<String, List<String>> matchedConditions,
                                                     Boolean entryMarketConditionSuitable,
-                                                    Date entryTime) {
+                                                    Date entryTime,
+                                                    // �� NEW: Quality score and direction scores
+                                                    Double qualityScore,
+                                                    Map<String, Integer> callScores,
+                                                    Map<String, Integer> putScores,
+                                                    String dominantTrend,
+                                                    // 🔥 NEW: Detailed category scores
+                                                    Map<String, DetailedCategoryScore> detailedCallScores,
+                                                    Map<String, DetailedCategoryScore> detailedPutScores) {
 
         // 🔥 NEW: Check if entry should be blocked due to recent STOPLOSS_HIT
         Long niftyToken = kiteInstrumentHandler.getNifty50Token();
@@ -146,6 +155,20 @@ public class ExitStrategyService {
         order.setEntryCategoryScores(categoryScores);
         order.setEntryMatchedConditions(matchedConditions);
 
+        // 🔥 NEW: Store detailed category scores with individual indicator breakdowns
+        if (detailedCallScores != null) {
+            order.setEntryDetailedCallScores(new HashMap<>(detailedCallScores));
+        }
+        if (detailedPutScores != null) {
+            order.setEntryDetailedPutScores(new HashMap<>(detailedPutScores));
+        }
+        
+        // 🔥 NEW: Store quality score and direction scores
+        order.setEntryQualityScore(qualityScore);
+        order.setEntryCallScores(callScores);
+        order.setEntryPutScores(putScores);
+        order.setEntryDominantTrend(dominantTrend);
+        
         // Store market condition details at entry time
         order.setEntryMarketConditionSuitable(entryMarketConditionSuitable);
 
