@@ -30,7 +30,7 @@ public class ScalpingEntryService {
     private final SignalDeterminationService signalDeterminationService;
 
 
-    public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean preCalculatedMarketCondition) {
+    public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean inTradingZone) {
         try {
             // Step 1: Use MarketDirectionService to get category scores and market direction
             String marketDirection = marketDirectionService.determineMarketDirection(indicators);
@@ -45,7 +45,7 @@ public class ScalpingEntryService {
             List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
             
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
-                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryScores, putCategoryScores, qualityScore, tick, preCalculatedMarketCondition, marketDirection);
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryScores, putCategoryScores, qualityScore, tick, inTradingZone, marketDirection);
                 scenarioEvaluations.add(evaluation);
             }
             
@@ -108,7 +108,7 @@ public class ScalpingEntryService {
 
         // Use the pre-calculated market condition result to avoid redundant calculations
         boolean marketConditionSuitable = preCalculatedMarketCondition != null ? preCalculatedMarketCondition : 
-            unstableMarketConditionAnalysisService.isMarketConditionSuitable(tick, indicators);
+            unstableMarketConditionAnalysisService.inTradingZone(tick, indicators);
         
         if (!marketConditionSuitable) {
             evaluation.setPassed(false);

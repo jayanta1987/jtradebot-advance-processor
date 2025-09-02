@@ -114,7 +114,6 @@ public class ScalpingEntryConfig {
         private Integer momentum_min_score;
         private Double minQualityScore;
         private Boolean flatMarketFilter;
-        private Double minDirectionalStrength;
     }
     
     @Data

@@ -16,8 +16,8 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 
 /**
- * Unified service that consolidates indicator logging, status formatting, and market direction analysis.
- * This service uses pre-calculated indicators without performing any extra calculations.
+ * Simplified service that provides indicator analysis utilities.
+ * Main logging has been moved to TickOrchestrationService.
  */
 @Service
 @Slf4j
@@ -30,168 +30,50 @@ public class UnifiedIndicatorService {
     private final MarketDirectionService marketDirectionService;
 
     /**
-     * Main method to log all indicator information using pre-calculated data
+     * Simplified method - main logging moved to TickOrchestrationService
      */
     public void logUnifiedIndicatorAnalysis(Tick indexTick, FlattenedIndicators indicators, boolean isMarketSuitable) {
+        // Main logging moved to TickOrchestrationService
+        log.debug("UnifiedIndicatorService called - logging handled by TickOrchestrationService");
+    }
+
+    /**
+     * Get entry decision and quality scores for external use
+     */
+    public EntryAnalysisResult getEntryAnalysis(Tick indexTick, FlattenedIndicators indicators, Boolean preCalculatedMarketCondition) {
         try {
-            // Step 1: Get entry decision and quality scores (using pre-calculated indicators)
-            EntryAnalysisResult analysisResult = analyzeEntryConditions(indexTick, indicators, isMarketSuitable);
+            // Use pre-calculated entry decision
+            ScalpingEntryDecision entryDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, preCalculatedMarketCondition);
 
-            // Step 2: Determine entry signals using unified logic
-            EntrySignalResult signalResult = determineEntrySignals(analysisResult);
+            // Use pre-calculated quality scores
+            EntryQuality callQuality = dynamicRuleEvaluatorService.evaluateCallEntryQuality(indicators, indexTick);
+            EntryQuality putQuality = dynamicRuleEvaluatorService.evaluatePutEntryQuality(indicators, indexTick);
 
-            // Step 3: Log all information using pre-calculated data
-            logAllIndicatorInformation(indexTick, indicators, analysisResult, signalResult, isMarketSuitable);
-
+            return new EntryAnalysisResult(entryDecision, callQuality, putQuality);
         } catch (Exception e) {
-            log.error("Error in unified indicator analysis: {}", e.getMessage(), e);
+            log.error("Error getting entry analysis: {}", e.getMessage(), e);
+            return null;
         }
     }
 
     /**
-     * Analyze entry conditions using pre-calculated indicators
+     * Get entry signals for external use
      */
-    private EntryAnalysisResult analyzeEntryConditions(Tick indexTick, FlattenedIndicators indicators, Boolean preCalculatedMarketCondition) {
-        // Use pre-calculated entry decision
-        ScalpingEntryDecision entryDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, preCalculatedMarketCondition);
-
-        // Use pre-calculated quality scores
-        EntryQuality callQuality = dynamicRuleEvaluatorService.evaluateCallEntryQuality(indicators, indexTick);
-        EntryQuality putQuality = dynamicRuleEvaluatorService.evaluatePutEntryQuality(indicators, indexTick);
-
-        return new EntryAnalysisResult(entryDecision, callQuality, putQuality);
-    }
-
-    /**
-     * Determine entry signals using unified logic
-     */
-    private EntrySignalResult determineEntrySignals(EntryAnalysisResult analysisResult) {
-        // Use SignalDeterminationService for consistent signal determination
-        SignalDeterminationService.SignalResult signalResult = signalDeterminationService.determineSignals(analysisResult.getEntryDecision());
-
-        log.debug("🔍 UNIFIED SIGNAL DETERMINATION - Scenario: {}, MarketDirection: {}, ShouldCall: {}, ShouldPut: {}",
-                analysisResult.getEntryDecision().getScenarioName(), 
-                analysisResult.getEntryDecision().getMarketDirection(),
-                signalResult.isShouldCall(), signalResult.isShouldPut());
-
-        return new EntrySignalResult(signalResult.isShouldCall(), signalResult.isShouldPut(), 
-                                   signalResult.isCallDominant(), signalResult.isPutDominant());
-    }
-
-    /**
-     * Log all indicator information using pre-calculated data
-     */
-    private void logAllIndicatorInformation(Tick indexTick, FlattenedIndicators indicators, EntryAnalysisResult analysisResult, EntrySignalResult signalResult, boolean isMarketSuitable) {
-
-        // Get trend information using pre-calculated data
-        String trendInfo = getTrendInfoFromPreCalculated(analysisResult, indicators, isMarketSuitable);
-
-        // Log trend analysis
-        logTrendAnalysis(indexTick, trendInfo);
-    }
-
-    /**
-     * Get trend info from pre-calculated data
-     */
-    private String getTrendInfoFromPreCalculated(EntryAnalysisResult analysisResult, FlattenedIndicators indicators, boolean isMarketSuitable) {
+    public EntrySignalResult getEntrySignals(EntryAnalysisResult analysisResult) {
         try {
-            ScalpingEntryDecision entryDecision = analysisResult.getEntryDecision();
-            
-            // Use scenario information from entry decision
-            if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
-                String scenarioInfo = String.format("Scenario: %s (%.1f/10)", 
-                    entryDecision.getScenarioName(), entryDecision.getQualityScore());
-                
-                if (entryDecision.getCategoryScores() != null) {
-                    Map<String, Integer> categoryScores = entryDecision.getCategoryScores();
-                    StringBuilder categoryInfo = new StringBuilder();
-                    
-                    if (categoryScores.containsKey("ema")) {
-                        categoryInfo.append(String.format("EMA:%d ", categoryScores.get("ema")));
-                    }
-                    if (categoryScores.containsKey("futureAndVolume")) {
-                        categoryInfo.append(String.format("FV:%d ", categoryScores.get("futureAndVolume")));
-                    }
-                    if (categoryScores.containsKey("candlestick")) {
-                        categoryInfo.append(String.format("CS:%d ", categoryScores.get("candlestick")));
-                    }
-                    if (categoryScores.containsKey("momentum")) {
-                        categoryInfo.append(String.format("M:%d ", categoryScores.get("momentum")));
-                    }
-                    
-                    return String.format("🎯 %s | %s", scenarioInfo, categoryInfo.toString().trim());
-                } else {
-                    return String.format("🎯 %s", scenarioInfo);
-                }
-            } else {
-                // Show quality-based evaluation when no scenario is triggered
-                String dominantTrend = analysisResult.getCallQuality().getQualityScore() > analysisResult.getPutQuality().getQualityScore() ? "CALL" : "PUT";
-                double dominantQuality = Math.max(analysisResult.getCallQuality().getQualityScore(), analysisResult.getPutQuality().getQualityScore());
-                
-                // Get category breakdown with requirements
-                String categoryBreakdown = getCategoryBreakdownWithRequirements(entryDecision, indicators);
-                
-                return String.format("🎯 %s (%.1f/10) | %s", dominantTrend, dominantQuality, categoryBreakdown);
-            }
-            
+            // Use SignalDeterminationService for consistent signal determination
+            SignalDeterminationService.SignalResult signalResult = signalDeterminationService.determineSignals(analysisResult.getEntryDecision());
+
+            return new EntrySignalResult(signalResult.isShouldCall(), signalResult.isShouldPut(), 
+                                       signalResult.isCallDominant(), signalResult.isPutDominant());
         } catch (Exception e) {
-            return "🎯 ERROR";
-        }
-    }
-    
-    /**
-     * Get category breakdown with requirements
-     */
-    private String getCategoryBreakdownWithRequirements(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators) {
-        try {
-            // Get requirements from SAFE_ENTRY_SIGNAL scenario
-            var scenario = configService.getScenarioByName("SAFE_ENTRY_SIGNAL");
-            if (scenario == null || scenario.getRequirements() == null) {
-                return "";
-            }
-            
-            var requirements = scenario.getRequirements();
-            int emaRequired = requirements.getEma_min_score() != null ? requirements.getEma_min_score() : 0;
-            int fvRequired = requirements.getFutureAndVolume_min_score() != null ? requirements.getFutureAndVolume_min_score() : 0;
-            int csRequired = requirements.getCandlestick_min_score() != null ? requirements.getCandlestick_min_score() : 0;
-            int mRequired = requirements.getMomentum_min_score() != null ? requirements.getMomentum_min_score() : 0;
-            
-            // Get weighted category scores for both directions from MarketDirectionService
-            Map<String, Integer> callCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
-            Map<String, Integer> putCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
-            
-            // Format the breakdown with actual scores for both directions
-            String callEma = callCategoryScores.getOrDefault("ema", 0) + "/" + emaRequired;
-            String callFv = callCategoryScores.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
-            String callCs = callCategoryScores.getOrDefault("candlestick", 0) + "/" + csRequired;
-            String callM = callCategoryScores.getOrDefault("momentum", 0) + "/" + mRequired;
-            
-            String putEma = putCategoryScores.getOrDefault("ema", 0) + "/" + emaRequired;
-            String putFv = putCategoryScores.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
-            String putCs = putCategoryScores.getOrDefault("candlestick", 0) + "/" + csRequired;
-            String putM = putCategoryScores.getOrDefault("momentum", 0) + "/" + mRequired;
-            
-            return String.format("Call: EMA=%s, FV=%s, CS=%s, M=%s | Put: EMA=%s, FV=%s, CS=%s, M=%s", 
-                    callEma, callFv, callCs, callM, putEma, putFv, putCs, putM);
-            
-        } catch (Exception e) {
-            return "";
+            log.error("Error getting entry signals: {}", e.getMessage(), e);
+            return new EntrySignalResult(false, false, false, false);
         }
     }
 
-
     /**
-     * Log trend analysis
-     */
-    private void logTrendAnalysis(Tick tick, String trendInfo) {
-        log.info("📊 {} | 💰 {} | {}", 
-            tick.getTickTimestamp(), 
-            tick.getLastTradedPrice(), 
-            trendInfo);
-    }
-
-    /**
-     * Result classes for internal use
+     * Result classes for external use
      */
     @Getter
     public static class EntryAnalysisResult {

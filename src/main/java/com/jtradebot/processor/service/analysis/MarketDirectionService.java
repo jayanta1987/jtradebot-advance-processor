@@ -325,6 +325,111 @@ public class MarketDirectionService {
                 return Boolean.TRUE.equals(indicators.getShooting_star_3min());
             }
 
+            // Additional candlestick patterns
+            if (condition.equals("inverted_hammer_5min")) {
+                return Boolean.TRUE.equals(indicators.getInverted_hammer_5min());
+            }
+            if (condition.equals("inverted_hammer_1min")) {
+                return Boolean.TRUE.equals(indicators.getInverted_hammer_1min());
+            }
+            if (condition.equals("inverted_hammer_3min")) {
+                return Boolean.TRUE.equals(indicators.getInverted_hammer_3min());
+            }
+            if (condition.equals("long_lower_shadow_5min")) {
+                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_5min());
+            }
+            if (condition.equals("long_lower_shadow_1min")) {
+                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_1min());
+            }
+            if (condition.equals("long_lower_shadow_3min")) {
+                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_3min());
+            }
+            if (condition.equals("long_upper_shadow_5min")) {
+                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_5min());
+            }
+            if (condition.equals("long_upper_shadow_1min")) {
+                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_1min());
+            }
+            if (condition.equals("long_upper_shadow_3min")) {
+                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_3min());
+            }
+            if (condition.equals("bullish_harami_5min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_harami_5min());
+            }
+            if (condition.equals("bullish_harami_1min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_harami_1min());
+            }
+            if (condition.equals("bullish_harami_3min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_harami_3min());
+            }
+            if (condition.equals("bearish_harami_5min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_harami_5min());
+            }
+            if (condition.equals("bearish_harami_1min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_harami_1min());
+            }
+            if (condition.equals("bearish_harami_3min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_harami_3min());
+            }
+            if (condition.equals("bullish_doji_star_5min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_doji_star_5min());
+            }
+            if (condition.equals("bullish_doji_star_1min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_doji_star_1min());
+            }
+            if (condition.equals("bullish_doji_star_3min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_doji_star_3min());
+            }
+            if (condition.equals("bearish_doji_star_5min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_doji_star_5min());
+            }
+            if (condition.equals("bearish_doji_star_1min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_doji_star_1min());
+            }
+            if (condition.equals("bearish_doji_star_3min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_doji_star_3min());
+            }
+
+            // Additional candlestick patterns
+            if (condition.equals("inside_bar_breakout_5min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_5min());
+            }
+            if (condition.equals("inside_bar_breakout_1min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_1min());
+            }
+            if (condition.equals("inside_bar_breakout_3min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_3min());
+            }
+            if (condition.equals("inside_bar_breakdown_5min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_5min());
+            }
+            if (condition.equals("inside_bar_breakdown_1min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_1min());
+            }
+            if (condition.equals("inside_bar_breakdown_3min")) {
+                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_3min());
+            }
+            if (condition.equals("wick_rejection_filter_1min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_1min());
+            }
+            if (condition.equals("wick_rejection_filter_5min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_5min());
+            }
+            if (condition.equals("wick_rejection_filter_3min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_3min());
+            }
+
+            // Marubozu conditions
+            if (condition.equals("marubozu_5min")) {
+                return Boolean.TRUE.equals(indicators.getMarubozu_5min());
+            }
+            if (condition.equals("marubozu_1min")) {
+                return Boolean.TRUE.equals(indicators.getMarubozu_1min());
+            }
+            if (condition.equals("marubozu_3min")) {
+                return Boolean.TRUE.equals(indicators.getMarubozu_3min());
+            }
+
             // Candle color conditions
             if (condition.equals("green_candle_5min")) {
                 return Boolean.TRUE.equals(indicators.getGreen_candle_5min());

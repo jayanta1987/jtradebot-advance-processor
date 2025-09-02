@@ -165,7 +165,7 @@ public class DynamicRuleEvaluatorService {
     }
 
 
-    public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, Boolean preCalculatedMarketCondition) {
+    public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, Boolean inTradingZone) {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
 
@@ -179,7 +179,7 @@ public class DynamicRuleEvaluatorService {
 
             
             // 🔥 OPTIMIZATION: Use new scenario-based entry evaluation with pre-calculated quality score AND market condition
-            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators, qualityScore, preCalculatedMarketCondition);
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, indicators, qualityScore, inTradingZone);
             
             if (decision.isShouldEntry()) {
                 log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 

@@ -53,7 +53,7 @@ public class OrderExecutionService {
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     private final OrderNotificationService orderNotificationService;
 
-    public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
+    public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, boolean inTradingZone) {
         exitStrategyService.checkAndProcessExitsWithStrategy(indexTick);
         try {
             updateLivePnL(indexTick);
@@ -62,7 +62,7 @@ public class OrderExecutionService {
         }
     }
 
-    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
+    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, boolean inTradingZone) {
 
         try {
             // Check if we can execute the order (no active orders)
@@ -77,7 +77,7 @@ public class OrderExecutionService {
 
                 if (orderType != null) {
                     log.debug("🔥 CREATING ORDER - Type: {}, Symbol: {}", orderType, entryDecision.getScenarioName());
-                    createTradeOrder(tick, orderType, entryDecision, indicators, marketConditions.isMarketSuitable());
+                    createTradeOrder(tick, orderType, entryDecision, indicators, inTradingZone);
                 } else {
                     log.debug("❌ ORDER TYPE IS NULL - Cannot create order");
                 }
@@ -92,18 +92,18 @@ public class OrderExecutionService {
     }
 
 
-    public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, TickOrchestrationService.MarketConditionAnalysis marketConditions) {
+    public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, boolean inTradingZone) {
         // Get entry decision directly from DynamicRuleEvaluatorService
         ScalpingEntryDecision scenarioDecision = null;
         try {
-            scenarioDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, marketConditions.isMarketSuitable());
+            scenarioDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, inTradingZone);
         } catch (Exception e) {
             log.error("Error getting entry decision for order execution: {}", e.getMessage());
             return;
         }
 
         if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
-            validateAndExecuteOrder(indexTick, scenarioDecision, indicators, marketConditions);
+            validateAndExecuteOrder(indexTick, scenarioDecision, indicators, inTradingZone);
         }
     }
 

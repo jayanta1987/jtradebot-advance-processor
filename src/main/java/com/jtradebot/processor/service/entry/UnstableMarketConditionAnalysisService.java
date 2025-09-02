@@ -36,7 +36,7 @@ public class UnstableMarketConditionAnalysisService {
     private final ScoringConfigurationService scoringConfigService;
     private final SupportResistanceIndicator supportResistanceIndicator;
 
-    public boolean isMarketConditionSuitable(Tick tick, FlattenedIndicators indicators) {
+    public boolean inTradingZone(Tick tick, FlattenedIndicators indicators) {
         try {
             // Check if no-trade-zones filtering is enabled
             if (configService.isNoTradeZonesEnabled()) {
@@ -221,13 +221,6 @@ public class UnstableMarketConditionAnalysisService {
                 details = String.format("Overbought: %s, Oversold: %s", overbought, oversold);
                 break;
                 
-            case "directionalStrength":
-                double directionalStrength = calculateDirectionalStrength(tick, indicators);
-                passed = directionalStrength >= filter.getThreshold();
-                details = String.format("Directional strength: %.2f (threshold: %.2f)", 
-                        directionalStrength, filter.getThreshold());
-                break;
-                
             case "atr5Min":
                 // Calculate 5-minute ATR
                 String atrInstrumentToken = String.valueOf(tick.getInstrumentToken());
@@ -293,58 +286,6 @@ public class UnstableMarketConditionAnalysisService {
         return new FilterResult(filter.getName(), filter.getDescription(), filter.getPriority(), 
                                passed, details, filterKey, filter.getNtp() != null ? filter.getNtp() : 1.0);
     }
-
-    public double calculateDirectionalStrength(Tick tick, FlattenedIndicators indicators) {
-        try {
-            int bullishSignals = 0;
-            int bearishSignals = 0;
-            int totalSignals = 0;
-
-            // EMA signals
-            if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishSignals++;
-
-            if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) bearishSignals++;
-            totalSignals += 6;
-
-            // RSI signals
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_60())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_60())) bullishSignals++;
-
-            if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_40())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_40())) bearishSignals++;
-            totalSignals += 6;
-
-            // Price action signals
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) bullishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) bullishSignals++;
-
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) bearishSignals++;
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) bearishSignals++;
-            totalSignals += 6;
-
-            // Calculate directional strength as the ratio of dominant signals
-
-            int dominantSignals = Math.max(bullishSignals, bearishSignals);
-            double directionalStrength = (double) dominantSignals / totalSignals;
-
-            log.info("directionalStrength calculation - Bullish: {}, Bearish: {}, Total: {}, Strength: {}",
-                    bullishSignals, bearishSignals, totalSignals, String.format("%.2f", directionalStrength));
-            return Math.min(directionalStrength, 1.0);
-
-        } catch (Exception e) {
-            log.error("Error calculating directional strength: {}", e.getMessage());
-            return 0.0;
-        }
-    }
-
 
     public CandleAnalysisResult analyzeCandleCharacteristics(Tick tick, FlattenedIndicators indicators) {
         try {
@@ -638,10 +579,6 @@ public class UnstableMarketConditionAnalysisService {
             marketDetails.put("atr15min", atr15min);
             marketDetails.put("atr1min", atr1min);
 
-            // Directional strength (kept for reference)
-            double directionalStrength = calculateDirectionalStrength(tick, indicators);
-            marketDetails.put("directionalStrength", Math.round(directionalStrength * 100.0) / 100.0);
-
             // Candle analysis details (simplified)
             CandleAnalysisResult candleAnalysis = analyzeCandleCharacteristics(tick, indicators);
             if (candleAnalysis != null) {
@@ -653,7 +590,7 @@ public class UnstableMarketConditionAnalysisService {
             }
 
             // Market suitability status
-            boolean isMarketSuitable = isMarketConditionSuitable(tick, indicators);
+            boolean isMarketSuitable = inTradingZone(tick, indicators);
             marketDetails.put("marketSuitable", isMarketSuitable);
 
             return marketDetails;

@@ -29,19 +29,19 @@
     "callCategories": {
       "ema": {
         "indicators": {
-          "ema5_5min_gt_ema34_5min": 1,
+          "ema5_5min_gt_ema34_5min": 2,
           "ema5_1min_gt_ema34_1min": 1,
-          "ema5_15min_gt_ema34_15min": 1
+          "ema5_15min_gt_ema34_15min": 2
         }
       },
       "futureAndVolume": {
         "indicators": {
-          "volume_5min_surge": 1,
+          "volume_5min_surge": 2,
           "volume_1min_surge": 1,
-          "volume_15min_surge": 1,
+          "volume_15min_surge": 2,
           "price_gt_vwap_5min": 1,
           "price_gt_vwap_1min": 1,
-          "price_gt_vwap_15min": 1,
+          "price_gt_vwap_15min": 2,
           "price_above_resistance": 2
         }
       },
@@ -56,7 +56,11 @@
           "bullish_morning_star_5min": 2,
           "bullish_morning_star_1min": 2,
           "hammer_5min": 1,
-          "hammer_1min": 1
+          "hammer_1min": 1,
+          "marubozu_1min": 1,
+          "marubozu_5min": 1,
+          "inside_bar_breakout_5min": 2,
+          "wick_rejection_filter_1min": 2
         }
       },
       "momentum": {
@@ -74,19 +78,19 @@
     "putCategories": {
       "ema": {
         "indicators": {
-          "ema5_5min_lt_ema34_5min": 1,
+          "ema5_5min_lt_ema34_5min": 2,
           "ema5_1min_lt_ema34_1min": 1,
-          "ema5_15min_lt_ema34_15min": 1
+          "ema5_15min_lt_ema34_15min": 2
         }
       },
       "futureAndVolume": {
         "indicators": {
-          "volume_5min_surge": 1,
+          "volume_5min_surge": 2,
           "volume_1min_surge": 1,
-          "volume_15min_surge": 1,
+          "volume_15min_surge": 2,
           "price_lt_vwap_5min": 1,
           "price_lt_vwap_1min": 1,
-          "price_lt_vwap_15min": 1,
+          "price_lt_vwap_15min": 2,
           "price_below_support": 2
         }
       },
@@ -99,7 +103,11 @@
           "bearish_evening_star_5min": 2,
           "bearish_evening_star_1min": 2,
           "shooting_star_5min": 1,
-          "shooting_star_1min": 1
+          "shooting_star_1min": 1,
+          "marubozu_1min": 1,
+          "marubozu_5min": 1,
+          "inside_bar_breakdown_5min": 2,
+          "wick_rejection_filter_1min": 1
         }
       },
       "momentum": {
@@ -169,21 +177,13 @@
         "oversoldThreshold": 20.0,
         "priority": 6
       },
-      "directionalStrength": {
-        "enabled": true,
-        "ntp": 0.5,
-        "name": "Directional Strength",
-        "description": "Filter out entries with directional strength less than 0.5 (50%)",
-        "threshold": 0.5,
-        "priority": 7
-      },
       "atr5Min": {
         "enabled": true,
         "ntp": 1,
         "name": "ATR 5-Minute Filter",
         "description": "Filter out entries when 5-minute ATR is less than 15.0 (low volatility)",
         "threshold": 15.0,
-        "priority": 8
+        "priority": 7
       },
       "consecutiveSameColorCandles": {
         "enabled": true,
@@ -192,7 +192,7 @@
         "description": "BLOCK entries when there are too many consecutive same color candles (negative signal - indicates overextension)",
         "maxConsecutiveCount": 5,
         "analysisWindow": 7,
-        "priority": 9,
+        "priority": 8,
         "timeframe": "FIVE_MIN"
       },
       "nearToSupportResistance": {
@@ -200,7 +200,7 @@
         "ntp": 1,
         "name": "Near Support/Resistance Filter",
         "description": "Filter out entries when price is very near support/resistance levels or round figure index prices",
-        "priority": 10,
+        "priority": 9,
         "supportResistanceBuffer": 5,
         "roundFigureBuffer": 5
       },
@@ -209,7 +209,7 @@
         "ntp": 2,
         "name": "Trading Hours Filter",
         "description": "Filter out entries outside of trading hours (9:15 AM to 3:30 PM IST)",
-        "priority": 11,
+        "priority": 10,
         "startHour": 9,
         "startMinute": 15,
         "endHour": 15,

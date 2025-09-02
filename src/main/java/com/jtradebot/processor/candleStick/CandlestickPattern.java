@@ -280,4 +280,79 @@ public class CandlestickPattern {
         return high.minus(low).abs();
     }
 
+    /**
+     * Check if current bar breaks out of an inside bar pattern
+     * Inside bar: current bar's high and low are within previous bar's range
+     * Breakout: current bar breaks above previous bar's high or below previous bar's low
+     */
+    public static boolean isInsideBarBreakout(Bar previousBar, Bar currentBar) {
+        if (previousBar == null) return false;
+        
+        Num prevHigh = previousBar.getHighPrice();
+        Num prevLow = previousBar.getLowPrice();
+        Num currHigh = currentBar.getHighPrice();
+        Num currLow = currentBar.getLowPrice();
+        
+        // Check if previous bar was an inside bar (current bar's range within previous bar's range)
+        boolean wasInsideBar = currHigh.isLessThanOrEqual(prevHigh) && currLow.isGreaterThanOrEqual(prevLow);
+        
+        if (!wasInsideBar) return false;
+        
+        // Check for breakout: current bar breaks above previous high or below previous low
+        boolean breakoutUp = currHigh.isGreaterThan(prevHigh);
+        boolean breakoutDown = currLow.isLessThan(prevLow);
+        
+        return breakoutUp || breakoutDown;
+    }
+
+    /**
+     * Check if current bar breaks down from an inside bar pattern (bearish signal)
+     * Inside bar: current bar's high and low are within previous bar's range
+     * Breakdown: current bar breaks below previous bar's low (downward breakout)
+     */
+    public static boolean isInsideBarBreakdown(Bar previousBar, Bar currentBar) {
+        if (previousBar == null) return false;
+        
+        Num prevHigh = previousBar.getHighPrice();
+        Num prevLow = previousBar.getLowPrice();
+        Num currHigh = currentBar.getHighPrice();
+        Num currLow = currentBar.getLowPrice();
+        
+        // Check if previous bar was an inside bar (current bar's range within previous bar's range)
+        boolean wasInsideBar = currHigh.isLessThanOrEqual(prevHigh) && currLow.isGreaterThanOrEqual(prevLow);
+        
+        if (!wasInsideBar) return false;
+        
+        // Check for breakdown: current bar breaks below previous low (downward breakout only)
+        boolean breakdownDown = currLow.isLessThan(prevLow);
+        
+        return breakdownDown;
+    }
+
+    /**
+     * Check for wick rejection pattern (long upper shadow indicating rejection of higher prices)
+     * This is typically a bearish signal when it occurs at resistance levels
+     */
+    public static boolean isWickRejectionFilter(Bar bar) {
+        if(getFullHeight(bar).isLessThan(DecimalNum.valueOf(MIN_CANDLE_FULL_HEIGHT))) {
+            return false;
+        }
+        
+        Num open = bar.getOpenPrice();
+        Num close = bar.getClosePrice();
+        Num high = bar.getHighPrice();
+        Num low = bar.getLowPrice();
+        
+        // Calculate body and upper shadow
+        Num body = close.minus(open).abs();
+        Num upperShadow = high.minus(open.max(close));
+        Num totalRange = high.minus(low);
+        
+        // Wick rejection: upper shadow is at least 40% of total range and body is relatively small
+        boolean longUpperShadow = upperShadow.isGreaterThan(totalRange.multipliedBy(DecimalNum.valueOf(0.4)));
+        boolean smallBody = body.isLessThan(totalRange.multipliedBy(DecimalNum.valueOf(0.3)));
+        
+        return longUpperShadow && smallBody;
+    }
+
 }

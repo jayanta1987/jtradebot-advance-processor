@@ -104,6 +104,9 @@ public class FlattenedIndicators {
     private Boolean bullish_harami_1min;
     private Boolean bullish_harami_3min;
     private Boolean bullish_harami_5min;
+    private Boolean bullish_doji_star_1min;
+    private Boolean bullish_doji_star_3min;
+    private Boolean bullish_doji_star_5min;
     private Boolean bullish_morning_star_1min;
     private Boolean bullish_morning_star_3min;
     private Boolean bullish_morning_star_5min;
@@ -127,6 +130,9 @@ public class FlattenedIndicators {
     private Boolean bearish_harami_1min;
     private Boolean bearish_harami_3min;
     private Boolean bearish_harami_5min;
+    private Boolean bearish_doji_star_1min;
+    private Boolean bearish_doji_star_3min;
+    private Boolean bearish_doji_star_5min;
     private Boolean bearish_evening_star_1min;
     private Boolean bearish_evening_star_3min;
     private Boolean bearish_evening_star_5min;
@@ -167,6 +173,17 @@ public class FlattenedIndicators {
     private Boolean red_candle_1min;
     private Boolean red_candle_3min;
     private Boolean red_candle_5min;
+    
+    // Additional candlestick patterns
+    private Boolean inside_bar_breakout_1min;
+    private Boolean inside_bar_breakout_3min;
+    private Boolean inside_bar_breakout_5min;
+    private Boolean inside_bar_breakdown_1min;
+    private Boolean inside_bar_breakdown_3min;
+    private Boolean inside_bar_breakdown_5min;
+    private Boolean wick_rejection_filter_1min;
+    private Boolean wick_rejection_filter_3min;
+    private Boolean wick_rejection_filter_5min;
     
     // Futuresignals for each timeframe
     private FuturesignalData futuresignals;
