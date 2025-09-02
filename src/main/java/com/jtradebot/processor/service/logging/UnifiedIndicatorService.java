@@ -151,25 +151,25 @@ public class UnifiedIndicatorService {
             }
             
             var requirements = scenario.getRequirements();
-            int emaRequired = requirements.getEma_min_count() != null ? requirements.getEma_min_count() : 0;
-            int fvRequired = requirements.getFutureAndVolume_min_count() != null ? requirements.getFutureAndVolume_min_count() : 0;
-            int csRequired = requirements.getCandlestick_min_count() != null ? requirements.getCandlestick_min_count() : 0;
-            int mRequired = requirements.getMomentum_min_count() != null ? requirements.getMomentum_min_count() : 0;
+            int emaRequired = requirements.getEma_min_score() != null ? requirements.getEma_min_score() : 0;
+            int fvRequired = requirements.getFutureAndVolume_min_score() != null ? requirements.getFutureAndVolume_min_score() : 0;
+            int csRequired = requirements.getCandlestick_min_score() != null ? requirements.getCandlestick_min_score() : 0;
+            int mRequired = requirements.getMomentum_min_score() != null ? requirements.getMomentum_min_score() : 0;
             
-            // Get actual category scores for both directions from MarketDirectionService
-            Map<String, Integer> callCategoryCounts = marketDirectionService.getCategoryScores(indicators, "CALL");
-            Map<String, Integer> putCategoryCounts = marketDirectionService.getCategoryScores(indicators, "PUT");
+            // Get weighted category scores for both directions from MarketDirectionService
+            Map<String, Integer> callCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
+            Map<String, Integer> putCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
             
             // Format the breakdown with actual scores for both directions
-            String callEma = callCategoryCounts.getOrDefault("ema", 0) + "/" + emaRequired;
-            String callFv = callCategoryCounts.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
-            String callCs = callCategoryCounts.getOrDefault("candlestick", 0) + "/" + csRequired;
-            String callM = callCategoryCounts.getOrDefault("momentum", 0) + "/" + mRequired;
+            String callEma = callCategoryScores.getOrDefault("ema", 0) + "/" + emaRequired;
+            String callFv = callCategoryScores.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
+            String callCs = callCategoryScores.getOrDefault("candlestick", 0) + "/" + csRequired;
+            String callM = callCategoryScores.getOrDefault("momentum", 0) + "/" + mRequired;
             
-            String putEma = putCategoryCounts.getOrDefault("ema", 0) + "/" + emaRequired;
-            String putFv = putCategoryCounts.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
-            String putCs = putCategoryCounts.getOrDefault("candlestick", 0) + "/" + csRequired;
-            String putM = putCategoryCounts.getOrDefault("momentum", 0) + "/" + mRequired;
+            String putEma = putCategoryScores.getOrDefault("ema", 0) + "/" + emaRequired;
+            String putFv = putCategoryScores.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
+            String putCs = putCategoryScores.getOrDefault("candlestick", 0) + "/" + csRequired;
+            String putM = putCategoryScores.getOrDefault("momentum", 0) + "/" + mRequired;
             
             return String.format("Call: EMA=%s, FV=%s, CS=%s, M=%s | Put: EMA=%s, FV=%s, CS=%s, M=%s", 
                     callEma, callFv, callCs, callM, putEma, putFv, putCs, putM);

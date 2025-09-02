@@ -32,10 +32,10 @@ public class ScalpingEntryService {
 
     public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean preCalculatedMarketCondition) {
         try {
-            // Step 1: Use MarketDirectionService to get category counts and market direction
+            // Step 1: Use MarketDirectionService to get category scores and market direction
             String marketDirection = marketDirectionService.determineMarketDirection(indicators);
-            Map<String, Integer> callCategoryCounts = marketDirectionService.getCategoryScores(indicators, "CALL");
-            Map<String, Integer> putCategoryCounts = marketDirectionService.getCategoryScores(indicators, "PUT");
+            Map<String, Integer> callCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
+            Map<String, Integer> putCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
             
             // Step 2: Use pre-calculated quality score or calculate if not provided
             double qualityScore = Objects.requireNonNullElseGet(preCalculatedQualityScore, () -> calculateQualityScore(indicators));
@@ -45,7 +45,7 @@ public class ScalpingEntryService {
             List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
             
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
-                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryCounts, putCategoryCounts, qualityScore, tick, preCalculatedMarketCondition, marketDirection);
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryScores, putCategoryScores, qualityScore, tick, preCalculatedMarketCondition, marketDirection);
                 scenarioEvaluations.add(evaluation);
             }
             
@@ -153,10 +153,10 @@ public class ScalpingEntryService {
         
         // If scenario only requires quality score (no category requirements)
         if (requirements.getMinQualityScore() != null && 
-            requirements.getEma_min_count() == null && 
-            requirements.getFutureAndVolume_min_count() == null && 
-            requirements.getCandlestick_min_count() == null && 
-            requirements.getMomentum_min_count() == null) {
+            requirements.getEma_min_score() == null && 
+            requirements.getFutureAndVolume_min_score() == null && 
+            requirements.getCandlestick_min_score() == null && 
+            requirements.getMomentum_min_score() == null) {
             
             evaluation.setPassed(qualityScorePassed);
             evaluation.setScore(preCalculatedQualityScore);
@@ -166,34 +166,37 @@ public class ScalpingEntryService {
             return evaluation;
         }
         
-        // Evaluate category-based requirements
+        // Evaluate category-based requirements using weighted scores
         Map<String, Integer> categoryScores = new HashMap<>();
         Map<String, List<String>> matchedConditions = new HashMap<>();
         
         // Use the market direction passed as parameter
         boolean isCallDirection = "CALL".equals(marketDirection);
         
-        // Category breakdown is now included in the main UnifiedIndicatorService log
+        // Get weighted category scores based on market direction
+        Map<String, Integer> weightedCategoryScores = isCallDirection ? 
+            marketDirectionService.getWeightedCategoryScores(indicators, "CALL") :
+            marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
         
-        // Use only the appropriate category counts based on market direction
-        if (requirements.getEma_min_count() != null) {
-            int emaCount = isCallDirection ? callCategoryCounts.getOrDefault("ema", 0) : putCategoryCounts.getOrDefault("ema", 0);
-            categoryScores.put("ema", emaCount);
+        // Use weighted scores for category validation
+        if (requirements.getEma_min_score() != null) {
+            int emaScore = weightedCategoryScores.getOrDefault("ema", 0);
+            categoryScores.put("ema", emaScore);
         }
         
-        if (requirements.getFutureAndVolume_min_count() != null) {
-            int volumeCount = isCallDirection ? callCategoryCounts.getOrDefault("futureAndVolume", 0) : putCategoryCounts.getOrDefault("futureAndVolume", 0);
-            categoryScores.put("futureAndVolume", volumeCount);
+        if (requirements.getFutureAndVolume_min_score() != null) {
+            int volumeScore = weightedCategoryScores.getOrDefault("futureAndVolume", 0);
+            categoryScores.put("futureAndVolume", volumeScore);
         }
         
-        if (requirements.getCandlestick_min_count() != null) {
-            int candlestickCount = isCallDirection ? callCategoryCounts.getOrDefault("candlestick", 0) : putCategoryCounts.getOrDefault("candlestick", 0);
-            categoryScores.put("candlestick", candlestickCount);
+        if (requirements.getCandlestick_min_score() != null) {
+            int candlestickScore = weightedCategoryScores.getOrDefault("candlestick", 0);
+            categoryScores.put("candlestick", candlestickScore);
         }
         
-        if (requirements.getMomentum_min_count() != null) {
-            int momentumCount = isCallDirection ? callCategoryCounts.getOrDefault("momentum", 0) : putCategoryCounts.getOrDefault("momentum", 0);
-            categoryScores.put("momentum", momentumCount);
+        if (requirements.getMomentum_min_score() != null) {
+            int momentumScore = weightedCategoryScores.getOrDefault("momentum", 0);
+            categoryScores.put("momentum", momentumScore);
         }
         
 
@@ -202,28 +205,28 @@ public class ScalpingEntryService {
         boolean categoryRequirementsPassed = true;
         List<String> failedCategories = new ArrayList<>();
         
-        if (requirements.getEma_min_count() != null && 
-            categoryScores.get("ema") < requirements.getEma_min_count()) {
+        if (requirements.getEma_min_score() != null && 
+            categoryScores.get("ema") < requirements.getEma_min_score()) {
             categoryRequirementsPassed = false;
-            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + requirements.getEma_min_count());
+            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + requirements.getEma_min_score());
         }
         
-        if (requirements.getFutureAndVolume_min_count() != null && 
-            categoryScores.get("futureAndVolume") < requirements.getFutureAndVolume_min_count()) {
+        if (requirements.getFutureAndVolume_min_score() != null && 
+            categoryScores.get("futureAndVolume") < requirements.getFutureAndVolume_min_score()) {
             categoryRequirementsPassed = false;
-            failedCategories.add("FV: " + categoryScores.get("futureAndVolume") + "/" + requirements.getFutureAndVolume_min_count());
+            failedCategories.add("FV: " + categoryScores.get("futureAndVolume") + "/" + requirements.getFutureAndVolume_min_score());
         }
         
-        if (requirements.getCandlestick_min_count() != null && 
-            categoryScores.get("candlestick") < requirements.getCandlestick_min_count()) {
+        if (requirements.getCandlestick_min_score() != null && 
+            categoryScores.get("candlestick") < requirements.getCandlestick_min_score()) {
             categoryRequirementsPassed = false;
-            failedCategories.add("CS: " + categoryScores.get("candlestick") + "/" + requirements.getCandlestick_min_count());
+            failedCategories.add("CS: " + categoryScores.get("candlestick") + "/" + requirements.getCandlestick_min_score());
         }
         
-        if (requirements.getMomentum_min_count() != null && 
-            categoryScores.get("momentum") < requirements.getMomentum_min_count()) {
+        if (requirements.getMomentum_min_score() != null && 
+            categoryScores.get("momentum") < requirements.getMomentum_min_score()) {
             categoryRequirementsPassed = false;
-            failedCategories.add("M: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_count());
+            failedCategories.add("M: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_score());
         }
         
 
@@ -261,217 +264,6 @@ public class ScalpingEntryService {
         evaluation.setReason(reason.toString());
         
         return evaluation;
-    }
-
-    
-    private boolean evaluateCondition(String condition, FlattenedIndicators indicators) {
-        try {
-            // This is a simplified condition evaluation
-            // In a real implementation, you would have more sophisticated logic
-            
-            // EMA conditions - check specific timeframe (EMA5 vs EMA34)
-            if (condition.equals("ema5_5min_gt_ema34_5min")) {
-                return Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min());
-            }
-            if (condition.equals("ema5_1min_gt_ema34_1min")) {
-                return Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min());
-            }
-            if (condition.equals("ema5_15min_gt_ema34_15min")) {
-                return Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min());
-            }
-            if (condition.equals("ema5_5min_lt_ema34_5min")) {
-                return Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min());
-            }
-            if (condition.equals("ema5_1min_lt_ema34_1min")) {
-                return Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min());
-            }
-            if (condition.equals("ema5_15min_lt_ema34_15min")) {
-                return Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min());
-            }
-        
-        // Volume conditions - check specific timeframe using thresholds from scoring config
-        if (condition.equals("volume_5min_surge")) {
-            boolean hasVolumeSurge = Boolean.TRUE.equals(indicators.getVolume_5min_surge());
-            Double volumeMultiplier = indicators.getVolume_surge_multiplier();
-            
-            // Check if volume multiplier meets the minimum threshold from scoring config
-            if (hasVolumeSurge && volumeMultiplier != null) {
-                double minVolumeMultiplier = scoringConfigService.getSurgeMultiplier();
-                return volumeMultiplier >= minVolumeMultiplier;
-            }
-            return hasVolumeSurge;
-        }
-        if (condition.equals("volume_1min_surge")) {
-            boolean hasVolumeSurge = Boolean.TRUE.equals(indicators.getVolume_1min_surge());
-            Double volumeMultiplier = indicators.getVolume_surge_multiplier();
-            
-            // Check if volume multiplier meets the minimum threshold from scoring config
-            if (hasVolumeSurge && volumeMultiplier != null) {
-                double minVolumeMultiplier = scoringConfigService.getSurgeMultiplier();
-                return volumeMultiplier >= minVolumeMultiplier;
-            }
-            return hasVolumeSurge;
-        }
-        if (condition.equals("volume_15min_surge")) {
-            boolean hasVolumeSurge = Boolean.TRUE.equals(indicators.getVolume_15min_surge());
-            Double volumeMultiplier = indicators.getVolume_surge_multiplier();
-            
-            // Check if volume multiplier meets the minimum threshold from scoring config
-            if (hasVolumeSurge && volumeMultiplier != null) {
-                double minVolumeMultiplier = scoringConfigService.getSurgeMultiplier();
-                return volumeMultiplier >= minVolumeMultiplier;
-            }
-            return hasVolumeSurge;
-        }
-        
-        // VWAP conditions - check specific timeframe
-        if (condition.equals("price_gt_vwap_5min")) {
-            return Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min());
-        }
-        if (condition.equals("price_gt_vwap_1min")) {
-            return Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min());
-        }
-        if (condition.equals("price_gt_vwap_15min")) {
-            return Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min());
-        }
-        if (condition.equals("price_lt_vwap_5min")) {
-            return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min());
-        }
-        if (condition.equals("price_lt_vwap_1min")) {
-            return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min());
-        }
-        if (condition.equals("price_lt_vwap_15min")) {
-            return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min());
-        }
-        
-        // Support/Resistance conditions
-        if (condition.contains("price_above_resistance")) {
-            return Boolean.TRUE.equals(indicators.getPrice_above_resistance());
-        }
-        
-        if (condition.contains("price_below_support")) {
-            return Boolean.TRUE.equals(indicators.getPrice_below_support());
-        }
-        
-        // Candlestick conditions - check specific timeframe
-        if (condition.equals("green_candle_5min")) {
-            return Boolean.TRUE.equals(indicators.getGreen_candle_5min());
-        }
-        if (condition.equals("green_candle_1min")) {
-            return Boolean.TRUE.equals(indicators.getGreen_candle_1min());
-        }
-        if (condition.equals("red_candle_5min")) {
-            return Boolean.TRUE.equals(indicators.getRed_candle_5min());
-        }
-        if (condition.equals("red_candle_1min")) {
-            return Boolean.TRUE.equals(indicators.getRed_candle_1min());
-        }
-        if (condition.equals("long_body_5min")) {
-            return Boolean.TRUE.equals(indicators.getLong_body_5min());
-        }
-        if (condition.equals("long_body_1min")) {
-            return Boolean.TRUE.equals(indicators.getLong_body_1min());
-        }
-        if (condition.equals("bullish_engulfing_5min")) {
-            return Boolean.TRUE.equals(indicators.getBullish_engulfing_5min());
-        }
-        if (condition.equals("bullish_engulfing_1min")) {
-            return Boolean.TRUE.equals(indicators.getBullish_engulfing_1min());
-        }
-        if (condition.equals("bearish_engulfing_5min")) {
-            return Boolean.TRUE.equals(indicators.getBearish_engulfing_5min());
-        }
-        if (condition.equals("bearish_engulfing_1min")) {
-            return Boolean.TRUE.equals(indicators.getBearish_engulfing_1min());
-        }
-        if (condition.equals("bullish_morning_star_5min")) {
-            return Boolean.TRUE.equals(indicators.getBullish_morning_star_5min());
-        }
-        if (condition.equals("bullish_morning_star_1min")) {
-            return Boolean.TRUE.equals(indicators.getBullish_morning_star_1min());
-        }
-        if (condition.equals("bearish_evening_star_5min")) {
-            return Boolean.TRUE.equals(indicators.getBearish_evening_star_5min());
-        }
-        if (condition.equals("bearish_evening_star_1min")) {
-            return Boolean.TRUE.equals(indicators.getBearish_evening_star_1min());
-        }
-        if (condition.equals("hammer_5min")) {
-            return Boolean.TRUE.equals(indicators.getHammer_5min());
-        }
-        if (condition.equals("hammer_1min")) {
-            return Boolean.TRUE.equals(indicators.getHammer_1min());
-        }
-        if (condition.equals("shooting_star_5min")) {
-            return Boolean.TRUE.equals(indicators.getShooting_star_5min());
-        }
-        if (condition.equals("shooting_star_1min")) {
-            return Boolean.TRUE.equals(indicators.getShooting_star_1min());
-        }
-        
-        // RSI conditions - check specific timeframe using thresholds from scoring config
-        if (condition.equals("rsi_5min_gt_60")) {
-            return Boolean.TRUE.equals(indicators.getRsi_5min_gt_60());
-        }
-        if (condition.equals("rsi_1min_gt_60")) {
-            return Boolean.TRUE.equals(indicators.getRsi_1min_gt_60());
-        }
-        if (condition.equals("rsi_15min_gt_60")) {
-            return Boolean.TRUE.equals(indicators.getRsi_15min_gt_60());
-        }
-        if (condition.equals("rsi_5min_lt_40")) {
-            return Boolean.TRUE.equals(indicators.getRsi_5min_lt_40());
-        }
-        if (condition.equals("rsi_1min_lt_40")) {
-            return Boolean.TRUE.equals(indicators.getRsi_1min_lt_40());
-        }
-        if (condition.equals("rsi_15min_lt_40")) {
-            return Boolean.TRUE.equals(indicators.getRsi_15min_lt_40());
-        }
-        if (condition.equals("rsi_5min_gt_rsi_ma")) {
-            return Boolean.TRUE.equals(indicators.getRsi_5min_gt_rsi_ma());
-        }
-        if (condition.equals("rsi_1min_gt_rsi_ma")) {
-            return Boolean.TRUE.equals(indicators.getRsi_1min_gt_rsi_ma());
-        }
-        if (condition.equals("rsi_15min_gt_rsi_ma")) {
-            return Boolean.TRUE.equals(indicators.getRsi_15min_gt_rsi_ma());
-        }
-        if (condition.equals("rsi_5min_lt_rsi_ma")) {
-            return Boolean.TRUE.equals(indicators.getRsi_5min_lt_rsi_ma());
-        }
-        if (condition.equals("rsi_1min_lt_rsi_ma")) {
-            return Boolean.TRUE.equals(indicators.getRsi_1min_lt_rsi_ma());
-        }
-        if (condition.equals("rsi_15min_lt_rsi_ma")) {
-            return Boolean.TRUE.equals(indicators.getRsi_15min_lt_rsi_ma());
-        }
-        
-        // RSI Divergence conditions
-        if (condition.equals("rsi_bullish_divergence_5min")) {
-            return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_5min());
-        }
-        if (condition.equals("rsi_bullish_divergence_1min")) {
-            return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1min());
-        }
-        if (condition.equals("rsi_bullish_divergence_15min")) {
-            return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_15min());
-        }
-        if (condition.equals("rsi_bearish_divergence_5min")) {
-            return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_5min());
-        }
-        if (condition.equals("rsi_bearish_divergence_1min")) {
-            return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1min());
-        }
-        if (condition.equals("rsi_bearish_divergence_15min")) {
-            return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min());
-        }
-        
-        return false; // Default to false for unknown conditions
-        } catch (Exception e) {
-            log.warn("Error evaluating condition '{}': {}", condition, e.getMessage());
-            return false; // Return false on any error
-        }
     }
     
     private double calculateQualityScore(FlattenedIndicators indicators) {

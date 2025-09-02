@@ -1,7 +1,7 @@
 {
   "strategy": "SCALPING_ENTRY_LOGIC",
-  "version": "2.0",
-  "description": "Clean scalping entry logic with only actively used configurations",
+  "version": "2.1",
+  "description": "Clean scalping entry logic with individual indicator weightage-based scoring system",
   
   "futuresignalsConfig": {
     "enabledTimeframes": [
@@ -13,104 +13,116 @@
   "scenarios": [
     {
       "name": "SAFE_ENTRY_SIGNAL",
-      "description": "Conservative entry with strong confirmations using scoring config thresholds",
+      "description": "Conservative entry with strong confirmations using category-based scoring system",
       "requirements": {
-        "minQualityScore": 7.5,
-        "ema_min_count": 3,
-        "futureAndVolume_min_count": 3,
-        "candlestick_min_count": 3,
-        "momentum_min_count": 4,
+        "minQualityScore": 7.1,
+        "ema_min_score": 2,
+        "futureAndVolume_min_score": 3,
+        "candlestick_min_score": 3,
+        "momentum_min_score": 2,
         "flatMarketFilter": true
       }
     }
   ],
   
-  "callCategories": {
-    "ema": [
-      "ema5_5min_gt_ema34_5min",
-      "ema5_1min_gt_ema34_1min",
-      "ema5_15min_gt_ema34_15min"
-    ],
-    "futureAndVolume": [
-      "volume_5min_surge",
-      "volume_1min_surge",
-      "volume_15min_surge",
-      "price_gt_vwap_5min",
-      "price_gt_vwap_1min",
-      "price_gt_vwap_15min",
-      "price_above_resistance"
-    ],
-    "candlestick": [
-      "green_candle_5min",
-      "green_candle_1min",
-      "long_body_5min",
-      "long_body_1min",
-      "bullish_engulfing_5min",
-      "bullish_engulfing_1min",
-      "bullish_morning_star_5min",
-      "bullish_morning_star_1min",
-      "hammer_5min",
-      "hammer_1min"
-    ],
-    "momentum": [
-      "rsi_5min_gt_60",
-      "rsi_1min_gt_60",
-      "rsi_15min_gt_60",
-      "rsi_5min_gt_rsi_ma",
-      "rsi_1min_gt_rsi_ma",
-      "rsi_15min_gt_rsi_ma",
-      "rsi_bullish_divergence_5min",
-      "rsi_bullish_divergence_1min",
-      "rsi_bullish_divergence_15min"
-    ]
-  },
-  
-  "putCategories": {
-    "ema": [
-      "ema5_5min_lt_ema34_5min",
-      "ema5_1min_lt_ema34_1min",
-      "ema5_15min_lt_ema34_15min"
-    ],
-    "futureAndVolume": [
-      "volume_5min_surge",
-      "volume_1min_surge",
-      "volume_15min_surge",
-      "price_lt_vwap_5min",
-      "price_lt_vwap_1min",
-      "price_lt_vwap_15min",
-      "price_below_support"
-    ],
-    "candlestick": [
-      "red_candle_5min",
-      "red_candle_1min",
-      "bearish_engulfing_5min",
-      "bearish_engulfing_1min",
-      "bearish_evening_star_5min",
-      "bearish_evening_star_1min",
-      "shooting_star_5min",
-      "shooting_star_1min"
-    ],
-    "momentum": [
-      "rsi_5min_lt_40",
-      "rsi_1min_lt_40",
-      "rsi_15min_lt_40",
-      "rsi_5min_lt_rsi_ma",
-      "rsi_1min_lt_rsi_ma",
-      "rsi_15min_lt_rsi_ma",
-      "rsi_bearish_divergence_5min",
-      "rsi_bearish_divergence_1min",
-      "rsi_bearish_divergence_15min"
-    ]
+  "categoryScoring": {
+    "callCategories": {
+      "ema": {
+        "indicators": {
+          "ema5_5min_gt_ema34_5min": 1,
+          "ema5_1min_gt_ema34_1min": 1,
+          "ema5_15min_gt_ema34_15min": 1
+        }
+      },
+      "futureAndVolume": {
+        "indicators": {
+          "volume_5min_surge": 1,
+          "volume_1min_surge": 1,
+          "volume_15min_surge": 1,
+          "price_gt_vwap_5min": 1,
+          "price_gt_vwap_1min": 1,
+          "price_gt_vwap_15min": 1,
+          "price_above_resistance": 2
+        }
+      },
+      "candlestick": {
+        "indicators": {
+          "green_candle_5min": 1,
+          "green_candle_1min": 1,
+          "long_body_5min": 1,
+          "long_body_1min": 1,
+          "bullish_engulfing_5min": 2,
+          "bullish_engulfing_1min": 2,
+          "bullish_morning_star_5min": 2,
+          "bullish_morning_star_1min": 2,
+          "hammer_5min": 1,
+          "hammer_1min": 1
+        }
+      },
+      "momentum": {
+        "indicators": {
+          "rsi_5min_gt_60": 1,
+          "rsi_1min_gt_60": 1,
+          "rsi_5min_gt_rsi_ma": 1,
+          "rsi_1min_gt_rsi_ma": 1,
+          "rsi_bullish_divergence_5min": 2,
+          "rsi_bullish_divergence_15min": 2
+        }
+      }
+    },
+    
+    "putCategories": {
+      "ema": {
+        "indicators": {
+          "ema5_5min_lt_ema34_5min": 1,
+          "ema5_1min_lt_ema34_1min": 1,
+          "ema5_15min_lt_ema34_15min": 1
+        }
+      },
+      "futureAndVolume": {
+        "indicators": {
+          "volume_5min_surge": 1,
+          "volume_1min_surge": 1,
+          "volume_15min_surge": 1,
+          "price_lt_vwap_5min": 1,
+          "price_lt_vwap_1min": 1,
+          "price_lt_vwap_15min": 1,
+          "price_below_support": 2
+        }
+      },
+      "candlestick": {
+        "indicators": {
+          "red_candle_5min": 1,
+          "red_candle_1min": 1,
+          "bearish_engulfing_5min": 2,
+          "bearish_engulfing_1min": 2,
+          "bearish_evening_star_5min": 2,
+          "bearish_evening_star_1min": 2,
+          "shooting_star_5min": 1,
+          "shooting_star_1min": 1
+        }
+      },
+      "momentum": {
+        "indicators": {
+          "rsi_5min_lt_40": 1,
+          "rsi_1min_lt_40": 1,
+          "rsi_5min_lt_rsi_ma": 1,
+          "rsi_1min_lt_rsi_ma": 1,
+          "rsi_bearish_divergence_5min": 2,
+          "rsi_bearish_divergence_15min": 2
+        }
+      }
+    }
   },
   
   "noTradeZones": {
     "enabled": true,
     "description": "Weightage-based market condition filtering using NTP (No Trading Point) system",
-    "maxAllowedNTP": 2,
+    "maxAllowedNTP": 1,
     "filters": {
       "candleHeight": {
         "enabled": true,
-        "ntp": 3,
+        "ntp": 1,
         "name": "Minimum Candle Height",
         "description": "Filter out entries with candle height less than 8.0",
         "threshold": 4.0,
@@ -121,7 +133,7 @@
         "ntp": 1,
         "name": "Volume Surge Multiplier",
         "description": "Filter out entries with volume surge less than configured threshold",
-        "threshold": 10.0,
+        "threshold": 8.0,
         "priority": 2
       },
       "bodyRatio": {
@@ -134,7 +146,7 @@
       },
       "ema200Distance": {
         "enabled": true,
-        "ntp": 1.5,
+        "ntp": 2,
         "name": "EMA 200 Distance",
         "description": "Filter out entries with EMA 200 distance more than 0.6% or less than 0.1% of EMA 200",
         "maxThreshold": 0.006,
@@ -143,14 +155,14 @@
       },
       "priceBetweenEma34AndEma200": {
         "enabled": true,
-        "ntp": 1,
+        "ntp": 0.5,
         "name": "Price Between EMA34 and EMA200",
         "description": "Filter out entries when price is between EMA34 and EMA200",
         "priority": 5
       },
       "overboughtOversold": {
         "enabled": true,
-        "ntp": 1,
+        "ntp": 2,
         "name": "Overbought/Oversold RSI",
         "description": "Filter out entries when RSI is overbought (>80) or oversold (<20)",
         "overboughtThreshold": 80.0,
@@ -159,7 +171,7 @@
       },
       "directionalStrength": {
         "enabled": true,
-        "ntp": 1,
+        "ntp": 0.5,
         "name": "Directional Strength",
         "description": "Filter out entries with directional strength less than 0.5 (50%)",
         "threshold": 0.5,
@@ -167,7 +179,7 @@
       },
       "atr5Min": {
         "enabled": true,
-        "ntp": 1.5,
+        "ntp": 1,
         "name": "ATR 5-Minute Filter",
         "description": "Filter out entries when 5-minute ATR is less than 15.0 (low volatility)",
         "threshold": 15.0,
@@ -194,7 +206,7 @@
       },
       "tradingHours": {
         "enabled": true,
-        "ntp": 3,
+        "ntp": 2,
         "name": "Trading Hours Filter",
         "description": "Filter out entries outside of trading hours (9:15 AM to 3:30 PM IST)",
         "priority": 11,

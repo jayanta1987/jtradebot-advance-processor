@@ -254,10 +254,11 @@ public class UnstableMarketConditionAnalysisService {
                 int analysisWindow = filter.getAnalysisWindow() != null ? filter.getAnalysisWindow() : 10;
                 
                 BarSeries barSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, timeframe);
+                // Count consecutive same color/neutral candles from the last candle backwards (neutral candles act as bridges)
                 int consecutiveSameColorCount = calculateConsecutiveSameColorCandles(barSeries, analysisWindow);
                 passed = consecutiveSameColorCount < filter.getMaxConsecutiveCount();
-                details = String.format("Consecutive same color candles: %d (max allowed: %d, timeframe: %s, analysis window: %d)", 
-                        consecutiveSameColorCount, filter.getMaxConsecutiveCount(), timeframeStr, analysisWindow);
+                details = String.format("Consecutive same color/neutral candles from last: %d (max allowed: %d, timeframe: %s)", 
+                        consecutiveSameColorCount, filter.getMaxConsecutiveCount(), timeframeStr);
                 break;
                 
             case "nearToSupportResistance":
@@ -384,34 +385,40 @@ public class UnstableMarketConditionAnalysisService {
 
 
     /**
-     * Calculate the number of consecutive same color candles
+     * Calculate the number of consecutive same color candles from the immediate last candle backwards
+     * Neutral candles act as bridges between same colors, allowing continuation of the streak
      * @param barSeries The bar series to analyze
      * @param lookbackBars Number of bars to look back (default 10)
-     * @return Number of consecutive same color candles
+     * @return Number of consecutive same color/neutral candles from the last candle backwards
      */
-    private int calculateConsecutiveSameColorCandles(BarSeries barSeries, int lookbackBars) {
+    int calculateConsecutiveSameColorCandles(BarSeries barSeries, int lookbackBars) {
         try {
             if (barSeries.getBarCount() < lookbackBars) {
                 return 0;
             }
 
             int consecutiveCount = 0;
-            String currentColor = null;
+            String targetColor = null; // The color we're looking for (from the last candle)
+            boolean foundDifferentColor = false;
 
-            // Start from the most recent bar and go backwards
+            // Start from the most recent completed bar and go backwards
             for (int i = barSeries.getBarCount() - 2; i >= barSeries.getBarCount() - lookbackBars; i--) { // -2 means skip current forming candle
                 Bar bar = barSeries.getBar(i);
                 String candleColor = determineCandleColor(bar);
 
-                if (currentColor == null) {
-                    // First candle
-                    currentColor = candleColor;
+                if (targetColor == null) {
+                    // First candle (most recent completed candle) - this is our target color
+                    targetColor = candleColor;
                     consecutiveCount = 1;
-                } else if (candleColor.equals(currentColor)) {
-                    // Same color as previous
+                } else if (candleColor.equals(targetColor)) {
+                    // Same color as target, continue counting
+                    consecutiveCount++;
+                } else if (candleColor.equals("NEUTRAL")) {
+                    // Neutral candle - can act as a bridge, continue counting
                     consecutiveCount++;
                 } else {
-                    // Different color, break the streak
+                    // Different color (not neutral), stop counting
+                    foundDifferentColor = true;
                     break;
                 }
             }
@@ -429,7 +436,7 @@ public class UnstableMarketConditionAnalysisService {
      * @param bar The bar to analyze
      * @return Color of the candle
      */
-    private String determineCandleColor(Bar bar) {
+    String determineCandleColor(Bar bar) {
         double openPrice = bar.getOpenPrice().doubleValue();
         double closePrice = bar.getClosePrice().doubleValue();
         
