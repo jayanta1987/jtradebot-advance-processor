@@ -15,11 +15,11 @@
       "name": "SAFE_ENTRY_SIGNAL",
       "description": "Conservative entry with strong confirmations using category-based scoring system",
       "requirements": {
-        "minQualityScore": 7.1,
-        "ema_min_score": 2,
-        "futureAndVolume_min_score": 3,
-        "candlestick_min_score": 3,
-        "momentum_min_score": 2,
+        "minQualityScore": 8,
+        "ema_min_score": 3,
+        "futureAndVolume_min_score": 4,
+        "candlestick_min_score": 4,
+        "momentum_min_score": 3,
         "flatMarketFilter": true
       }
     }

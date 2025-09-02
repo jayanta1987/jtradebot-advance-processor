@@ -71,56 +71,6 @@ public class PriceVolumeSurgeIndicator {
         }
     }
 
-    /**
-     * Optimized method to calculate volume surge for all timeframes in a single call
-     * This prevents multiple redundant calculations and improves performance
-     */
-    public MultiTimeframeVolumeSurge calculateMultiTimeframeVolumeSurge(String instrumentToken, long currentVolume) {
-        String cacheKey = instrumentToken + "_" + currentVolume;
-        long currentTime = System.currentTimeMillis();
-        
-        // Check cache first
-        VolumeSurgeCacheEntry cachedEntry = volumeSurgeCache.get(cacheKey);
-        if (cachedEntry != null && (currentTime - cachedEntry.getTimestamp()) < CACHE_DURATION_MS) {
-            log.debug("Using cached volume surge data for instrument: {}", instrumentToken);
-            return cachedEntry.getResult();
-        }
-        
-        try {
-            // Calculate for all timeframes in parallel
-            VolumeSurgeResult surge1min = calculateVolumeSurge(instrumentToken, ONE_MIN, currentVolume);
-            VolumeSurgeResult surge5min = calculateVolumeSurge(instrumentToken, FIVE_MIN, currentVolume);
-            VolumeSurgeResult surge15min = calculateVolumeSurge(instrumentToken, FIFTEEN_MIN, currentVolume);
-            
-            // Find the highest volume multiplier across all timeframes
-            double maxVolumeMultiplier = Math.max(
-                Math.max(surge1min.getVolumeMultiplier(), surge5min.getVolumeMultiplier()),
-                surge15min.getVolumeMultiplier()
-            );
-            
-            MultiTimeframeVolumeSurge result = MultiTimeframeVolumeSurge.builder()
-                    .surge1min(surge1min)
-                    .surge5min(surge5min)
-                    .surge15min(surge15min)
-                    .maxVolumeMultiplier(maxVolumeMultiplier)
-                    .hasAnySurge(surge1min.isSurge() || surge5min.isSurge() || surge15min.isSurge())
-                    .build();
-            
-            // Cache the result
-            volumeSurgeCache.put(cacheKey, new VolumeSurgeCacheEntry(result, currentTime));
-            
-            log.debug("Calculated multi-timeframe volume surge for instrument: {} - 1min: {}x, 5min: {}x, 15min: {}x, max: {}x",
-                    instrumentToken, surge1min.getVolumeMultiplier(), surge5min.getVolumeMultiplier(), 
-                    surge15min.getVolumeMultiplier(), maxVolumeMultiplier);
-            
-            return result;
-            
-        } catch (Exception e) {
-            log.error("Error calculating multi-timeframe volume surge for instrument: {}", instrumentToken, e);
-            return MultiTimeframeVolumeSurge.noSurge();
-        }
-    }
-
     public NiftyVolumeAnalysis analyzeNiftyVolume(String niftyFutureToken, long futureVolume) {
         try {
             VolumeSurgeResult futureSurge = calculateVolumeSurge(niftyFutureToken, FIVE_MIN, futureVolume);
