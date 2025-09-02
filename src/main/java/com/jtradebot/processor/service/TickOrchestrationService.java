@@ -7,14 +7,12 @@ import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
-import com.jtradebot.processor.service.logging.UnifiedIndicatorService;
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.analysis.MarketDirectionService;
 import com.jtradebot.processor.service.order.ExitStrategyService;
 import com.jtradebot.processor.service.order.OrderExecutionService;
 import com.jtradebot.processor.service.scheduler.TickEventTracker;
 import com.zerodhatech.models.Tick;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +37,6 @@ public class TickOrchestrationService {
     private final MarketDirectionService marketDirectionService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
     private final OrderExecutionService orderExecutionService;
-    private final UnifiedIndicatorService unifiedIndicatorService;
     private final ExitStrategyService exitStrategyService;
     private final DynamicStrategyConfigService configService;
 
@@ -93,7 +90,8 @@ public class TickOrchestrationService {
                     FlattenedIndicators indicators = dynamicRuleEvaluatorService.getFlattenedIndicators(tick);
 
                     // Step 2: Analyze no trade zones filter checks
-                    boolean inTradingZone = unstableMarketConditionAnalysisService.inTradingZone(tick, indicators);
+                    UnstableMarketConditionAnalysisService.FlexibleFilteringResult result = unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
+                    boolean inTradingZone = result.isConditionsMet();
 
                     // Step 3: Calculate Category Scores and Quality Score
                     Map<String, Integer> callScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
@@ -102,9 +100,11 @@ public class TickOrchestrationService {
                     int callTotal = callScores.values().stream().mapToInt(Integer::intValue).sum();
                     int putTotal = putScores.values().stream().mapToInt(Integer::intValue).sum();
                     double qualityScore = calculateQualityScore(callTotal, putTotal);
+                    // Show quality-based evaluation using calculated quality score
+                    String dominantTrend = callTotal > putTotal ? "CALL" : "PUT";
 
                     // step 4: Log comprehensive indicator analysis
-                    logComprehensiveIndicatorAnalysis(tick, qualityScore, callScores, putScores, callTotal, putTotal);
+                    logComprehensiveIndicatorAnalysis(tick, qualityScore, callScores, putScores, dominantTrend);
 
                     // Step 5: Block entries after recent stop-loss hits
                     if (exitStrategyService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken())) {
@@ -112,16 +112,15 @@ public class TickOrchestrationService {
                         return;
                     }
 
-
                     boolean filtersPassed = isEligibleForEntryCheck(tick, qualityScore, inTradingZone);
 
                     // Step 6: Execute orders if signals are generated
                     if (filtersPassed) {
-                        orderExecutionService.executeOrdersIfSignalsGenerated(tick, indicators, inTradingZone);
+                        orderExecutionService.executeOrdersIfSignalsGenerated(tick, indicators, result, qualityScore, dominantTrend, callScores, putScores);
                     }
 
                     // Step 7: Handle order management
-                    orderExecutionService.handleOrderManagement(tick, indicators, inTradingZone);
+                    orderExecutionService.handleOrderManagement(tick);
 
                 } catch (Exception e) {
                     log.error("Error processing tick for instrument {}: {}", tick.getInstrumentToken(), e.getMessage());
@@ -158,10 +157,10 @@ public class TickOrchestrationService {
         }
     }
 
-    private void logComprehensiveIndicatorAnalysis(Tick tick, double qualityScore, Map<String, Integer> callScores, Map<String, Integer> putScores, int callTotal, int putTotal) {
+    private void logComprehensiveIndicatorAnalysis(Tick tick, double qualityScore, Map<String, Integer> callScores, Map<String, Integer> putScores, String dominantTrend) {
         try {
             // Generate trend info using calculated quality score
-            String trendInfo = generateTrendInfo(callScores, putScores, callTotal, putTotal, qualityScore);
+            String trendInfo = generateTrendInfo(callScores, putScores, dominantTrend, qualityScore);
 
             // Log the comprehensive analysis
             log.info("📊 {} | 💰 {} | {}",
@@ -186,10 +185,8 @@ public class TickOrchestrationService {
     /**
      * Generate trend info for logging (moved from UnifiedIndicatorService)
      */
-    private String generateTrendInfo(Map<String, Integer> callScores, Map<String, Integer> putScores, int callTotal, int putTotal, double qualityScore) {
+    private String generateTrendInfo(Map<String, Integer> callScores, Map<String, Integer> putScores, String dominantTrend, double qualityScore) {
         try {
-            // Show quality-based evaluation using calculated quality score
-            String dominantTrend = callTotal > putTotal ? "CALL" : "PUT";
 
             // Get category breakdown with requirements
             String categoryBreakdown = getCategoryBreakdownWithRequirements(callScores, putScores);

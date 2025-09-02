@@ -36,6 +36,7 @@ public class UnstableMarketConditionAnalysisService {
     private final ScoringConfigurationService scoringConfigService;
     private final SupportResistanceIndicator supportResistanceIndicator;
 
+
     public boolean inTradingZone(Tick tick, FlattenedIndicators indicators) {
         try {
             // Check if no-trade-zones filtering is enabled

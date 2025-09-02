@@ -1,7 +1,6 @@
 package com.jtradebot.processor.service.order;
 
 
-import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
@@ -10,7 +9,6 @@ import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.EntryConditionAnalysisService;
-import com.jtradebot.processor.service.TickOrchestrationService;
 
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
@@ -43,17 +41,12 @@ public class OrderExecutionService {
     private final TickDataManager tickDataManager;
     private final KiteConnect kiteConnect;
     private final Environment environment;
-    private final EntryConditionAnalysisService entryConditionAnalysisService;
     private final LiveOptionPricingService liveOptionPricingService;
-    private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
-
     private final TradingConfigurationService tradingConfigService;
-    private final CategoryAnalysisService categoryAnalysisService;
     private final DynamicRiskManagementService dynamicRiskManagementService;
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
-    private final OrderNotificationService orderNotificationService;
 
-    public void handleOrderManagement(Tick indexTick, FlattenedIndicators indicators, boolean inTradingZone) {
+    public void handleOrderManagement(Tick indexTick) {
         exitStrategyService.checkAndProcessExitsWithStrategy(indexTick);
         try {
             updateLivePnL(indexTick);
@@ -62,7 +55,7 @@ public class OrderExecutionService {
         }
     }
 
-    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, boolean inTradingZone) {
+    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend) {
 
         try {
             // Check if we can execute the order (no active orders)
@@ -72,15 +65,8 @@ public class OrderExecutionService {
 
             if (!hasActiveOrder) {
                 // Determine order type based on entry decision
-                String orderType = determineOrderType(entryDecision, indicators);
-                log.debug("🔍 ORDER TYPE DETERMINATION - OrderType: {}, QualityScore: {}", orderType, entryDecision.getQualityScore());
-
-                if (orderType != null) {
-                    log.debug("🔥 CREATING ORDER - Type: {}, Symbol: {}", orderType, entryDecision.getScenarioName());
-                    createTradeOrder(tick, orderType, entryDecision, indicators, inTradingZone);
-                } else {
-                    log.debug("❌ ORDER TYPE IS NULL - Cannot create order");
-                }
+                String orderType = determineOrderType(dominantTrend);
+                createTradeOrder(tick, orderType, entryDecision, inTradingZone);
             } else {
                 log.warn("⚠️ ACTIVE ORDER EXISTS - Cannot create new order.");
             }
@@ -92,81 +78,28 @@ public class OrderExecutionService {
     }
 
 
-    public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, boolean inTradingZone) {
+    public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, double qualityScore, String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores) {
         // Get entry decision directly from DynamicRuleEvaluatorService
         ScalpingEntryDecision scenarioDecision = null;
         try {
-            scenarioDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, inTradingZone);
+            scenarioDecision = dynamicRuleEvaluatorService.getEntryDecision(indexTick, indicators, result, qualityScore, dominantTrend, callScores, putScores);
         } catch (Exception e) {
             log.error("Error getting entry decision for order execution: {}", e.getMessage());
             return;
         }
 
         if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
-            validateAndExecuteOrder(indexTick, scenarioDecision, indicators, inTradingZone);
+            validateAndExecuteOrder(indexTick, scenarioDecision, result.isConditionsMet(), dominantTrend);
         }
     }
 
-
-    /**
-     * Determine order type based on entry decision signals
-     */
-    private String determineOrderType(ScalpingEntryDecision entryDecision, FlattenedIndicators indicators) {
-        // Use the explicit signal flags from the entry decision
-        if (entryDecision.isShouldCall()) {
-            log.debug("🔍 ORDER TYPE LOGIC - ShouldCall: true, OrderType: CALL_BUY");
-            return "CALL_BUY";
-        } else if (entryDecision.isShouldPut()) {
-            log.debug("🔍 ORDER TYPE LOGIC - ShouldPut: true, OrderType: PUT_BUY");
-            return "PUT_BUY";
-        } else {
-            log.warn("🔍 ORDER TYPE LOGIC - No explicit signals, using CategoryAnalysisService as fallback");
-            // Fallback: use CategoryAnalysisService to determine direction
-            return determineOrderTypeFromCategoryAnalysis(indicators);
-        }
+    private String determineOrderType(String dominantTrend) {
+        return dominantTrend.concat("_BUY");
     }
 
-    /**
-     * Use CategoryAnalysisService to determine order type from indicators
-     */
-    private String determineOrderTypeFromCategoryAnalysis(FlattenedIndicators indicators) {
-        // Get category counts for both CALL and PUT strategies
-        Map<String, Integer> callCategoryCounts = categoryAnalysisService.getCategoryCountsMap(indicators, "CALL");
-        Map<String, Integer> putCategoryCounts = categoryAnalysisService.getCategoryCountsMap(indicators, "PUT");
-
-        // Calculate total scores for each direction
-        int callTotalScore = callCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
-        int putTotalScore = putCategoryCounts.values().stream().mapToInt(Integer::intValue).sum();
-
-        log.debug("🔍 CATEGORY ANALYSIS - CallTotalScore: {}, PutTotalScore: {}", callTotalScore, putTotalScore);
-        log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}",
-                callCategoryCounts.getOrDefault("ema", 0), callCategoryCounts.getOrDefault("futureAndVolume", 0),
-                callCategoryCounts.getOrDefault("candlestick", 0), callCategoryCounts.getOrDefault("momentum", 0),
-                putCategoryCounts.getOrDefault("ema", 0), putCategoryCounts.getOrDefault("futureAndVolume", 0),
-                putCategoryCounts.getOrDefault("candlestick", 0), putCategoryCounts.getOrDefault("momentum", 0));
-
-        // Determine direction based on total scores
-        if (callTotalScore > putTotalScore) {
-            return "CALL_BUY";
-        } else if (putTotalScore > callTotalScore) {
-            return "PUT_BUY";
-        } else {
-            // If scores are equal, return null (no clear direction)
-            log.warn("🔍 CATEGORY ANALYSIS - Equal call and put scores, no clear direction");
-            return null;
-        }
-    }
-
-
-    /**
-     * Create a new trade order and save to DB
-     */
-    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, FlattenedIndicators indicators, Boolean entryMarketConditionSuitable) throws KiteException {
+    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable) throws KiteException {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
-
-            // Capture all conditions that led to this order entry (reuse entryDecision)
-            List<String> entryConditions = entryConditionAnalysisService.captureEntryConditions(entryDecision, indicators);
 
             // Get dynamic stop loss and target points based on 5-minute candle range
             double stopLossPoints, targetPoints;
@@ -194,9 +127,9 @@ public class OrderExecutionService {
             // Try to get live option pricing first (for live profile)
             Optional<LiveOptionPricingService.LiveOptionPricingInfo> livePricing = liveOptionPricingService.getLiveOptionPricing(orderType);
 
-            Double optionEntryPrice, stopLossPrice, targetPrice;
+            double optionEntryPrice, stopLossPrice, targetPrice;
             String optionSymbol;
-            Long optionInstrumentToken;
+            long optionInstrumentToken;
 
             if (livePricing.isPresent()) {
                 // Use live option pricing
@@ -253,16 +186,6 @@ public class OrderExecutionService {
             }
 
             if (order != null) {
-                // Store the entry conditions in the order
-                order.setEntryConditions(entryConditions);
-
-                // Store structured market condition details
-                Map<String, Object> marketConditionDetails = unstableMarketConditionAnalysisService.getStructuredMarketConditionDetails(tick, indicators);
-                order.setEntryMarketConditionDetails(marketConditionDetails);
-
-                // Capture filter failure information
-                captureFilterFailureInfo(order, tick, indicators);
-
                 // Force database update to ensure order is saved
                 exitStrategyService.updateOrdersToDatabase();
 
@@ -296,52 +219,6 @@ public class OrderExecutionService {
     }
 
 
-    /**
-     * Capture filter failure information and store in order
-     */
-    private void captureFilterFailureInfo(JtradeOrder order, Tick tick, FlattenedIndicators indicators) {
-        try {
-            // Get the flexible filtering result
-            UnstableMarketConditionAnalysisService.FlexibleFilteringResult flexibleResult = 
-                unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
-            
-            // Count filter results using NTP system
-            int totalFilters = flexibleResult.getFilterResults().size();
-            double totalNTP = flexibleResult.getFilterResults().stream()
-                    .filter(r -> !r.isPassed())
-                    .mapToDouble(r -> r.getNtp())
-                    .sum();
-            int failedFiltersCount = (int) flexibleResult.getFilterResults().stream()
-                    .filter(r -> !r.isPassed()).count();
-            
-            // Create list of failed filter names with NTP values
-            List<String> failedFilterReasons = flexibleResult.getFilterResults().stream()
-                    .filter(r -> !r.isPassed())
-                    .map(r -> String.format("%s (NTP: %.1f)", r.getName(), r.getNtp()))
-                    .collect(java.util.stream.Collectors.toList());
-            
-            // Store in order
-            order.setTotalFiltersChecked(totalFilters);
-            order.setMandatoryFiltersFailed(failedFiltersCount); // Store failed count for backward compatibility
-            order.setOptionalFiltersFailed((int) Math.round(totalNTP)); // Store total NTP for backward compatibility
-            order.setFilterFailureReason(failedFilterReasons);
-            
-            log.info("📊 NTP FILTER INFO STORED - Total: {}, Failed: {}, Total NTP: {}, Failed Filters: {}", 
-                    totalFilters, failedFiltersCount, totalNTP, failedFilterReasons);
-            
-        } catch (Exception e) {
-            log.error("Error capturing filter failure info: {}", e.getMessage());
-            // Set default values on error
-            order.setTotalFiltersChecked(0);
-            order.setMandatoryFiltersFailed(0);
-            order.setOptionalFiltersFailed(0);
-            order.setFilterFailureReason(java.util.Arrays.asList("Error capturing filter info: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * Update live P&L for active trades
-     */
     public void updateLivePnL(Tick tick) throws KiteException {
         try {
             // Get active order from ExitStrategyService (global check)

@@ -3,7 +3,6 @@ package com.jtradebot.processor.service.entry;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
 
-import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.service.analysis.MarketDirectionService;
@@ -30,22 +29,16 @@ public class ScalpingEntryService {
     private final SignalDeterminationService signalDeterminationService;
 
 
-    public ScalpingEntryDecision evaluateEntry(Tick tick, FlattenedIndicators indicators, Double preCalculatedQualityScore, Boolean inTradingZone) {
+    public ScalpingEntryDecision evaluateEntry(Tick tick, Map<String, Integer> callScores, Map<String, Integer> putScores,
+                                               Double qualityScore, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, String dominantTrend) {
         try {
-            // Step 1: Use MarketDirectionService to get category scores and market direction
-            String marketDirection = marketDirectionService.determineMarketDirection(indicators);
-            Map<String, Integer> callCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
-            Map<String, Integer> putCategoryScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
-            
-            // Step 2: Use pre-calculated quality score or calculate if not provided
-            double qualityScore = Objects.requireNonNullElseGet(preCalculatedQualityScore, () -> calculateQualityScore(indicators));
-            
+
             // Step 3: Loop through scenarios and check their specific requirements
             List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
             List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
             
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
-                ScenarioEvaluation evaluation = evaluateScenario(scenario, indicators, callCategoryScores, putCategoryScores, qualityScore, tick, inTradingZone, marketDirection);
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, qualityScore, result, dominantTrend, callScores, putScores);
                 scenarioEvaluations.add(evaluation);
             }
             
@@ -66,7 +59,7 @@ public class ScalpingEntryService {
                         .reason(best.getReason())
                         .riskManagement(best.getScenario().getRiskManagement())
                         .categoryScores(best.getCategoryScores())
-                        .marketDirection(marketDirection)
+                        .marketDirection(dominantTrend)
                         .build();
                 
                 // Use SignalDeterminationService to set explicit signal flags
@@ -92,40 +85,27 @@ public class ScalpingEntryService {
         }
     }
 
-    private ScenarioEvaluation evaluateScenario(ScalpingEntryConfig.Scenario scenario, 
-                                               FlattenedIndicators indicators, 
-                                               Map<String, Integer> callCategoryCounts,
-                                               Map<String, Integer> putCategoryCounts,
-                                               double preCalculatedQualityScore,
-                                               Tick tick,
-                                               Boolean preCalculatedMarketCondition,
-                                               String marketDirection) {
+    private ScenarioEvaluation evaluateScenario(ScalpingEntryConfig.Scenario scenario,
+                                                double qualityScore,
+                                                UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
+                                                String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores) {
 
         
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
         evaluation.setScenarioName(scenario.getName());
         evaluation.setScenario(scenario);
-
-        // Use the pre-calculated market condition result to avoid redundant calculations
-        boolean marketConditionSuitable = preCalculatedMarketCondition != null ? preCalculatedMarketCondition : 
-            unstableMarketConditionAnalysisService.inTradingZone(tick, indicators);
         
-        if (!marketConditionSuitable) {
+        if (!result.isConditionsMet()) {
             evaluation.setPassed(false);
             evaluation.setScore(0.0);
             
             // Get detailed filtering result for logging
             if (configService.isNoTradeZonesEnabled()) {
-                UnstableMarketConditionAnalysisService.FlexibleFilteringResult flexibleResult = 
-                    unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
-                evaluation.setReason(flexibleResult.getReason());
-                log.warn("Scenario '{}' failed flexible entry filtering: {}", scenario.getName(), flexibleResult.getReason());
+                evaluation.setReason(result.getReason());
+                log.warn("Scenario '{}' failed flexible entry filtering: {}", scenario.getName(), result.getReason());
             } else {
-                // Fallback to old filtering for detailed reason
-                UnstableMarketConditionAnalysisService.EntryFilteringResult filteringResult =
-                    unstableMarketConditionAnalysisService.checkEntryFilteringConditions(tick, indicators);
-                evaluation.setReason(filteringResult.getReason());
-                log.warn("Scenario '{}' failed entry filtering: {}", scenario.getName(), filteringResult.getReason());
+                evaluation.setReason(result.getReason());
+                log.warn("Scenario '{}' failed entry filtering: {}", scenario.getName(), result.getReason());
             }
             return evaluation;
         } else {
@@ -143,11 +123,11 @@ public class ScalpingEntryService {
             requirements.getMinQualityScore() : scoringConfigService.getMinQualityScore();
         
         if (minQualityThreshold > 0) {
-            qualityScorePassed = preCalculatedQualityScore >= minQualityThreshold;
+            qualityScorePassed = qualityScore >= minQualityThreshold;
             
             if (!qualityScorePassed) {
                 log.debug("Quality score {} below threshold {} for scenario {}",
-                        preCalculatedQualityScore, minQualityThreshold, scenario.getName());
+                        qualityScore, minQualityThreshold, scenario.getName());
             }
         }
         
@@ -159,9 +139,9 @@ public class ScalpingEntryService {
             requirements.getMomentum_min_score() == null) {
             
             evaluation.setPassed(qualityScorePassed);
-            evaluation.setScore(preCalculatedQualityScore);
+            evaluation.setScore(qualityScore);
             evaluation.setReason(qualityScorePassed ? "Quality score requirement met" : 
-                               "Quality score " + preCalculatedQualityScore + " below threshold " + minQualityThreshold);
+                               "Quality score " + qualityScore + " below threshold " + minQualityThreshold);
             
             return evaluation;
         }
@@ -171,12 +151,10 @@ public class ScalpingEntryService {
         Map<String, List<String>> matchedConditions = new HashMap<>();
         
         // Use the market direction passed as parameter
-        boolean isCallDirection = "CALL".equals(marketDirection);
+        boolean isCallDirection = "CALL".equals(dominantTrend);
         
         // Get weighted category scores based on market direction
-        Map<String, Integer> weightedCategoryScores = isCallDirection ? 
-            marketDirectionService.getWeightedCategoryScores(indicators, "CALL") :
-            marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
+        Map<String, Integer> weightedCategoryScores = isCallDirection ? callScores :putScores;
         
         // Use weighted scores for category validation
         if (requirements.getEma_min_score() != null) {
@@ -235,22 +213,22 @@ public class ScalpingEntryService {
         boolean passed = qualityScorePassed && categoryRequirementsPassed;
         
         evaluation.setPassed(passed);
-        evaluation.setScore(passed ? preCalculatedQualityScore : 0.0);
+        evaluation.setScore(passed ? qualityScore : 0.0);
         evaluation.setCategoryScores(categoryScores);
         evaluation.setMatchedConditions(matchedConditions);
-        evaluation.setMarketDirection(marketDirection); // Set the determined market direction
+        evaluation.setMarketDirection(dominantTrend); // Set the determined market direction
         
         // Build comprehensive reason message
         StringBuilder reason = new StringBuilder();
         if (passed) {
             reason.append("All entry conditions met");
             log.info("🎯 SCENARIO PASSED - '{}' - Quality: {}/{} ({}), Categories: {}, Market Direction: {}", 
-                    scenario.getName(), preCalculatedQualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL", 
-                    categoryScores, marketDirection);
+                    scenario.getName(), qualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL",
+                    categoryScores, dominantTrend);
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
-                failures.add("Quality score " + preCalculatedQualityScore + " below threshold " + minQualityThreshold);
+                failures.add("Quality score " + qualityScore + " below threshold " + minQualityThreshold);
             }
             if (!categoryRequirementsPassed) {
                 failures.add("Failed categories: " + String.join(", ", failedCategories));
@@ -258,247 +236,14 @@ public class ScalpingEntryService {
             reason.append(String.join("; ", failures));
             
             log.warn("❌ SCENARIO FAILED - '{}' - Quality: {}/{} ({}), Categories: {}, Failed: {}", 
-                    scenario.getName(), preCalculatedQualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL", 
+                    scenario.getName(), qualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL",
                     categoryScores, String.join(", ", failures));
         }
         evaluation.setReason(reason.toString());
         
         return evaluation;
     }
-    
-    private double calculateQualityScore(FlattenedIndicators indicators) {
-        try {
-            // Use dedicated scoring configuration from scoring-config.json
-            double score = 0.0;
-            
-            // Determine market direction based on dominant trend
-            boolean isCallDirection = determineCallDirection(indicators);
-            
-            if (isCallDirection) {
-                score = calculateCallQualityScore(indicators);
-            } else {
-                score = calculatePutQualityScore(indicators);
-            }
-            
-            // Cap at maximum quality score (from scoring-config.json)
-            double maxQualityScore = scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore();
-            score = Math.min(score, maxQualityScore);
-            
-            // Apply quality threshold from scoring config
-            double minQualityThreshold = scoringConfigService.getMinQualityScore();
-            log.debug("🔍 QUALITY SCORE CALCULATION - Raw Score: {}, Min Threshold: {}, Direction: {}", 
-                score, minQualityThreshold, isCallDirection ? "CALL" : "PUT");
-            
-            if (score < minQualityThreshold) {
-                log.debug("Quality score {} below threshold {}, reducing to 0", score, minQualityThreshold);
-                score = 0.0;
-            }
-            
-            log.debug("🔍 QUALITY SCORE FINAL - Final Score: {}", score);
-            return score;
-        } catch (Exception e) {
-            log.warn("Error calculating quality score: {}", e.getMessage());
-            return 0.0; // Return 0 on any error
-        }
-    }
-    
-    private boolean determineCallDirection(FlattenedIndicators indicators) {
-        // Count bullish vs bearish signals to determine dominant direction
-        int bullishSignals = 0;
-        int bearishSignals = 0;
-        
-        // EMA signals
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishSignals++;
-        
-        // RSI signals
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) bearishSignals++;
-        
-        // Price action signals
-        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) bullishSignals++;
-        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) bearishSignals++;
-        
-        return bullishSignals >= bearishSignals;
-    }
-    
-    private double calculateCallQualityScore(FlattenedIndicators indicators) {
-        // EMA Quality Score (CALL - bullish)
-        double emaScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) emaScore += scoringConfigService.getEmaQuality();
-        if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) emaScore += scoringConfigService.getEmaQuality();
-        if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) emaScore += scoringConfigService.getEmaQuality();
-        // Cap EMA score at configured maximum
-        emaScore = Math.min(emaScore, scoringConfigService.getEmaQuality());
-        
-        // RSI Quality Score (CALL - bullish)
-        double rsiScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_gt_60())) rsiScore += scoringConfigService.getRsiQuality();
-        if (Boolean.TRUE.equals(indicators.getRsi_1min_gt_60())) rsiScore += scoringConfigService.getRsiQuality();
-        if (Boolean.TRUE.equals(indicators.getRsi_15min_gt_60())) rsiScore += scoringConfigService.getRsiQuality();
-        
-        // RSI Divergence Bonus (CALL - bullish divergence)
-        if (Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_5min()) || 
-            Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1min()) || 
-            Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_15min())) {
-            rsiScore += scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus();
-            log.info("🎯 RSI BULLISH DIVERGENCE BONUS - Added {} points to CALL quality score", 
-                    scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus());
-        }
-        
-        // Cap RSI score at configured maximum
-        rsiScore = Math.min(rsiScore, scoringConfigService.getRsiQuality());
-        
-        // Volume Quality Score (same for both directions)
-        double volumeScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getVolume_5min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min();
-        if (Boolean.TRUE.equals(indicators.getVolume_1min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
-        if (Boolean.TRUE.equals(indicators.getVolume_15min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
-        // Cap volume score at configured maximum
-        volumeScore = Math.min(volumeScore, scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min());
-        
-        // Price Action Quality Score (CALL - bullish)
-        double priceActionScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getGreen_candle_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        if (Boolean.TRUE.equals(indicators.getGreen_candle_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        if (Boolean.TRUE.equals(indicators.getLong_body_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
-        if (Boolean.TRUE.equals(indicators.getLong_body_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
-        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) priceActionScore += scoringConfigService.getPriceActionQuality();
-        if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) priceActionScore += scoringConfigService.getPriceActionQuality();
-        if (Boolean.TRUE.equals(indicators.getPrice_above_resistance())) priceActionScore += scoringConfigService.getPriceActionQuality();
-        // Cap price action score at configured maximum
-        priceActionScore = Math.min(priceActionScore, scoringConfigService.getPriceActionQuality());
-        
-        // Futuresignals Quality Score (CALL - bullish)
-        double futuresignalsScore = 0.0;
-        if (indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBullish()) {
-            futuresignalsScore = scoringConfigService.getFuturesignalQuality();
-        } else if (indicators.getFuturesignals() != null && 
-                   (indicators.getFuturesignals().getFiveMinBullishSurge() || indicators.getFuturesignals().getOneMinBullishSurge())) {
-            futuresignalsScore = scoringConfigService.getFuturesignalQuality() / 2.0;
-        }
-        // Cap futuresignals score at configured maximum
-        futuresignalsScore = Math.min(futuresignalsScore, scoringConfigService.getFuturesignalQuality());
-        
-        // Momentum Quality Score (CALL - bullish)
-        double momentumScore = 0.0;
-        int bullishTimeframes = 0;
-        if (Boolean.TRUE.equals(indicators.getEma5_1min_gt_ema34_1min())) bullishTimeframes++;
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_gt_ema34_5min())) bullishTimeframes++;
-        if (Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min())) bullishTimeframes++;
-        
-        if (bullishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
-        else if (bullishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();
-        else if (bullishTimeframes == 1) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getSingleAlignment();
-        // Cap momentum score at configured maximum
-        momentumScore = Math.min(momentumScore, scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment());
-        
-        // Candlestick Quality Score (CALL - bullish patterns)
-        double candlestickScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getBullish_engulfing_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getBullish_engulfing_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getBullish_morning_star_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getBullish_morning_star_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getHammer_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        if (Boolean.TRUE.equals(indicators.getHammer_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
-        // Cap candlestick score at configured maximum
-        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
-        
-        // Calculate average of all component scores (0-10 range)
-        double totalScore = emaScore + rsiScore + volumeScore + priceActionScore + 
-                           futuresignalsScore + momentumScore + candlestickScore;
-        return totalScore / 7.0; // Average of 7 components
-    }
-    
-    private double calculatePutQualityScore(FlattenedIndicators indicators) {
-        // EMA Quality Score (PUT - bearish)
-        double emaScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) emaScore += scoringConfigService.getEmaQuality();
-        if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) emaScore += scoringConfigService.getEmaQuality();
-        if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) emaScore += scoringConfigService.getEmaQuality();
-        // Cap EMA score at configured maximum
-        emaScore = Math.min(emaScore, scoringConfigService.getEmaQuality());
-        
-        // RSI Quality Score (PUT - bearish)
-        double rsiScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getRsi_5min_lt_40())) rsiScore += scoringConfigService.getRsiQuality();
-        if (Boolean.TRUE.equals(indicators.getRsi_1min_lt_40())) rsiScore += scoringConfigService.getRsiQuality();
-        if (Boolean.TRUE.equals(indicators.getRsi_15min_lt_40())) rsiScore += scoringConfigService.getRsiQuality();
-        
-        // RSI Divergence Bonus (PUT - bearish divergence)
-        if (Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_5min()) || 
-            Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1min()) || 
-            Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min())) {
-            rsiScore += scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus();
-            log.info("🎯 RSI BEARISH DIVERGENCE BONUS - Added {} points to PUT quality score", 
-                    scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getRsiDivergenceBonus());
-        }
-        
-        // Cap RSI score at configured maximum
-        rsiScore = Math.min(rsiScore, scoringConfigService.getRsiQuality());
-        
-        // Volume Quality Score (same for both directions)
-        double volumeScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getVolume_5min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min();
-        if (Boolean.TRUE.equals(indicators.getVolume_1min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
-        if (Boolean.TRUE.equals(indicators.getVolume_15min_surge())) volumeScore += scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume1min();
-        // Cap volume score at configured maximum
-        volumeScore = Math.min(volumeScore, scoringConfigService.getScoringConfig().getQualityScoring().getVolumeQuality().getVolume5min());
-        
-        // Price Action Quality Score (PUT - bearish)
-        double priceActionScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getRed_candle_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        if (Boolean.TRUE.equals(indicators.getRed_candle_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        if (Boolean.TRUE.equals(indicators.getLong_body_5min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
-        if (Boolean.TRUE.equals(indicators.getLong_body_1min())) priceActionScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getLowReliability();
-        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) priceActionScore += scoringConfigService.getPriceActionQuality();
-        if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) priceActionScore += scoringConfigService.getPriceActionQuality();
-        if (Boolean.TRUE.equals(indicators.getPrice_below_support())) priceActionScore += scoringConfigService.getPriceActionQuality();
-        // Cap price action score at configured maximum
-        priceActionScore = Math.min(priceActionScore, scoringConfigService.getPriceActionQuality());
-        
-        // Futuresignals Quality Score (PUT - bearish)
-        double futuresignalsScore = 0.0;
-        if (indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBearish()) {
-            futuresignalsScore = scoringConfigService.getFuturesignalQuality();
-        } else if (indicators.getFuturesignals() != null && 
-                   (indicators.getFuturesignals().getFiveMinBearishSurge() || indicators.getFuturesignals().getOneMinBearishSurge())) {
-            futuresignalsScore = scoringConfigService.getFuturesignalQuality() / 2.0;
-        }
-        // Cap futuresignals score at configured maximum
-        futuresignalsScore = Math.min(futuresignalsScore, scoringConfigService.getFuturesignalQuality());
-        
-        // Momentum Quality Score (PUT - bearish)
-        double momentumScore = 0.0;
-        int bearishTimeframes = 0;
-        if (Boolean.TRUE.equals(indicators.getEma5_1min_lt_ema34_1min())) bearishTimeframes++;
-        if (Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min())) bearishTimeframes++;
-        if (Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min())) bearishTimeframes++;
-        
-        if (bearishTimeframes == 3) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment();
-        else if (bearishTimeframes == 2) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getMajorityAlignment();
-        else if (bearishTimeframes == 1) momentumScore = scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getSingleAlignment();
-        // Cap momentum score at configured maximum
-        momentumScore = Math.min(momentumScore, scoringConfigService.getScoringConfig().getQualityScoring().getMomentumQuality().getPerfectAlignment());
-        
-        // Candlestick Quality Score (PUT - bearish patterns)
-        double candlestickScore = 0.0;
-        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getBearish_engulfing_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getBearish_evening_star_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getBearish_evening_star_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getHighReliability();
-        if (Boolean.TRUE.equals(indicators.getShooting_star_5min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        if (Boolean.TRUE.equals(indicators.getShooting_star_1min())) candlestickScore += scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMediumReliability();
-        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
-        // Cap candlestick score at configured maximum
-        candlestickScore = Math.min(candlestickScore, scoringConfigService.getScoringConfig().getQualityScoring().getCandlestickQuality().getMaxScore());
-        
-        // Calculate average of all component scores (0-10 range)
-        double totalScore = emaScore + rsiScore + volumeScore + priceActionScore + 
-                           futuresignalsScore + momentumScore + candlestickScore;
-        return totalScore / 7.0; // Average of 7 components
-    }
+
 
     
     // Helper class for scenario evaluation results
