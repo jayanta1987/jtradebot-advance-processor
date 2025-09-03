@@ -50,7 +50,7 @@ public class LiveOptionPricingService {
 
             if (!optionInstrument.isPresent()) {
                 log.warn("❌ NO OPTION INSTRUMENT FOUND - Strike: {}, Type: {}, Index: {}", 
-                        strikePriceCalculator.getITMStrikePrice(niftyIndexPrice, optionType), optionType, niftyIndexPrice);
+                        strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType), optionType, niftyIndexPrice);
                 return Optional.empty();
             }
 
@@ -65,7 +65,7 @@ public class LiveOptionPricingService {
             
             log.info("✅ FOUND OPTION LTP FROM KITE API - Token: {}, Symbol: {}, LTP: {}", 
                     instrument.getInstrumentToken(), instrument.getTradingSymbol(), optionLTP);
-            int strikePrice = strikePriceCalculator.getITMStrikePrice(niftyIndexPrice, optionType);
+            int strikePrice = strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType);
 
             LiveOptionPricingInfo pricingInfo = LiveOptionPricingInfo.builder()
                     .optionInstrument(instrument)

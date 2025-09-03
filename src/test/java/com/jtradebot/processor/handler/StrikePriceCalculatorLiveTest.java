@@ -29,7 +29,7 @@ class StrikePriceCalculatorLiveTest {
         String optionType = "CE";
 
         // When: Use the actual implementation to calculate strike price
-        int calculatedStrikePrice = strikePriceCalculator.getITMStrikePrice(niftyIndexPrice, optionType);
+        int calculatedStrikePrice = strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType);
 
         // Then: Verify the calculation is correct
         assertEquals(24400, calculatedStrikePrice, 
@@ -150,7 +150,7 @@ class StrikePriceCalculatorLiveTest {
 
         // When & Then: Verify consistency across different index prices
         for (double indexPrice : testIndexPrices) {
-            int calculatedStrike = strikePriceCalculator.getITMStrikePrice(indexPrice, optionType);
+            int calculatedStrike = strikePriceCalculator.getATMStrikePrice(indexPrice, optionType);
             
             // Verify ITM condition for Call options (strike < index price)
             assertTrue(calculatedStrike < indexPrice, 
@@ -172,7 +172,7 @@ class StrikePriceCalculatorLiveTest {
         String optionType = "PE";
 
         // When: Calculate Put strike price
-        int calculatedStrikePrice = strikePriceCalculator.getITMStrikePrice(niftyIndexPrice, optionType);
+        int calculatedStrikePrice = strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType);
 
         // Then: Verify the calculation
         assertEquals(24700, calculatedStrikePrice, 

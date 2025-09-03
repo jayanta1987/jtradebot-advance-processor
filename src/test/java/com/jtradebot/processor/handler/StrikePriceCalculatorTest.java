@@ -36,8 +36,8 @@ class StrikePriceCalculatorTest {
         double niftyIndexPrice = 24548.0;
         String optionType = "CE"; // Call option
 
-        // When: Calculate ITM strike price for Call option
-        int calculatedStrikePrice = strikePriceCalculator.getITMStrikePrice(niftyIndexPrice, optionType);
+        // When: Calculate ATM strike price for Call option
+        int calculatedStrikePrice = strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType);
 
         // Then: Verify the calculation
         // For Call options: ITM means strike < current price
@@ -126,7 +126,7 @@ class StrikePriceCalculatorTest {
         System.out.println("------------\t|\t------------\t|\t---------");
 
         for (double indexPrice : indexPrices) {
-            int strikePrice = strikePriceCalculator.getITMStrikePrice(indexPrice, optionType);
+            int strikePrice = strikePriceCalculator.getATMStrikePrice(indexPrice, optionType);
             String moneyness = strikePrice < indexPrice ? "ITM" : "OTM";
             
             System.out.println(indexPrice + "\t\t|\t" + strikePrice + "\t\t|\t" + moneyness);
@@ -143,8 +143,8 @@ class StrikePriceCalculatorTest {
         double niftyIndexPrice = 24548.0;
         String optionType = "PE"; // Put option
 
-        // When: Calculate ITM strike price for Put option
-        int calculatedStrikePrice = strikePriceCalculator.getITMStrikePrice(niftyIndexPrice, optionType);
+        // When: Calculate ATM strike price for Put option
+        int calculatedStrikePrice = strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType);
 
         // Then: Verify the calculation
         // For Put options: ITM means strike > current price
