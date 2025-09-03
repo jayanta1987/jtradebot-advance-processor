@@ -87,29 +87,6 @@ public class LiveOptionPricingService {
         }
     }
 
-    /**
-     * Calculate entry price for live option trading
-     */
-    public Optional<Double> calculateLiveEntryPrice(String orderType) throws KiteException {
-        Optional<LiveOptionPricingInfo> pricingInfo = getLiveOptionPricing(orderType);
-        return pricingInfo.map(LiveOptionPricingInfo::getOptionLTP);
-    }
-
-    /**
-     * Calculate stop loss price for live option trading
-     */
-    public Optional<Double> calculateLiveStopLossPrice(String orderType, double stopLossPoints) throws KiteException {
-        Optional<LiveOptionPricingInfo> pricingInfo = getLiveOptionPricing(orderType);
-        return pricingInfo.map(info -> Math.max(0.0, info.getOptionLTP() - stopLossPoints));
-    }
-
-    /**
-     * Calculate target price for live option trading
-     */
-    public Optional<Double> calculateLiveTargetPrice(String orderType, double targetPoints) throws KiteException {
-        Optional<LiveOptionPricingInfo> pricingInfo = getLiveOptionPricing(orderType);
-        return pricingInfo.map(info -> info.getOptionLTP() + targetPoints);
-    }
     
     /**
      * Get current price for a specific order (profile-aware)
