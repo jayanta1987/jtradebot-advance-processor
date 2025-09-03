@@ -75,6 +75,23 @@ public class FlattenedIndicators {
     private Boolean volume_15min_surge;
     private Double volume_surge_multiplier;
     
+    // Open Interest (OI) indicators
+    private Boolean oi_1min_increasing;
+    private Boolean oi_5min_increasing;
+    private Boolean oi_15min_increasing;
+    private Boolean oi_1min_decreasing;
+    private Boolean oi_5min_decreasing;
+    private Boolean oi_15min_decreasing;
+    private Boolean oi_bullish_signal_1min;
+    private Boolean oi_bullish_signal_5min;
+    private Boolean oi_bullish_signal_15min;
+    private Boolean oi_bearish_signal_1min;
+    private Boolean oi_bearish_signal_5min;
+    private Boolean oi_bearish_signal_15min;
+    private Double oi_momentum_1min;
+    private Double oi_momentum_5min;
+    private Double oi_momentum_15min;
+    
     // Price action indicators
     private Boolean price_gt_vwap_1min;
     private Boolean price_gt_vwap_5min;

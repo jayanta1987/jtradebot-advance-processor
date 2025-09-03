@@ -226,22 +226,26 @@ public class DynamicRuleEvaluatorService {
                 configService.getRsiMaPeriod(), configService.isEnableRsiMaComparison());
             ruleHelper.flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
             ruleHelper.flattenCandlestickPatternIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
-            
+
             // Calculate futuresignals
             indicators.setFuturesignals(ruleHelper.calculateFuturesignals(indicators));
             
-            // Get future tick from map for volume calculations and enhance volume indicators
+            // Get future tick from map for volume and OI calculations and enhance indicators
             String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
             Tick futureTick = tickDataManager.getLastTick(niftyFutureToken);
             
             if (futureTick != null) {
                 // Enhance volume indicators with future data
                 ruleHelper.enhanceVolumeIndicatorsWithFutureData(indicators, futureTick);
-                log.debug("Enhanced indicators with future data - Index Token: {}, Future Token: {}, Index Price: {}, Future Volume: {}",
+                
+                // ✅ NEW: Enhance OI indicators with future data (real OI data)
+                ruleHelper.enhanceOIIndicatorsWithFutureData(indicators, futureTick, tickDataManager);
+                
+                log.info("Enhanced indicators with future data - Index Token: {}, Future Token: {}, Index Price: {}, Future Volume: {}, Future OI: {}",
                     indexTick.getInstrumentToken(), futureTick.getInstrumentToken(),
-                    indexTick.getLastTradedPrice(), futureTick.getVolumeTradedToday());
+                    indexTick.getLastTradedPrice(), futureTick.getVolumeTradedToday(), futureTick.getOi());
             } else {
-                log.warn("⚠️ No future tick available for volume enhancement - Index Token: {}, Expected Future Token: {}", 
+                log.warn("⚠️ No future tick available for volume and OI enhancement - Index Token: {}, Expected Future Token: {}", 
                     indexTick.getInstrumentToken(), niftyFutureToken);
             }
             

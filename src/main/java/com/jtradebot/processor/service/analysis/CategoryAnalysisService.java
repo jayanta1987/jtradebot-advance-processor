@@ -72,6 +72,13 @@ public class CategoryAnalysisService {
             if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getPrice_above_resistance())) futureVolumeCount++;
+            // OI indicators for bullish signals
+            if (Boolean.TRUE.equals(indicators.getOi_5min_increasing())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_1min_increasing())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_15min_increasing())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_bullish_signal_5min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_bullish_signal_1min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_bullish_signal_15min())) futureVolumeCount++;
         } else {
             if (Boolean.TRUE.equals(indicators.getVolume_5min_surge())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getVolume_1min_surge())) futureVolumeCount++;
@@ -80,6 +87,13 @@ public class CategoryAnalysisService {
             if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getPrice_below_support())) futureVolumeCount++;
+            // OI indicators for bearish signals
+            if (Boolean.TRUE.equals(indicators.getOi_5min_increasing())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_1min_increasing())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_15min_increasing())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_bearish_signal_5min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_bearish_signal_1min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getOi_bearish_signal_15min())) futureVolumeCount++;
         }
         return futureVolumeCount;
     }

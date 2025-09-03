@@ -539,6 +539,26 @@ public class MarketDirectionService {
                 return indicators.getVolume_surge_multiplier() != null && indicators.getVolume_surge_multiplier() > 3.0;
             }
 
+            // OI (Open Interest) conditions - NEW: Added support for OI indicators from future data
+            if (condition.equals("oi_bullish_signal_5min")) {
+                return Boolean.TRUE.equals(indicators.getOi_bullish_signal_5min());
+            }
+            if (condition.equals("oi_bullish_signal_1min")) {
+                return Boolean.TRUE.equals(indicators.getOi_bullish_signal_1min());
+            }
+            if (condition.equals("oi_bullish_signal_15min")) {
+                return Boolean.TRUE.equals(indicators.getOi_bullish_signal_15min());
+            }
+            if (condition.equals("oi_bearish_signal_5min")) {
+                return Boolean.TRUE.equals(indicators.getOi_bearish_signal_5min());
+            }
+            if (condition.equals("oi_bearish_signal_1min")) {
+                return Boolean.TRUE.equals(indicators.getOi_bearish_signal_1min());
+            }
+            if (condition.equals("oi_bearish_signal_15min")) {
+                return Boolean.TRUE.equals(indicators.getOi_bearish_signal_15min());
+            }
+
             // Default case - condition not recognized
             log.warn("Unknown condition: {}", condition);
             return false;
