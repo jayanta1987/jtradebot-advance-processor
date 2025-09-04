@@ -93,6 +93,9 @@ public class TickOrchestrationService {
                     // Step 2: Analyze no trade zones filter checks
                     UnstableMarketConditionAnalysisService.FlexibleFilteringResult result = unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
                     boolean inTradingZone = result.isConditionsMet();
+                    if(inTradingZone){
+                        log.info("✅ IN TRADING ZONE - All no-trade zone conditions clear");
+                    }
 
                     // Step 3: Calculate Category Scores and Quality Score
                     Map<String, Integer> callScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");

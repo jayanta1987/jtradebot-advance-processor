@@ -2,12 +2,9 @@ package com.jtradebot.processor.service.entry;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
-
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
-import com.jtradebot.processor.service.analysis.MarketDirectionService;
 import com.jtradebot.processor.service.analysis.SignalDeterminationService;
-
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +21,6 @@ public class ScalpingEntryService {
 
     private final DynamicStrategyConfigService configService;
     private final ScoringConfigurationService scoringConfigService;
-    private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
-    private final MarketDirectionService marketDirectionService;
     private final SignalDeterminationService signalDeterminationService;
 
 

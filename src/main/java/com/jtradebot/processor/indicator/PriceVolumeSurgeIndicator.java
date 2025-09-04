@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
+import org.ta4j.core.Bar;
 
 @Component
 @RequiredArgsConstructor
@@ -85,6 +86,56 @@ public class PriceVolumeSurgeIndicator {
         } catch (Exception e) {
             log.error("Error analyzing Nifty volume for future: {}",  niftyFutureToken, e);
             return NiftyVolumeAnalysis.noAnalysis();
+        }
+    }
+
+    /**
+     * Analyzes price-volume direction for a given instrument and timeframe
+     * This method combines volume surge detection with price direction analysis
+     */
+    public PriceVolumeDirectionResult analyzePriceVolumeDirection(String instrumentToken, CandleTimeFrameEnum timeframe) {
+        try {
+            BarSeries barSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, timeframe);
+            if (barSeries == null || barSeries.getBarCount() < 20) {
+                log.debug("Insufficient data for price-volume direction analysis: instrument={}, timeframe={}, bars={}",
+                        instrumentToken, timeframe, barSeries != null ? barSeries.getBarCount() : 0);
+                return PriceVolumeDirectionResult.noSignal();
+            }
+            
+            Bar currentBar = barSeries.getBar(barSeries.getEndIndex());
+            double avgVolume = calculateAverageVolume(barSeries, 20);
+            double volumeMultiplier = avgVolume > 0 ? currentBar.getVolume().doubleValue() / avgVolume : 1.0;
+            
+            // Check if volume surge threshold is met
+            double surgeThreshold = configService.getCallVolumeSurgeMultiplier();
+            boolean hasVolumeSurge = volumeMultiplier >= surgeThreshold;
+            
+            if (!hasVolumeSurge) {
+                return PriceVolumeDirectionResult.noSignal();
+            }
+            
+            // Determine direction based on price action
+            double openPrice = currentBar.getOpenPrice().doubleValue();
+            double closePrice = currentBar.getClosePrice().doubleValue();
+            double priceChange = closePrice - openPrice;
+            
+            boolean isBullish = priceChange > 0;
+            boolean isBearish = priceChange < 0;
+            
+            log.debug("Price-Volume Analysis - Instrument: {}, Timeframe: {}, VolumeMultiplier: {}, PriceChange: {}, IsBullish: {}, IsBearish: {}",
+                    instrumentToken, timeframe, volumeMultiplier, priceChange, isBullish, isBearish);
+            
+            return PriceVolumeDirectionResult.builder()
+                    .isBullishSurge(isBullish && hasVolumeSurge)
+                    .isBearishSurge(isBearish && hasVolumeSurge)
+                    .volumeMultiplier(volumeMultiplier)
+                    .priceChange(priceChange)
+                    .timeframe(timeframe)
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("Error analyzing price-volume direction for instrument: {}, timeframe: {}", instrumentToken, timeframe, e);
+            return PriceVolumeDirectionResult.noSignal();
         }
     }
 
@@ -171,6 +222,31 @@ public class PriceVolumeSurgeIndicator {
     }
 
     public enum VolumeSurgeStrength { NONE, LOW, MEDIUM, HIGH, EXTREME }
+
+    /**
+     * Result class for price-volume direction analysis
+     * Combines volume surge detection with price direction
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PriceVolumeDirectionResult {
+        private boolean isBullishSurge;
+        private boolean isBearishSurge;
+        private double volumeMultiplier;
+        private double priceChange;
+        private CandleTimeFrameEnum timeframe;
+        
+        public static PriceVolumeDirectionResult noSignal() {
+            return PriceVolumeDirectionResult.builder()
+                    .isBullishSurge(false)
+                    .isBearishSurge(false)
+                    .volumeMultiplier(1.0)
+                    .priceChange(0.0)
+                    .build();
+        }
+    }
 
     /**
      * Cache entry for volume surge calculations

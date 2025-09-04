@@ -27,6 +27,7 @@ public class RuleHelper {
     private final VWAPIndicator vwapIndicator;
     private final SupportResistanceIndicator supportResistanceIndicator;
     private final PriceVolumeSurgeIndicator priceVolumeSurgeIndicator;
+    private final MACDIndicator macdIndicator;
     private final ScoringConfigurationService scoringConfigService;
     private final OIIndicator oiIndicator;
 
@@ -58,6 +59,23 @@ public class RuleHelper {
                     indicators.setEma5_1min_lt_ema34_1min(null);
                     indicators.setEma200_distance_1min(null);
                 }
+                
+                // Calculate MACD indicators for 1min
+                if (oneMinSeries != null && oneMinSeries.getBarCount() >= 26) {
+                    try {
+                        MACDIndicator.MACDResult macdResult1min = macdIndicator.calculateMACD(oneMinSeries);
+                        indicators.setMacd_bullish_crossover_1min(macdResult1min.isBullishCrossover());
+                        indicators.setMacd_bearish_crossover_1min(macdResult1min.isBearishCrossover());
+                        indicators.setMacd_above_zero_1min(macdResult1min.isAboveZero());
+                    } catch (Exception e) {
+                        log.error("Error calculating 1min MACD", e);
+                        indicators.setMacd_bullish_crossover_1min(null);
+                        indicators.setMacd_above_zero_1min(null);
+                    }
+                } else {
+                    indicators.setMacd_bullish_crossover_1min(null);
+                    indicators.setMacd_above_zero_1min(null);
+                }
             } else {
                 log.warn("1min BarSeries insufficient data - BarCount: {}", oneMinSeries != null ? oneMinSeries.getBarCount() : 0);
                 indicators.setEma5_1min_gt_ema34_1min(null);
@@ -84,6 +102,13 @@ public class RuleHelper {
                     indicators.setEma200_distance_5min(ema200Distance5min);
                     indicators.setEma34_5min(ema34_5min);
                     indicators.setEma200_5min(ema200_5min);
+                    
+                    // Calculate MACD indicators for 5min
+                    MACDIndicator.MACDResult macdResult5min = macdIndicator.calculateMACD(fiveMinSeries);
+                    indicators.setMacd_bullish_crossover_5min(macdResult5min.isBullishCrossover());
+                    indicators.setMacd_bearish_crossover_5min(macdResult5min.isBearishCrossover());
+                    indicators.setMacd_above_zero_5min(macdResult5min.isAboveZero());
+                    indicators.setMacd_below_zero_5min(macdResult5min.isBelowZero());
                 } catch (Exception e) {
                     log.error("Error calculating 5min EMA", e);
                     indicators.setEma5_5min_gt_ema34_5min(null);
@@ -118,6 +143,13 @@ public class RuleHelper {
                     double currentPrice = fifteenMinSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance15min = currentPrice - ema200_15min;
                     indicators.setEma200_distance_15min(ema200Distance15min);
+                    
+                    // Calculate MACD indicators for 15min
+                    MACDIndicator.MACDResult macdResult15min = macdIndicator.calculateMACD(fifteenMinSeries);
+                    indicators.setMacd_bullish_crossover_15min(macdResult15min.isBullishCrossover());
+                    indicators.setMacd_bearish_crossover_15min(macdResult15min.isBearishCrossover());
+                    indicators.setMacd_above_zero_15min(macdResult15min.isAboveZero());
+                    indicators.setMacd_below_zero_15min(macdResult15min.isBelowZero());
                 } catch (Exception e) {
                     log.error("Error calculating 15min EMA", e);
                     indicators.setEma5_15min_gt_ema34_15min(null);
@@ -314,31 +346,6 @@ public class RuleHelper {
      */
     public void flattenPriceActionIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, Tick tick) {
         try {
-            // VWAP indicators
-            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
-                Double vwap5min = vwapIndicator.calculateVWAP(fiveMinSeries);
-                if (vwap5min != null) {
-                    indicators.setPrice_gt_vwap_5min(tick.getLastTradedPrice() > vwap5min);
-                    indicators.setPrice_lt_vwap_5min(tick.getLastTradedPrice() < vwap5min);
-                }
-            }
-
-            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
-                Double vwap1min = vwapIndicator.calculateVWAP(oneMinSeries);
-                if (vwap1min != null) {
-                    indicators.setPrice_gt_vwap_1min(tick.getLastTradedPrice() > vwap1min);
-                    indicators.setPrice_lt_vwap_1min(tick.getLastTradedPrice() < vwap1min);
-                }
-            }
-
-            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 20) {
-                Double vwap15min = vwapIndicator.calculateVWAP(fifteenMinSeries);
-                if (vwap15min != null) {
-                    indicators.setPrice_gt_vwap_15min(tick.getLastTradedPrice() > vwap15min);
-                    indicators.setPrice_lt_vwap_15min(tick.getLastTradedPrice() < vwap15min);
-                }
-            }
-
             // Support/Resistance indicators
             if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
                 try {
@@ -439,9 +446,14 @@ public class RuleHelper {
             setPatternIndicator(indicators, "marubozu", timeframe, CandlestickPattern.isMarubozu(currentBar));
             setPatternIndicator(indicators, "long_body", timeframe, CandlestickPattern.isLongBody(currentBar));
             setPatternIndicator(indicators, "short_body", timeframe, CandlestickPattern.isShortBody(currentBar));
+            
+            // Directional long body patterns
+            setPatternIndicator(indicators, "bullish_long_body", timeframe, CandlestickPattern.isBullishLongBody(currentBar));
+            setPatternIndicator(indicators, "bearish_long_body", timeframe, CandlestickPattern.isBearishLongBody(currentBar));
 
             // Additional patterns
-            setPatternIndicator(indicators, "wick_rejection_filter", timeframe, CandlestickPattern.isWickRejectionFilter(currentBar));
+            setPatternIndicator(indicators, "wick_rejection_filter_bullish", timeframe, CandlestickPattern.isBullishWickRejectionFilter(currentBar));
+            setPatternIndicator(indicators, "wick_rejection_filter_bearish", timeframe, CandlestickPattern.isWickRejectionFilter(currentBar));
 
             // Candle color patterns (for directional confirmation)
             setPatternIndicator(indicators, "green_candle", timeframe, CandlestickPattern.isGreenCandle(currentBar));
@@ -456,12 +468,12 @@ public class RuleHelper {
             // Bullish patterns
             setPatternIndicator(indicators, "bullish_engulfing", timeframe, CandlestickPattern.isBullishEngulfing(previousBar, currentBar));
             setPatternIndicator(indicators, "bullish_harami", timeframe, CandlestickPattern.isBullishHarami(previousBar, currentBar));
-            setPatternIndicator(indicators, "bullish_doji_star", timeframe, CandlestickPattern.isBullishDojiStar(previousBar, currentBar));
+
 
             // Bearish patterns
             setPatternIndicator(indicators, "bearish_engulfing", timeframe, CandlestickPattern.isBearishEngulfing(previousBar, currentBar));
             setPatternIndicator(indicators, "bearish_harami", timeframe, CandlestickPattern.isBearishHarami(previousBar, currentBar));
-            setPatternIndicator(indicators, "bearish_doji_star", timeframe, CandlestickPattern.isBearishDojiStar(previousBar, currentBar));
+
 
             // Additional patterns
             setPatternIndicator(indicators, "inside_bar_breakout", timeframe, CandlestickPattern.isInsideBarBreakout(previousBar, currentBar));
@@ -656,6 +668,24 @@ public class RuleHelper {
             case "long_body_5min":
                 indicators.setLong_body_5min(value);
                 break;
+            case "bullish_long_body_1min":
+                indicators.setBullish_long_body_1min(value);
+                break;
+            case "bullish_long_body_3min":
+                indicators.setBullish_long_body_3min(value);
+                break;
+            case "bullish_long_body_5min":
+                indicators.setBullish_long_body_5min(value);
+                break;
+            case "bearish_long_body_1min":
+                indicators.setBearish_long_body_1min(value);
+                break;
+            case "bearish_long_body_3min":
+                indicators.setBearish_long_body_3min(value);
+                break;
+            case "bearish_long_body_5min":
+                indicators.setBearish_long_body_5min(value);
+                break;
             case "short_body_1min":
                 indicators.setShort_body_1min(value);
                 break;
@@ -705,14 +735,23 @@ public class RuleHelper {
             case "inside_bar_breakdown_5min":
                 indicators.setInside_bar_breakdown_5min(value);
                 break;
-            case "wick_rejection_filter_1min":
-                indicators.setWick_rejection_filter_1min(value);
+            case "wick_rejection_filter_bearish_1min":
+                indicators.setWick_rejection_filter_bearish_1min(value);
                 break;
-            case "wick_rejection_filter_3min":
-                indicators.setWick_rejection_filter_3min(value);
+            case "wick_rejection_filter_bearish_3min":
+                indicators.setWick_rejection_filter_bearish_3min(value);
                 break;
-            case "wick_rejection_filter_5min":
-                indicators.setWick_rejection_filter_5min(value);
+            case "wick_rejection_filter_bearish_5min":
+                indicators.setWick_rejection_filter_bearish_5min(value);
+                break;
+            case "wick_rejection_filter_bullish_1min":
+                indicators.setWick_rejection_filter_bullish_1min(value);
+                break;
+            case "wick_rejection_filter_bullish_3min":
+                indicators.setWick_rejection_filter_bullish_3min(value);
+                break;
+            case "wick_rejection_filter_bullish_5min":
+                indicators.setWick_rejection_filter_bullish_5min(value);
                 break;
         }
     }
@@ -790,13 +829,41 @@ public class RuleHelper {
                 PriceVolumeSurgeIndicator.VolumeSurgeResult futureSurge = volumeAnalysis.getFutureSurge();
 
                 // Use the future surge since index surge will always be 0 (no volume)
-                PriceVolumeSurgeIndicator.VolumeSurgeResult strongerSurge = futureSurge;
 
                 // Update indicators based on enhanced analysis
-                indicators.setVolume_surge_multiplier(strongerSurge.getVolumeMultiplier());
-                indicators.setVolume_1min_surge(strongerSurge.isSurge());
-                indicators.setVolume_5min_surge(strongerSurge.isSurge());
-                indicators.setVolume_15min_surge(strongerSurge.isSurge());
+                indicators.setVolume_surge_multiplier(futureSurge.getVolumeMultiplier());
+                indicators.setVolume_1min_surge(futureSurge.isSurge());
+                indicators.setVolume_5min_surge(futureSurge.isSurge());
+                indicators.setVolume_15min_surge(futureSurge.isSurge());
+
+                // Set new combined price-volume indicators for all timeframes
+                if (futureSurge.isSurge()) {
+                    // Analyze price-volume direction for each timeframe
+                    PriceVolumeSurgeIndicator.PriceVolumeDirectionResult result1min = 
+                        priceVolumeSurgeIndicator.analyzePriceVolumeDirection(niftyFutureToken, ONE_MIN);
+                    PriceVolumeSurgeIndicator.PriceVolumeDirectionResult result5min = 
+                        priceVolumeSurgeIndicator.analyzePriceVolumeDirection(niftyFutureToken, FIVE_MIN);
+                    PriceVolumeSurgeIndicator.PriceVolumeDirectionResult result15min = 
+                        priceVolumeSurgeIndicator.analyzePriceVolumeDirection(niftyFutureToken, FIFTEEN_MIN);
+                    
+                    // Set the combined indicators
+                    indicators.setPrice_volume_bullish_surge_1min(result1min.isBullishSurge());
+                    indicators.setPrice_volume_bullish_surge_5min(result5min.isBullishSurge());
+                    indicators.setPrice_volume_bullish_surge_15min(result15min.isBullishSurge());
+                    
+                    indicators.setPrice_volume_bearish_surge_1min(result1min.isBearishSurge());
+                    indicators.setPrice_volume_bearish_surge_5min(result5min.isBearishSurge());
+                    indicators.setPrice_volume_bearish_surge_15min(result15min.isBearishSurge());
+                } else {
+                    // No volume surge, set all combined indicators to false
+                    indicators.setPrice_volume_bullish_surge_1min(false);
+                    indicators.setPrice_volume_bullish_surge_5min(false);
+                    indicators.setPrice_volume_bullish_surge_15min(false);
+                    
+                    indicators.setPrice_volume_bearish_surge_1min(false);
+                    indicators.setPrice_volume_bearish_surge_5min(false);
+                    indicators.setPrice_volume_bearish_surge_15min(false);
+                }
 
                 // Log enhanced volume analysis
                 log.debug("Enhanced volume analysis - Index Surge: {}x (no volume), Future Surge: {}x, Correlation: {}, Coordinated: {}",

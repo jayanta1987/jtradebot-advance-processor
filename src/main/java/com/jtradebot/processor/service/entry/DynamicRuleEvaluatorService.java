@@ -9,6 +9,7 @@ import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgeCallRule;
 import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgePutRule;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.indicator.VWAPIndicator;
 
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class DynamicRuleEvaluatorService {
     private final ScoringConfigurationService scoringConfigService;
     private final RuleHelper ruleHelper;
     private final TradingConfigurationService tradingConfigurationService;
+    private final VWAPIndicator vwapIndicator;
 
     // Rules will be built dynamically from JSON configuration
     private ScalpingVolumeSurgeCallRule callRule;
@@ -164,7 +166,8 @@ public class DynamicRuleEvaluatorService {
     }
 
 
-    public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, double qualityScore, String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores) {
+    public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
+                                                  double qualityScore, String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores) {
         try {
             ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, callScores, putScores, qualityScore, result, dominantTrend);
             
@@ -206,48 +209,14 @@ public class DynamicRuleEvaluatorService {
             FlattenedIndicators indicators = new FlattenedIndicators();
             indicators.setInstrumentToken(instrumentToken);
             
-            // Check if we have sufficient BarSeries data for indicator calculations
-            ensureSufficientBarSeriesData(String.valueOf(indexTick.getInstrumentToken()));
+            // Step 1: Calculate index-based indicators (EMA, RSI, MACD, candlestick patterns, price action)
+            calculateIndexBasedIndicators(indicators, indexTick);
             
-            // Get BarSeries for different timeframes
-            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), ONE_MIN);
-            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIVE_MIN);
-            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(String.valueOf(indexTick.getInstrumentToken()), FIFTEEN_MIN);
+            // Step 2: Calculate future-based indicators (Volume, OI, price-volume surge)
+            calculateFutureBasedIndicators(indicators, indexTick);
             
-            // Initialize rules if not already done
-            if (callRule == null || putRule == null) {
-                initializeRules();
-            }
-            
-            // Use RuleHelper to flatten indicators
-            ruleHelper.flattenEmaIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
-            ruleHelper.flattenRsiIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, 
-                callRule.getMinRsiThreshold(), putRule.getMaxRsiThreshold(),
-                configService.getRsiMaPeriod(), configService.isEnableRsiMaComparison());
-            ruleHelper.flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
-            ruleHelper.flattenCandlestickPatternIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
-
-            // Calculate futuresignals
+            // Step 3: Calculate futuresignals based on combined indicators
             indicators.setFuturesignals(ruleHelper.calculateFuturesignals(indicators));
-            
-            // Get future tick from map for volume and OI calculations and enhance indicators
-            String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
-            Tick futureTick = tickDataManager.getLastTick(niftyFutureToken);
-            
-            if (futureTick != null) {
-                // Enhance volume indicators with future data
-                ruleHelper.enhanceVolumeIndicatorsWithFutureData(indicators, futureTick);
-                
-                // ✅ NEW: Enhance OI indicators with future data (real OI data)
-                ruleHelper.enhanceOIIndicatorsWithFutureData(indicators, futureTick, tickDataManager);
-                
-                log.info("Enhanced indicators with future data - Index Token: {}, Future Token: {}, Index Price: {}, Future Volume: {}, Future OI: {}",
-                    indexTick.getInstrumentToken(), futureTick.getInstrumentToken(),
-                    indexTick.getLastTradedPrice(), futureTick.getVolumeTradedToday(), futureTick.getOi());
-            } else {
-                log.warn("⚠️ No future tick available for volume and OI enhancement - Index Token: {}, Expected Future Token: {}", 
-                    indexTick.getInstrumentToken(), niftyFutureToken);
-            }
             
             // Cache the result
             indicatorsCache.put(instrumentToken, indicators);
@@ -258,6 +227,189 @@ public class DynamicRuleEvaluatorService {
         } catch (Exception e) {
             log.error("Error getting flattened indicators for tick: {}", indexTick.getInstrumentToken(), e);
             return new FlattenedIndicators();
+        }
+    }
+
+    /**
+     * Calculate index-based indicators using index BarSeries data
+     * Includes: EMA, RSI, MACD, candlestick patterns, price action, support/resistance
+     */
+    private void calculateIndexBasedIndicators(FlattenedIndicators indicators, Tick indexTick) {
+        try {
+            String instrumentToken = String.valueOf(indexTick.getInstrumentToken());
+            
+            // Check if we have sufficient BarSeries data for indicator calculations
+            ensureSufficientBarSeriesData(instrumentToken);
+            
+            // Get BarSeries for different timeframes (INDEX DATA)
+            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, ONE_MIN);
+            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, FIVE_MIN);
+            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, FIFTEEN_MIN);
+            
+            // Initialize rules if not already done
+            if (callRule == null || putRule == null) {
+                initializeRules();
+            }
+            
+            // Use RuleHelper to flatten indicators using INDEX data
+            ruleHelper.flattenEmaIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
+            ruleHelper.flattenRsiIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, 
+                callRule.getMinRsiThreshold(), putRule.getMaxRsiThreshold(),
+                configService.getRsiMaPeriod(), configService.isEnableRsiMaComparison());
+            ruleHelper.flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
+            ruleHelper.flattenCandlestickPatternIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
+            
+            log.debug("✅ Index-based indicators calculated successfully for instrument: {}", instrumentToken);
+            
+        } catch (Exception e) {
+            log.error("Error calculating index-based indicators for instrument: {}", indexTick.getInstrumentToken(), e);
+        }
+    }
+
+    /**
+     * Calculate future-based indicators using future tick data
+     * Includes: Volume surge, OI signals, price-volume directional indicators, VWAP
+     */
+    private void calculateFutureBasedIndicators(FlattenedIndicators indicators, Tick indexTick) {
+        try {
+            // Get future tick from map for volume and OI calculations
+            String niftyFutureToken = kiteInstrumentHandler.getNifty50FutureToken().toString();
+            Tick futureTick = tickDataManager.getLastTick(niftyFutureToken);
+            
+            if (futureTick != null) {
+                // Enhance volume indicators with future data
+                ruleHelper.enhanceVolumeIndicatorsWithFutureData(indicators, futureTick);
+                
+                // Enhance OI indicators with future data (real OI data)
+                ruleHelper.enhanceOIIndicatorsWithFutureData(indicators, futureTick, tickDataManager);
+                
+                // Calculate VWAP indicators using future BarSeries data
+                calculateVWAPIndicators(indicators, futureTick, niftyFutureToken);
+                
+                log.info("✅ Future-based indicators calculated successfully - Index Token: {}, Future Token: {}, Index Price: {}, Future Volume: {}, Future OI: {}",
+                    indexTick.getInstrumentToken(), futureTick.getInstrumentToken(),
+                    indexTick.getLastTradedPrice(), futureTick.getVolumeTradedToday(), futureTick.getOi());
+            } else {
+                log.warn("⚠️ No future tick available for volume and OI enhancement - Index Token: {}, Expected Future Token: {}", 
+                    indexTick.getInstrumentToken(), niftyFutureToken);
+                
+                // Set default values for future-based indicators when data is not available
+                setDefaultFutureBasedIndicators(indicators);
+            }
+            
+        } catch (Exception e) {
+            log.error("Error calculating future-based indicators for instrument: {}", indexTick.getInstrumentToken(), e);
+            // Set default values on error
+            setDefaultFutureBasedIndicators(indicators);
+        }
+    }
+
+    /**
+     * Calculate VWAP indicators using future BarSeries data
+     * VWAP should be calculated using future data since that's where actual trading volume happens
+     */
+    private void calculateVWAPIndicators(FlattenedIndicators indicators, Tick futureTick, String futureToken) {
+        try {
+            // Get future BarSeries for different timeframes
+            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(futureToken, ONE_MIN);
+            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(futureToken, FIVE_MIN);
+            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(futureToken, FIFTEEN_MIN);
+            
+            double currentPrice = futureTick.getLastTradedPrice();
+            
+            // Calculate VWAP for 5min timeframe
+            if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
+                Double vwap5min = vwapIndicator.calculateVWAP(fiveMinSeries);
+                if (vwap5min != null) {
+                    indicators.setPrice_gt_vwap_5min(currentPrice > vwap5min);
+                    indicators.setPrice_lt_vwap_5min(currentPrice < vwap5min);
+                }
+            }
+
+            // Calculate VWAP for 1min timeframe
+            if (oneMinSeries != null && oneMinSeries.getBarCount() >= 20) {
+                Double vwap1min = vwapIndicator.calculateVWAP(oneMinSeries);
+                if (vwap1min != null) {
+                    indicators.setPrice_gt_vwap_1min(currentPrice > vwap1min);
+                    indicators.setPrice_lt_vwap_1min(currentPrice < vwap1min);
+                }
+            }
+
+            // Calculate VWAP for 15min timeframe
+            if (fifteenMinSeries != null && fifteenMinSeries.getBarCount() >= 20) {
+                Double vwap15min = vwapIndicator.calculateVWAP(fifteenMinSeries);
+                if (vwap15min != null) {
+                    indicators.setPrice_gt_vwap_15min(currentPrice > vwap15min);
+                    indicators.setPrice_lt_vwap_15min(currentPrice < vwap15min);
+                }
+            }
+            
+            log.debug("✅ VWAP indicators calculated using future data - Future Token: {}, Current Price: {}", 
+                futureToken, currentPrice);
+                
+        } catch (Exception e) {
+            log.error("Error calculating VWAP indicators using future data", e);
+            // Set default VWAP values on error
+            setDefaultVWAPIndicators(indicators);
+        }
+    }
+
+    /**
+     * Set default VWAP indicators on error
+     */
+    private void setDefaultVWAPIndicators(FlattenedIndicators indicators) {
+        try {
+            indicators.setPrice_gt_vwap_1min(false);
+            indicators.setPrice_lt_vwap_1min(false);
+            indicators.setPrice_gt_vwap_5min(false);
+            indicators.setPrice_lt_vwap_5min(false);
+            indicators.setPrice_gt_vwap_15min(false);
+            indicators.setPrice_lt_vwap_15min(false);
+            log.debug("✅ Default VWAP indicators set on error");
+        } catch (Exception e) {
+            log.error("Error setting default VWAP indicators", e);
+        }
+    }
+
+    /**
+     * Set default values for future-based indicators when future data is not available
+     */
+    private void setDefaultFutureBasedIndicators(FlattenedIndicators indicators) {
+        try {
+            // Set volume indicators to false (no surge)
+            indicators.setVolume_1min_surge(false);
+            indicators.setVolume_5min_surge(false);
+            indicators.setVolume_15min_surge(false);
+            indicators.setVolume_surge_multiplier(1.0);
+            
+            // Set price-volume indicators to false
+            indicators.setPrice_volume_bullish_surge_1min(false);
+            indicators.setPrice_volume_bullish_surge_5min(false);
+            indicators.setPrice_volume_bullish_surge_15min(false);
+            indicators.setPrice_volume_bearish_surge_1min(false);
+            indicators.setPrice_volume_bearish_surge_5min(false);
+            indicators.setPrice_volume_bearish_surge_15min(false);
+            
+            // Set OI indicators to false
+            indicators.setOi_bullish_signal_1min(false);
+            indicators.setOi_bullish_signal_5min(false);
+            indicators.setOi_bullish_signal_15min(false);
+            indicators.setOi_bearish_signal_1min(false);
+            indicators.setOi_bearish_signal_5min(false);
+            indicators.setOi_bearish_signal_15min(false);
+            
+            // Set VWAP indicators to false
+            indicators.setPrice_gt_vwap_1min(false);
+            indicators.setPrice_lt_vwap_1min(false);
+            indicators.setPrice_gt_vwap_5min(false);
+            indicators.setPrice_lt_vwap_5min(false);
+            indicators.setPrice_gt_vwap_15min(false);
+            indicators.setPrice_lt_vwap_15min(false);
+            
+            log.debug("✅ Default values set for future-based indicators");
+            
+        } catch (Exception e) {
+            log.error("Error setting default future-based indicators", e);
         }
     }
 

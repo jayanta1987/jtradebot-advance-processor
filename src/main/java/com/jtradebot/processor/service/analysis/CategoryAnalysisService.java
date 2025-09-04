@@ -65,32 +65,22 @@ public class CategoryAnalysisService {
     public int getFutureVolumeCount(FlattenedIndicators indicators, boolean isCall) {
         int futureVolumeCount = 0;
         if (isCall) {
-            if (Boolean.TRUE.equals(indicators.getVolume_5min_surge())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getVolume_1min_surge())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getVolume_15min_surge())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_5min())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1min())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_gt_vwap_15min())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_above_resistance())) futureVolumeCount++;
+            // Use new combined price-volume indicators for bullish signals
+            if (Boolean.TRUE.equals(indicators.getPrice_volume_bullish_surge_5min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getPrice_volume_bullish_surge_1min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getPrice_volume_bullish_surge_15min())) futureVolumeCount++;
+            
             // OI indicators for bullish signals
-            if (Boolean.TRUE.equals(indicators.getOi_5min_increasing())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getOi_1min_increasing())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getOi_15min_increasing())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getOi_bullish_signal_5min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getOi_bullish_signal_1min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getOi_bullish_signal_15min())) futureVolumeCount++;
         } else {
-            if (Boolean.TRUE.equals(indicators.getVolume_5min_surge())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getVolume_1min_surge())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getVolume_15min_surge())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_5min())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1min())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getPrice_below_support())) futureVolumeCount++;
+            // Use new combined price-volume indicators for bearish signals
+            if (Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_5min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_1min())) futureVolumeCount++;
+            if (Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_15min())) futureVolumeCount++;
+            
             // OI indicators for bearish signals
-            if (Boolean.TRUE.equals(indicators.getOi_5min_increasing())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getOi_1min_increasing())) futureVolumeCount++;
-            if (Boolean.TRUE.equals(indicators.getOi_15min_increasing())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getOi_bearish_signal_5min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getOi_bearish_signal_1min())) futureVolumeCount++;
             if (Boolean.TRUE.equals(indicators.getOi_bearish_signal_15min())) futureVolumeCount++;
@@ -106,33 +96,35 @@ public class CategoryAnalysisService {
         if (isCall) {
             if (Boolean.TRUE.equals(indicators.getGreen_candle_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getGreen_candle_1min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getLong_body_5min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getLong_body_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBullish_long_body_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBullish_long_body_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBullish_engulfing_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBullish_engulfing_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBullish_morning_star_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBullish_morning_star_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getHammer_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getHammer_1min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getMarubozu_5min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getMarubozu_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBullish_marubozu_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBullish_marubozu_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getInside_bar_breakout_5min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_bullish_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_bullish_5min())) candlestickCount++;
         } else {
             if (Boolean.TRUE.equals(indicators.getRed_candle_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getRed_candle_1min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getLong_body_5min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getLong_body_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBearish_long_body_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBearish_long_body_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBearish_engulfing_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBearish_engulfing_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBearish_evening_star_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getBearish_evening_star_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getShooting_star_5min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getShooting_star_1min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getMarubozu_5min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getMarubozu_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBearish_marubozu_5min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getBearish_marubozu_1min())) candlestickCount++;
             if (Boolean.TRUE.equals(indicators.getInside_bar_breakdown_5min())) candlestickCount++;
-            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_bearish_1min())) candlestickCount++;
+            if (Boolean.TRUE.equals(indicators.getWick_rejection_filter_bearish_5min())) candlestickCount++;
         }
         return candlestickCount;
     }

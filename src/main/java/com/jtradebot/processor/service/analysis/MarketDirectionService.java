@@ -241,7 +241,45 @@ public class MarketDirectionService {
                 return Boolean.TRUE.equals(indicators.getRsi_15min_lt_40());
             }
 
-            // Volume conditions
+            // MACD conditions
+            if (condition.equals("macd_bullish_crossover_5min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bullish_crossover_5min());
+            }
+            if (condition.equals("macd_bullish_crossover_1min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bullish_crossover_1min());
+            }
+            if (condition.equals("macd_bullish_crossover_15min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bullish_crossover_15min());
+            }
+            if (condition.equals("macd_above_zero_5min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_above_zero_5min());
+            }
+            if (condition.equals("macd_above_zero_1min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_above_zero_1min());
+            }
+            if (condition.equals("macd_above_zero_15min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_above_zero_15min());
+            }
+            if (condition.equals("macd_bearish_crossover_5min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bearish_crossover_5min());
+            }
+            if (condition.equals("macd_bearish_crossover_1min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bearish_crossover_1min());
+            }
+            if (condition.equals("macd_bearish_crossover_15min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bearish_crossover_15min());
+            }
+            if (condition.equals("macd_below_zero_5min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_below_zero_5min());
+            }
+            if (condition.equals("macd_below_zero_1min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_below_zero_1min());
+            }
+            if (condition.equals("macd_below_zero_15min")) {
+                return Boolean.TRUE.equals(indicators.getMacd_below_zero_15min());
+            }
+
+            // Volume conditions (keeping for backward compatibility but not used in JSON)
             if (condition.equals("volume_5min_surge")) {
                 return Boolean.TRUE.equals(indicators.getVolume_5min_surge());
             }
@@ -250,6 +288,26 @@ public class MarketDirectionService {
             }
             if (condition.equals("volume_15min_surge")) {
                 return Boolean.TRUE.equals(indicators.getVolume_15min_surge());
+            }
+
+            // Combined Price-Volume Directional Indicators
+            if (condition.equals("price_volume_bullish_surge_5min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bullish_surge_5min());
+            }
+            if (condition.equals("price_volume_bullish_surge_1min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bullish_surge_1min());
+            }
+            if (condition.equals("price_volume_bullish_surge_15min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bullish_surge_15min());
+            }
+            if (condition.equals("price_volume_bearish_surge_5min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_5min());
+            }
+            if (condition.equals("price_volume_bearish_surge_1min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_1min());
+            }
+            if (condition.equals("price_volume_bearish_surge_15min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_15min());
             }
 
             // Price action conditions
@@ -287,18 +345,14 @@ public class MarketDirectionService {
             if (condition.equals("bullish_engulfing_1min")) {
                 return Boolean.TRUE.equals(indicators.getBullish_engulfing_1min());
             }
-            if (condition.equals("bullish_engulfing_3min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_engulfing_3min());
-            }
+
             if (condition.equals("bearish_engulfing_5min")) {
                 return Boolean.TRUE.equals(indicators.getBearish_engulfing_5min());
             }
             if (condition.equals("bearish_engulfing_1min")) {
                 return Boolean.TRUE.equals(indicators.getBearish_engulfing_1min());
             }
-            if (condition.equals("bearish_engulfing_3min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_engulfing_3min());
-            }
+
 
             // RSI MA comparison conditions
             if (condition.equals("rsi_5min_gt_rsi_ma")) {
@@ -347,129 +401,50 @@ public class MarketDirectionService {
             if (condition.equals("bullish_morning_star_1min")) {
                 return Boolean.TRUE.equals(indicators.getBullish_morning_star_1min());
             }
-            if (condition.equals("bullish_morning_star_3min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_morning_star_3min());
-            }
+
             if (condition.equals("bearish_evening_star_5min")) {
                 return Boolean.TRUE.equals(indicators.getBearish_evening_star_5min());
             }
             if (condition.equals("bearish_evening_star_1min")) {
                 return Boolean.TRUE.equals(indicators.getBearish_evening_star_1min());
             }
-            if (condition.equals("bearish_evening_star_3min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_evening_star_3min());
-            }
+
             if (condition.equals("hammer_5min")) {
                 return Boolean.TRUE.equals(indicators.getHammer_5min());
             }
             if (condition.equals("hammer_1min")) {
                 return Boolean.TRUE.equals(indicators.getHammer_1min());
             }
-            if (condition.equals("hammer_3min")) {
-                return Boolean.TRUE.equals(indicators.getHammer_3min());
-            }
+
             if (condition.equals("shooting_star_5min")) {
                 return Boolean.TRUE.equals(indicators.getShooting_star_5min());
             }
             if (condition.equals("shooting_star_1min")) {
                 return Boolean.TRUE.equals(indicators.getShooting_star_1min());
             }
-            if (condition.equals("shooting_star_3min")) {
-                return Boolean.TRUE.equals(indicators.getShooting_star_3min());
-            }
-
-            // Additional candlestick patterns
-            if (condition.equals("inverted_hammer_5min")) {
-                return Boolean.TRUE.equals(indicators.getInverted_hammer_5min());
-            }
-            if (condition.equals("inverted_hammer_1min")) {
-                return Boolean.TRUE.equals(indicators.getInverted_hammer_1min());
-            }
-            if (condition.equals("inverted_hammer_3min")) {
-                return Boolean.TRUE.equals(indicators.getInverted_hammer_3min());
-            }
-            if (condition.equals("long_lower_shadow_5min")) {
-                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_5min());
-            }
-            if (condition.equals("long_lower_shadow_1min")) {
-                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_1min());
-            }
-            if (condition.equals("long_lower_shadow_3min")) {
-                return Boolean.TRUE.equals(indicators.getLong_lower_shadow_3min());
-            }
-            if (condition.equals("long_upper_shadow_5min")) {
-                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_5min());
-            }
-            if (condition.equals("long_upper_shadow_1min")) {
-                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_1min());
-            }
-            if (condition.equals("long_upper_shadow_3min")) {
-                return Boolean.TRUE.equals(indicators.getLong_upper_shadow_3min());
-            }
-            if (condition.equals("bullish_harami_5min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_harami_5min());
-            }
-            if (condition.equals("bullish_harami_1min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_harami_1min());
-            }
-            if (condition.equals("bullish_harami_3min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_harami_3min());
-            }
-            if (condition.equals("bearish_harami_5min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_harami_5min());
-            }
-            if (condition.equals("bearish_harami_1min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_harami_1min());
-            }
-            if (condition.equals("bearish_harami_3min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_harami_3min());
-            }
-            if (condition.equals("bullish_doji_star_5min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_doji_star_5min());
-            }
-            if (condition.equals("bullish_doji_star_1min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_doji_star_1min());
-            }
-            if (condition.equals("bullish_doji_star_3min")) {
-                return Boolean.TRUE.equals(indicators.getBullish_doji_star_3min());
-            }
-            if (condition.equals("bearish_doji_star_5min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_doji_star_5min());
-            }
-            if (condition.equals("bearish_doji_star_1min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_doji_star_1min());
-            }
-            if (condition.equals("bearish_doji_star_3min")) {
-                return Boolean.TRUE.equals(indicators.getBearish_doji_star_3min());
-            }
 
             // Additional candlestick patterns
             if (condition.equals("inside_bar_breakout_5min")) {
                 return Boolean.TRUE.equals(indicators.getInside_bar_breakout_5min());
             }
-            if (condition.equals("inside_bar_breakout_1min")) {
-                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_1min());
-            }
-            if (condition.equals("inside_bar_breakout_3min")) {
-                return Boolean.TRUE.equals(indicators.getInside_bar_breakout_3min());
-            }
             if (condition.equals("inside_bar_breakdown_5min")) {
                 return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_5min());
             }
-            if (condition.equals("inside_bar_breakdown_1min")) {
-                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_1min());
+            
+            // Bearish wick rejection filters with explicit naming
+            if (condition.equals("wick_rejection_filter_bearish_1min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_bearish_1min());
             }
-            if (condition.equals("inside_bar_breakdown_3min")) {
-                return Boolean.TRUE.equals(indicators.getInside_bar_breakdown_3min());
+            if (condition.equals("wick_rejection_filter_bearish_5min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_bearish_5min());
             }
-            if (condition.equals("wick_rejection_filter_1min")) {
-                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_1min());
+            
+            // Bullish wick rejection filters
+            if (condition.equals("wick_rejection_filter_bullish_1min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_bullish_1min());
             }
-            if (condition.equals("wick_rejection_filter_5min")) {
-                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_5min());
-            }
-            if (condition.equals("wick_rejection_filter_3min")) {
-                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_3min());
+            if (condition.equals("wick_rejection_filter_bullish_5min")) {
+                return Boolean.TRUE.equals(indicators.getWick_rejection_filter_bullish_5min());
             }
 
             // Marubozu conditions
@@ -479,8 +454,19 @@ public class MarketDirectionService {
             if (condition.equals("marubozu_1min")) {
                 return Boolean.TRUE.equals(indicators.getMarubozu_1min());
             }
-            if (condition.equals("marubozu_3min")) {
-                return Boolean.TRUE.equals(indicators.getMarubozu_3min());
+            
+            // Directional Marubozu conditions
+            if (condition.equals("bullish_marubozu_5min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_marubozu_5min());
+            }
+            if (condition.equals("bullish_marubozu_1min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_marubozu_1min());
+            }
+            if (condition.equals("bearish_marubozu_5min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_marubozu_5min());
+            }
+            if (condition.equals("bearish_marubozu_1min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_marubozu_1min());
             }
 
             // Candle color conditions
@@ -490,17 +476,11 @@ public class MarketDirectionService {
             if (condition.equals("green_candle_1min")) {
                 return Boolean.TRUE.equals(indicators.getGreen_candle_1min());
             }
-            if (condition.equals("green_candle_3min")) {
-                return Boolean.TRUE.equals(indicators.getGreen_candle_3min());
-            }
             if (condition.equals("red_candle_5min")) {
                 return Boolean.TRUE.equals(indicators.getRed_candle_5min());
             }
             if (condition.equals("red_candle_1min")) {
                 return Boolean.TRUE.equals(indicators.getRed_candle_1min());
-            }
-            if (condition.equals("red_candle_3min")) {
-                return Boolean.TRUE.equals(indicators.getRed_candle_3min());
             }
 
             // Candle body conditions
@@ -510,36 +490,22 @@ public class MarketDirectionService {
             if (condition.equals("long_body_1min")) {
                 return Boolean.TRUE.equals(indicators.getLong_body_1min());
             }
-            if (condition.equals("long_body_3min")) {
-                return Boolean.TRUE.equals(indicators.getLong_body_3min());
+            
+            // Directional Long Body conditions
+            if (condition.equals("bullish_long_body_5min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_long_body_5min());
             }
-            if (condition.equals("short_body_5min")) {
-                return Boolean.TRUE.equals(indicators.getShort_body_5min());
+            if (condition.equals("bullish_long_body_1min")) {
+                return Boolean.TRUE.equals(indicators.getBullish_long_body_1min());
             }
-            if (condition.equals("short_body_1min")) {
-                return Boolean.TRUE.equals(indicators.getShort_body_1min());
+            if (condition.equals("bearish_long_body_5min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_long_body_5min());
             }
-            if (condition.equals("short_body_3min")) {
-                return Boolean.TRUE.equals(indicators.getShort_body_3min());
-            }
-
-            // Future signal conditions - check futuresignals object
-            if (condition.equals("futuresignals_bullish")) {
-                return indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBullish();
-            }
-            if (condition.equals("futuresignals_bearish")) {
-                return indicators.getFuturesignals() != null && indicators.getFuturesignals().getAllTimeframesBearish();
+            if (condition.equals("bearish_long_body_1min")) {
+                return Boolean.TRUE.equals(indicators.getBearish_long_body_1min());
             }
 
-            // Volume surge multiplier conditions
-            if (condition.equals("volume_surge_multiplier_gt_2")) {
-                return indicators.getVolume_surge_multiplier() != null && indicators.getVolume_surge_multiplier() > 2.0;
-            }
-            if (condition.equals("volume_surge_multiplier_gt_3")) {
-                return indicators.getVolume_surge_multiplier() != null && indicators.getVolume_surge_multiplier() > 3.0;
-            }
-
-            // OI (Open Interest) conditions - NEW: Added support for OI indicators from future data
+            // OI (Open Interest) conditions
             if (condition.equals("oi_bullish_signal_5min")) {
                 return Boolean.TRUE.equals(indicators.getOi_bullish_signal_5min());
             }
