@@ -20,7 +20,7 @@ public class ScalpingEntryDecision {
     private String reason;
     
     // Additional fields for detailed analysis
-    private Map<String, Integer> categoryScores;
+    private Map<String, Double> categoryScores;
     private Map<String, java.util.List<String>> matchedConditions;
     private double qualityScore;
     

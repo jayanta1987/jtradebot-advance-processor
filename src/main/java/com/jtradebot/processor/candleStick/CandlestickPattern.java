@@ -224,6 +224,34 @@ public class CandlestickPattern {
         return close.minus(open).isGreaterThan(high.minus(low).multipliedBy(DecimalNum.valueOf(0.75)));
     }
 
+    public static boolean isBullishLongBody(Bar bar) {
+        if(getFullHeight(bar).isLessThan(DecimalNum.valueOf(MIN_CANDLE_FULL_HEIGHT))) {
+            return false;
+        }
+        Num open = bar.getOpenPrice();
+        Num close = bar.getClosePrice();
+        Num high = bar.getHighPrice();
+        Num low = bar.getLowPrice();
+
+        // Bullish Long Body: Long body with close > open (green candle)
+        return close.isGreaterThan(open) && 
+               close.minus(open).isGreaterThan(high.minus(low).multipliedBy(DecimalNum.valueOf(0.75)));
+    }
+
+    public static boolean isBearishLongBody(Bar bar) {
+        if(getFullHeight(bar).isLessThan(DecimalNum.valueOf(MIN_CANDLE_FULL_HEIGHT))) {
+            return false;
+        }
+        Num open = bar.getOpenPrice();
+        Num close = bar.getClosePrice();
+        Num high = bar.getHighPrice();
+        Num low = bar.getLowPrice();
+
+        // Bearish Long Body: Long body with close < open (red candle)
+        return close.isLessThan(open) && 
+               open.minus(close).isGreaterThan(high.minus(low).multipliedBy(DecimalNum.valueOf(0.75)));
+    }
+
     public static boolean isBearishMarubozu(Bar bar) {
         if(getFullHeight(bar).isLessThan(DecimalNum.valueOf(MIN_CANDLE_FULL_HEIGHT))) {
             return false;
@@ -353,6 +381,32 @@ public class CandlestickPattern {
         boolean smallBody = body.isLessThan(totalRange.multipliedBy(DecimalNum.valueOf(0.3)));
         
         return longUpperShadow && smallBody;
+    }
+
+    /**
+     * Check for bullish wick rejection filter (lack of long upper shadow, indicating strong buying pressure)
+     * This is the opposite of bearish wick rejection - bullish when upper shadow is small
+     */
+    public static boolean isBullishWickRejectionFilter(Bar bar) {
+        if(getFullHeight(bar).isLessThan(DecimalNum.valueOf(MIN_CANDLE_FULL_HEIGHT))) {
+            return false;
+        }
+        
+        Num open = bar.getOpenPrice();
+        Num close = bar.getClosePrice();
+        Num high = bar.getHighPrice();
+        Num low = bar.getLowPrice();
+        
+        // Calculate body and upper shadow
+        Num body = close.minus(open).abs();
+        Num upperShadow = high.minus(open.max(close));
+        Num totalRange = high.minus(low);
+        
+        // Bullish wick filter: upper shadow is small (less than 25% of total range) and body is relatively large
+        boolean smallUpperShadow = upperShadow.isLessThan(totalRange.multipliedBy(DecimalNum.valueOf(0.25)));
+        boolean largeBody = body.isGreaterThan(totalRange.multipliedBy(DecimalNum.valueOf(0.4)));
+        
+        return smallUpperShadow && largeBody;
     }
 
 }

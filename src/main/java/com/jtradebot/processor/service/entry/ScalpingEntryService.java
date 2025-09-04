@@ -2,12 +2,9 @@ package com.jtradebot.processor.service.entry;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
-
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
-import com.jtradebot.processor.service.analysis.MarketDirectionService;
 import com.jtradebot.processor.service.analysis.SignalDeterminationService;
-
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,13 +21,11 @@ public class ScalpingEntryService {
 
     private final DynamicStrategyConfigService configService;
     private final ScoringConfigurationService scoringConfigService;
-    private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
-    private final MarketDirectionService marketDirectionService;
     private final SignalDeterminationService signalDeterminationService;
 
 
-    public ScalpingEntryDecision evaluateEntry(Tick tick, Map<String, Integer> callScores, Map<String, Integer> putScores,
-                                               Double qualityScore, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, String dominantTrend) {
+    public ScalpingEntryDecision evaluateEntry(Tick tick, Map<String, Double> callScores, Map<String, Double> putScores, double qualityScore, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, 
+ String dominantTrend) {
         try {
 
             // Step 3: Loop through scenarios and check their specific requirements
@@ -88,7 +83,7 @@ public class ScalpingEntryService {
     private ScenarioEvaluation evaluateScenario(ScalpingEntryConfig.Scenario scenario,
                                                 double qualityScore,
                                                 UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
-                                                String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores) {
+                                                String dominantTrend, Map<String, Double> callScores, Map<String, Double> putScores) {
 
         
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
@@ -147,33 +142,33 @@ public class ScalpingEntryService {
         }
         
         // Evaluate category-based requirements using weighted scores
-        Map<String, Integer> categoryScores = new HashMap<>();
+        Map<String, Double> categoryScores = new HashMap<>();
         Map<String, List<String>> matchedConditions = new HashMap<>();
         
         // Use the market direction passed as parameter
         boolean isCallDirection = "CALL".equals(dominantTrend);
         
         // Get weighted category scores based on market direction
-        Map<String, Integer> weightedCategoryScores = isCallDirection ? callScores :putScores;
+        Map<String, Double> weightedCategoryScores = isCallDirection ? callScores : putScores;
         
         // Use weighted scores for category validation
         if (requirements.getEma_min_score() != null) {
-            int emaScore = weightedCategoryScores.getOrDefault("ema", 0);
+            double emaScore = weightedCategoryScores.getOrDefault("ema", 0.0);
             categoryScores.put("ema", emaScore);
         }
         
         if (requirements.getFutureAndVolume_min_score() != null) {
-            int volumeScore = weightedCategoryScores.getOrDefault("futureAndVolume", 0);
+            double volumeScore = weightedCategoryScores.getOrDefault("futureAndVolume", 0.0);
             categoryScores.put("futureAndVolume", volumeScore);
         }
         
         if (requirements.getCandlestick_min_score() != null) {
-            int candlestickScore = weightedCategoryScores.getOrDefault("candlestick", 0);
+            double candlestickScore = weightedCategoryScores.getOrDefault("candlestick", 0.0);
             categoryScores.put("candlestick", candlestickScore);
         }
         
         if (requirements.getMomentum_min_score() != null) {
-            int momentumScore = weightedCategoryScores.getOrDefault("momentum", 0);
+            double momentumScore = weightedCategoryScores.getOrDefault("momentum", 0.0);
             categoryScores.put("momentum", momentumScore);
         }
         
@@ -255,7 +250,7 @@ public class ScalpingEntryService {
         private ScalpingEntryConfig.Scenario scenario;
         private boolean passed;
         private double score;
-        private Map<String, Integer> categoryScores;
+        private Map<String, Double> categoryScores;
         private Map<String, List<String>> matchedConditions;
         private String reason;
         private String marketDirection; // Store the determined market direction

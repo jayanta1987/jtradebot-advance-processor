@@ -158,10 +158,10 @@ class OrderNotificationIntegrationTest {
         order.setEntryScenarioConfidence(9.0);
         
         // Category scores
-        Map<String, Integer> categoryScores = new HashMap<>();
-        categoryScores.put("Volume Analysis", 95);
-        categoryScores.put("Price Action", 88);
-        categoryScores.put("Market Sentiment", 92);
+        Map<String, Double> categoryScores = new HashMap<>();
+        categoryScores.put("Volume Analysis", 95.0);
+        categoryScores.put("Price Action", 88.0);
+        categoryScores.put("Market Sentiment", 92.0);
         order.setEntryCategoryScores(categoryScores);
         
         // Matched conditions

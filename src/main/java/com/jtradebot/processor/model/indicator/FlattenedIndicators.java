@@ -69,11 +69,41 @@ public class FlattenedIndicators {
     private Boolean rsi_bearish_divergence_5min;
     private Boolean rsi_bearish_divergence_15min;
     
+    // MACD indicators
+    private Boolean macd_bullish_crossover_1min;
+    private Boolean macd_bullish_crossover_5min;
+    private Boolean macd_bullish_crossover_15min;
+    private Boolean macd_bearish_crossover_1min;
+    private Boolean macd_bearish_crossover_5min;
+    private Boolean macd_bearish_crossover_15min;
+    private Boolean macd_above_zero_1min;
+    private Boolean macd_above_zero_5min;
+    private Boolean macd_above_zero_15min;
+    private Boolean macd_below_zero_1min;
+    private Boolean macd_below_zero_5min;
+    private Boolean macd_below_zero_15min;
+    
     // Volume surge indicators
     private Boolean volume_1min_surge;
     private Boolean volume_5min_surge;
     private Boolean volume_15min_surge;
     private Double volume_surge_multiplier;
+    
+    // Combined Price-Volume Directional Indicators
+    private Boolean price_volume_bullish_surge_1min;
+    private Boolean price_volume_bullish_surge_5min;
+    private Boolean price_volume_bullish_surge_15min;
+    private Boolean price_volume_bearish_surge_1min;
+    private Boolean price_volume_bearish_surge_5min;
+    private Boolean price_volume_bearish_surge_15min;
+    
+    // Open Interest (OI) indicators
+    private Boolean oi_bullish_signal_1min;
+    private Boolean oi_bullish_signal_5min;
+    private Boolean oi_bullish_signal_15min;
+    private Boolean oi_bearish_signal_1min;
+    private Boolean oi_bearish_signal_5min;
+    private Boolean oi_bearish_signal_15min;
     
     // Price action indicators
     private Boolean price_gt_vwap_1min;
@@ -104,9 +134,6 @@ public class FlattenedIndicators {
     private Boolean bullish_harami_1min;
     private Boolean bullish_harami_3min;
     private Boolean bullish_harami_5min;
-    private Boolean bullish_doji_star_1min;
-    private Boolean bullish_doji_star_3min;
-    private Boolean bullish_doji_star_5min;
     private Boolean bullish_morning_star_1min;
     private Boolean bullish_morning_star_3min;
     private Boolean bullish_morning_star_5min;
@@ -119,6 +146,9 @@ public class FlattenedIndicators {
     private Boolean bullish_marubozu_1min;
     private Boolean bullish_marubozu_3min;
     private Boolean bullish_marubozu_5min;
+    private Boolean bullish_long_body_1min;
+    private Boolean bullish_long_body_3min;
+    private Boolean bullish_long_body_5min;
     private Boolean long_lower_shadow_1min;
     private Boolean long_lower_shadow_3min;
     private Boolean long_lower_shadow_5min;
@@ -130,9 +160,6 @@ public class FlattenedIndicators {
     private Boolean bearish_harami_1min;
     private Boolean bearish_harami_3min;
     private Boolean bearish_harami_5min;
-    private Boolean bearish_doji_star_1min;
-    private Boolean bearish_doji_star_3min;
-    private Boolean bearish_doji_star_5min;
     private Boolean bearish_evening_star_1min;
     private Boolean bearish_evening_star_3min;
     private Boolean bearish_evening_star_5min;
@@ -145,6 +172,9 @@ public class FlattenedIndicators {
     private Boolean bearish_marubozu_1min;
     private Boolean bearish_marubozu_3min;
     private Boolean bearish_marubozu_5min;
+    private Boolean bearish_long_body_1min;
+    private Boolean bearish_long_body_3min;
+    private Boolean bearish_long_body_5min;
     private Boolean long_upper_shadow_1min;
     private Boolean long_upper_shadow_3min;
     private Boolean long_upper_shadow_5min;
@@ -181,9 +211,16 @@ public class FlattenedIndicators {
     private Boolean inside_bar_breakdown_1min;
     private Boolean inside_bar_breakdown_3min;
     private Boolean inside_bar_breakdown_5min;
-    private Boolean wick_rejection_filter_1min;
-    private Boolean wick_rejection_filter_3min;
-    private Boolean wick_rejection_filter_5min;
+    
+    // Bearish wick rejection filters with explicit naming (for PUT strategy)
+    private Boolean wick_rejection_filter_bearish_1min;
+    private Boolean wick_rejection_filter_bearish_3min;
+    private Boolean wick_rejection_filter_bearish_5min;
+    
+    // Bullish wick rejection filters (for CALL strategy)
+    private Boolean wick_rejection_filter_bullish_1min;
+    private Boolean wick_rejection_filter_bullish_3min;
+    private Boolean wick_rejection_filter_bullish_5min;
     
     // Futuresignals for each timeframe
     private FuturesignalData futuresignals;
