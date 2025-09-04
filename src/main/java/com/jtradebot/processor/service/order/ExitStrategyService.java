@@ -106,14 +106,14 @@ public class ExitStrategyService {
                                                     Double entryPrice, Double entryIndexPrice, Double stopLossPrice,
                                                     Double targetPrice, Integer quantity, String scenarioName,
                                                     String scenarioDescription, Double scenarioConfidence,
-                                                    Map<String, Integer> categoryScores,
+                                                    Map<String, Double> categoryScores,
                                                     Map<String, List<String>> matchedConditions,
                                                     Boolean entryMarketConditionSuitable,
                                                     Date entryTime,
-                                                    // �� NEW: Quality score and direction scores
+                                                    // 🔥 NEW: Quality score and direction scores
                                                     Double qualityScore,
-                                                    Map<String, Integer> callScores,
-                                                    Map<String, Integer> putScores,
+                                                    Map<String, Double> callScores,
+                                                    Map<String, Double> putScores,
                                                     String dominantTrend,
                                                     // 🔥 NEW: Detailed category scores
                                                     Map<String, DetailedCategoryScore> detailedCallScores,

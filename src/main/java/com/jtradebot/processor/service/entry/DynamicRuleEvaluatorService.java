@@ -167,7 +167,7 @@ public class DynamicRuleEvaluatorService {
 
 
     public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
-                                                  double qualityScore, String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores) {
+                                                  double qualityScore, String dominantTrend, Map<String, Double> callScores, Map<String, Double> putScores) {
         try {
             ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, callScores, putScores, qualityScore, result, dominantTrend);
             

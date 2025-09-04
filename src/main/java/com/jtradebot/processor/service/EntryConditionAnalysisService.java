@@ -43,8 +43,8 @@ public class EntryConditionAnalysisService {
             // Add category scores if available
             if (entryDecision.getCategoryScores() != null && !entryDecision.getCategoryScores().isEmpty()) {
                 conditions.add("--- CATEGORY SCORES ---");
-                for (Map.Entry<String, Integer> entry : entryDecision.getCategoryScores().entrySet()) {
-                    conditions.add(String.format("%s: %d", entry.getKey(), entry.getValue()));
+                for (Map.Entry<String, Double> entry : entryDecision.getCategoryScores().entrySet()) {
+                    conditions.add(String.format("%s: %.1f", entry.getKey(), entry.getValue()));
                 }
             }
             

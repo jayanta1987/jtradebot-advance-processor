@@ -25,12 +25,12 @@ public class MarketDirectionService {
     public String determineMarketDirection(FlattenedIndicators indicators) {
         try {
             // Calculate weighted category scores for both CALL and PUT strategies
-            Map<String, Integer> callCategoryScores = getWeightedCategoryScores(indicators, "CALL");
-            Map<String, Integer> putCategoryScores = getWeightedCategoryScores(indicators, "PUT");
+            Map<String, Double> callCategoryScores = getWeightedCategoryScores(indicators, "CALL");
+            Map<String, Double> putCategoryScores = getWeightedCategoryScores(indicators, "PUT");
 
             // Calculate total scores for each direction
-            int callTotalScore = callCategoryScores.values().stream().mapToInt(Integer::intValue).sum();
-            int putTotalScore = putCategoryScores.values().stream().mapToInt(Integer::intValue).sum();
+            double callTotalScore = callCategoryScores.values().stream().mapToDouble(Double::doubleValue).sum();
+            double putTotalScore = putCategoryScores.values().stream().mapToDouble(Double::doubleValue).sum();
 
             // Determine market direction based on total scores
             boolean isCallDirection = callTotalScore >= putTotalScore;
@@ -39,10 +39,10 @@ public class MarketDirectionService {
             log.debug("🔍 MARKET DIRECTION ANALYSIS - CallTotalScore: {}, PutTotalScore: {}, Direction: {}", 
                     callTotalScore, putTotalScore, marketDirection);
             log.debug("🔍 CATEGORY BREAKDOWN - Call: EMA={}, FV={}, CS={}, M={} | Put: EMA={}, FV={}, CS={}, M={}", 
-                    callCategoryScores.getOrDefault("ema", 0), callCategoryScores.getOrDefault("futureAndVolume", 0),
-                    callCategoryScores.getOrDefault("candlestick", 0), callCategoryScores.getOrDefault("momentum", 0),
-                    putCategoryScores.getOrDefault("ema", 0), putCategoryScores.getOrDefault("futureAndVolume", 0),
-                    putCategoryScores.getOrDefault("candlestick", 0), putCategoryScores.getOrDefault("momentum", 0));
+                    callCategoryScores.getOrDefault("ema", 0.0), callCategoryScores.getOrDefault("futureAndVolume", 0.0),
+                    callCategoryScores.getOrDefault("candlestick", 0.0), callCategoryScores.getOrDefault("momentum", 0.0),
+                    putCategoryScores.getOrDefault("ema", 0.0), putCategoryScores.getOrDefault("futureAndVolume", 0.0),
+                    putCategoryScores.getOrDefault("candlestick", 0.0), putCategoryScores.getOrDefault("momentum", 0.0));
 
             return marketDirection;
 
@@ -53,7 +53,7 @@ public class MarketDirectionService {
     }
 
 
-    public Map<String, Integer> getCategoryScores(FlattenedIndicators indicators, String direction) {
+    public Map<String, Double> getCategoryScores(FlattenedIndicators indicators, String direction) {
         try {
             if ("CALL".equalsIgnoreCase(direction)) {
                 return calculateCategoryCounts(indicators, configService.getCallCategories());
@@ -72,7 +72,7 @@ public class MarketDirectionService {
     /**
      * Get weighted category scores using the new scoring structure
      */
-    public Map<String, Integer> getWeightedCategoryScores(FlattenedIndicators indicators, String direction) {
+    public Map<String, Double> getWeightedCategoryScores(FlattenedIndicators indicators, String direction) {
         try {
             ScalpingEntryConfig config = configService.getScalpingEntryConfig();
             if (config == null || config.getCategoryScoring() == null) {
@@ -119,14 +119,14 @@ public class MarketDirectionService {
         }
     }
     
-    private Map<String, Integer> calculateCategoryCounts(FlattenedIndicators indicators, Map<String, List<String>> categories) {
-        Map<String, Integer> categoryCounts = new HashMap<>();
+    private Map<String, Double> calculateCategoryCounts(FlattenedIndicators indicators, Map<String, List<String>> categories) {
+        Map<String, Double> categoryCounts = new HashMap<>();
         
         for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
             String categoryName = entry.getKey();
             List<String> conditions = entry.getValue();
             
-            int satisfiedCount = 0;
+            double satisfiedCount = 0.0;
             for (String condition : conditions) {
                 if (evaluateCondition(condition, indicators)) {
                     satisfiedCount++;
@@ -141,21 +141,21 @@ public class MarketDirectionService {
     /**
      * Calculate weighted category scores using the new scoring structure
      */
-    private Map<String, Integer> calculateWeightedCategoryScores(FlattenedIndicators indicators, Map<String, ScalpingEntryConfig.CategoryIndicatorScoring> categories) {
-        Map<String, Integer> categoryScores = new HashMap<>();
+    private Map<String, Double> calculateWeightedCategoryScores(FlattenedIndicators indicators, Map<String, ScalpingEntryConfig.CategoryIndicatorScoring> categories) {
+        Map<String, Double> categoryScores = new HashMap<>();
         
         for (Map.Entry<String, ScalpingEntryConfig.CategoryIndicatorScoring> entry : categories.entrySet()) {
             String categoryName = entry.getKey();
             ScalpingEntryConfig.CategoryIndicatorScoring categoryScoring = entry.getValue();
             
-            int totalScore = 0;
+            double totalScore = 0.0;
             if (categoryScoring != null && categoryScoring.getIndicators() != null) {
-                for (Map.Entry<String, Integer> indicatorEntry : categoryScoring.getIndicators().entrySet()) {
+                for (Map.Entry<String, Double> indicatorEntry : categoryScoring.getIndicators().entrySet()) {
                     String indicatorName = indicatorEntry.getKey();
-                    Integer weightage = indicatorEntry.getValue();
+                    Double weightage = indicatorEntry.getValue();
                     
                     if (evaluateCondition(indicatorName, indicators)) {
-                        totalScore += weightage != null ? weightage : 1;
+                        totalScore += weightage != null ? weightage : 1.0;
                     }
                 }
             }
@@ -179,9 +179,9 @@ public class MarketDirectionService {
             detailedScore.setCategoryName(categoryName);
 
             if (categoryScoring != null && categoryScoring.getIndicators() != null) {
-                for (Map.Entry<String, Integer> indicatorEntry : categoryScoring.getIndicators().entrySet()) {
+                for (Map.Entry<String, Double> indicatorEntry : categoryScoring.getIndicators().entrySet()) {
                     String indicatorName = indicatorEntry.getKey();
-                    Integer weightage = indicatorEntry.getValue();
+                    Double weightage = indicatorEntry.getValue();
 
                     boolean isSatisfied = evaluateCondition(indicatorName, indicators);
                     detailedScore.addIndicatorScore(indicatorName, weightage, isSatisfied);

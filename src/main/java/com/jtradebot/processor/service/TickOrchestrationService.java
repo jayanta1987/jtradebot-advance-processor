@@ -98,15 +98,15 @@ public class TickOrchestrationService {
                     }
 
                     // Step 3: Calculate Category Scores and Quality Score
-                    Map<String, Integer> callScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
-                    Map<String, Integer> putScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
+                    Map<String, Double> callScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
+                    Map<String, Double> putScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
                     
                     // 🔥 NEW: Get detailed category scores with individual indicator breakdowns
                     Map<String, DetailedCategoryScore> detailedCallScores = marketDirectionService.getDetailedCategoryScores(indicators, "CALL");
                     Map<String, DetailedCategoryScore> detailedPutScores = marketDirectionService.getDetailedCategoryScores(indicators, "PUT");
 
-                    int callTotal = callScores.values().stream().mapToInt(Integer::intValue).sum();
-                    int putTotal = putScores.values().stream().mapToInt(Integer::intValue).sum();
+                    double callTotal = callScores.values().stream().mapToDouble(Double::doubleValue).sum();
+                    double putTotal = putScores.values().stream().mapToDouble(Double::doubleValue).sum();
                     double qualityScore = calculateQualityScore(callTotal, putTotal);
                     // Show quality-based evaluation using calculated quality score
                     String dominantTrend = callTotal > putTotal ? "CALL" : "PUT";
@@ -165,7 +165,7 @@ public class TickOrchestrationService {
         }
     }
 
-    private void logComprehensiveIndicatorAnalysis(Tick tick, double qualityScore, Map<String, Integer> callScores, Map<String, Integer> putScores, String dominantTrend) {
+    private void logComprehensiveIndicatorAnalysis(Tick tick, double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, String dominantTrend) {
         try {
             // Generate trend info using calculated quality score
             String trendInfo = generateTrendInfo(callScores, putScores, dominantTrend, qualityScore);
@@ -184,16 +184,16 @@ public class TickOrchestrationService {
     /**
      * Calculate quality score from category totals (same logic as checkQualityFilter)
      */
-    private double calculateQualityScore(int callTotal, int putTotal) {
-        int winningScore = Math.max(callTotal, putTotal);
-        int totalPossibleScore = callTotal + putTotal;
+    private double calculateQualityScore(double callTotal, double putTotal) {
+        double winningScore = Math.max(callTotal, putTotal);
+        double totalPossibleScore = callTotal + putTotal;
         return totalPossibleScore > 0 ? (double) winningScore / totalPossibleScore * 10.0 : 0.0;
     }
 
     /**
      * Generate trend info for logging (moved from UnifiedIndicatorService)
      */
-    private String generateTrendInfo(Map<String, Integer> callScores, Map<String, Integer> putScores, String dominantTrend, double qualityScore) {
+    private String generateTrendInfo(Map<String, Double> callScores, Map<String, Double> putScores, String dominantTrend, double qualityScore) {
         try {
 
             // Get category breakdown with requirements
@@ -209,7 +209,7 @@ public class TickOrchestrationService {
     /**
      * Get category breakdown with requirements (moved from UnifiedIndicatorService)
      */
-    private String getCategoryBreakdownWithRequirements(Map<String, Integer> callScores, Map<String, Integer> putScores) {
+    private String getCategoryBreakdownWithRequirements(Map<String, Double> callScores, Map<String, Double> putScores) {
         try {
             // Get requirements from SAFE_ENTRY_SIGNAL scenario
             var scenario = configService.getScenarioByName("SAFE_ENTRY_SIGNAL");
@@ -218,27 +218,28 @@ public class TickOrchestrationService {
             }
 
             var requirements = scenario.getRequirements();
-            int emaRequired = requirements.getEma_min_score() != null ? requirements.getEma_min_score() : 0;
-            int fvRequired = requirements.getFutureAndVolume_min_score() != null ? requirements.getFutureAndVolume_min_score() : 0;
-            int csRequired = requirements.getCandlestick_min_score() != null ? requirements.getCandlestick_min_score() : 0;
-            int mRequired = requirements.getMomentum_min_score() != null ? requirements.getMomentum_min_score() : 0;
+            double emaRequired = requirements.getEma_min_score() != null ? requirements.getEma_min_score() : 0.0;
+            double fvRequired = requirements.getFutureAndVolume_min_score() != null ? requirements.getFutureAndVolume_min_score() : 0.0;
+            double csRequired = requirements.getCandlestick_min_score() != null ? requirements.getCandlestick_min_score() : 0.0;
+            double mRequired = requirements.getMomentum_min_score() != null ? requirements.getMomentum_min_score() : 0.0;
 
             // Format the breakdown with actual scores for both directions
-            String callEma = callScores.getOrDefault("ema", 0) + "/" + emaRequired;
-            String callFv = callScores.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
-            String callCs = callScores.getOrDefault("candlestick", 0) + "/" + csRequired;
-            String callM = callScores.getOrDefault("momentum", 0) + "/" + mRequired;
+            String callEma = callScores.getOrDefault("ema", 0.0) + "/" + emaRequired;
+            String callFv = callScores.getOrDefault("futureAndVolume", 0.0) + "/" + fvRequired;
+            String callCs = callScores.getOrDefault("candlestick", 0.0) + "/" + csRequired;
+            String callM = callScores.getOrDefault("momentum", 0.0) + "/" + mRequired;
 
-            String putEma = putScores.getOrDefault("ema", 0) + "/" + emaRequired;
-            String putFv = putScores.getOrDefault("futureAndVolume", 0) + "/" + fvRequired;
-            String putCs = putScores.getOrDefault("candlestick", 0) + "/" + csRequired;
-            String putM = putScores.getOrDefault("momentum", 0) + "/" + mRequired;
+            String putEma = putScores.getOrDefault("ema", 0.0) + "/" + emaRequired;
+            String putFv = putScores.getOrDefault("futureAndVolume", 0.0) + "/" + fvRequired;
+            String putCs = putScores.getOrDefault("candlestick", 0.0) + "/" + csRequired;
+            String putM = putScores.getOrDefault("momentum", 0.0) + "/" + mRequired;
 
             return String.format("Call: EMA=%s, FV=%s, CS=%s, M=%s | Put: EMA=%s, FV=%s, CS=%s, M=%s",
                     callEma, callFv, callCs, callM, putEma, putFv, putCs, putM);
 
         } catch (Exception e) {
-            return "";
+            log.error("Error getting category breakdown with requirements: {}", e.getMessage());
+            return "Error getting requirements";
         }
     }
 

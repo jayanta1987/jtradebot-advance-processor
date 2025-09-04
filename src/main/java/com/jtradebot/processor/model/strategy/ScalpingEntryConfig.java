@@ -108,10 +108,10 @@ public class ScalpingEntryConfig {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ScenarioRequirements {
-        private Integer ema_min_score;
-        private Integer futureAndVolume_min_score;
-        private Integer candlestick_min_score;
-        private Integer momentum_min_score;
+        private Double ema_min_score;
+        private Double futureAndVolume_min_score;
+        private Double candlestick_min_score;
+        private Double momentum_min_score;
         private Double minQualityScore;
         private Boolean flatMarketFilter;
     }
@@ -181,7 +181,7 @@ public class ScalpingEntryConfig {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CategoryIndicatorScoring {
-        private Map<String, Integer> indicators;
+        private Map<String, Double> indicators;
     }
     
     @Data

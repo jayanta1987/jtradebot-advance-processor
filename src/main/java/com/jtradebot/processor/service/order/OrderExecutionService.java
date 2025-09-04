@@ -56,7 +56,7 @@ public class OrderExecutionService {
         }
     }
 
-    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend, double qualityScore, Map<String, Integer> callScores, Map<String, Integer> putScores, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
+    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend, double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         try {
             boolean hasActiveOrder = exitStrategyService.hasActiveOrder();
             if (!hasActiveOrder) {
@@ -75,7 +75,7 @@ public class OrderExecutionService {
 
 
     public void executeOrdersIfSignalsGenerated(Tick indexTick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
-                                                double qualityScore, String dominantTrend, Map<String, Integer> callScores, Map<String, Integer> putScores, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
+                                                double qualityScore, String dominantTrend, Map<String, Double> callScores, Map<String, Double> putScores, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         // Get entry decision directly from DynamicRuleEvaluatorService
         ScalpingEntryDecision scenarioDecision = null;
         try {
@@ -94,7 +94,7 @@ public class OrderExecutionService {
         return dominantTrend.concat("_BUY");
     }
 
-    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable, double qualityScore, Map<String, Integer> callScores, Map<String, Integer> putScores, String dominantTrend,
+    private void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable, double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, String dominantTrend,
                                   Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) throws KiteException {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());

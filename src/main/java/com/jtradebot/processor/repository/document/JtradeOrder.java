@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.MilestoneSystem.Milestone;
+import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 
 import lombok.Data;
 import lombok.ToString;
@@ -78,18 +79,18 @@ public class JtradeOrder {
     private String entryScenarioName;
     private String entryScenarioDescription;
     private Double entryScenarioConfidence;
-    private Map<String, Integer> entryCategoryScores;
+    private Map<String, Double> entryCategoryScores;
     private Map<String, List<String>> entryMatchedConditions;
     
     // 🔥 NEW: Quality Score and Direction Scores at Entry Time
     private Double entryQualityScore;
-    private Map<String, Integer> entryCallScores;
-    private Map<String, Integer> entryPutScores;
+    private Map<String, Double> entryCallScores;
+    private Map<String, Double> entryPutScores;
     private String entryDominantTrend;
     
     // 🔥 NEW: Detailed Category Scores with Individual Indicator Breakdowns
-    private Map<String, Object> entryDetailedCallScores;
-    private Map<String, Object> entryDetailedPutScores;
+    private Map<String, DetailedCategoryScore> entryDetailedCallScores;
+    private Map<String, DetailedCategoryScore> entryDetailedPutScores;
     
     // Filter Failure Tracking
     private Integer mandatoryFiltersFailed;

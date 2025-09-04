@@ -17,8 +17,8 @@ import java.util.List;
 public class DetailedCategoryScore {
     
     private String categoryName;
-    private Integer totalScore;
-    private Integer maxPossibleScore;
+    private Double totalScore;
+    private Double maxPossibleScore;
     private Double scorePercentage;
     
     // Detailed breakdown of individual indicators
@@ -29,11 +29,11 @@ public class DetailedCategoryScore {
     
     public DetailedCategoryScore() {
         this.indicatorContributions = new ArrayList<>();
-        this.totalScore = 0;
-        this.maxPossibleScore = 0;
+        this.totalScore = 0.0;
+        this.maxPossibleScore = 0.0;
     }
     
-    public void addIndicatorScore(String indicatorName, Integer weightage, boolean isSatisfied) {
+    public void addIndicatorScore(String indicatorName, Double weightage, boolean isSatisfied) {
         if (indicatorContributions == null) {
             indicatorContributions = new ArrayList<>();
         }
@@ -42,7 +42,7 @@ public class DetailedCategoryScore {
                 .indicatorName(indicatorName)
                 .displayName(getDisplayName(indicatorName))
                 .isSatisfied(isSatisfied)
-                .weightage(weightage != null ? weightage : 1)
+                .weightage(weightage != null ? weightage : 1.0)
                 .description(getDescription(indicatorName))
                 .timeframe(getTimeframe(indicatorName))
                 .build();
@@ -51,13 +51,13 @@ public class DetailedCategoryScore {
         
         // Update totals
         if (isSatisfied) {
-            totalScore += (weightage != null ? weightage : 1);
+            totalScore += (weightage != null ? weightage : 1.0);
         }
-        maxPossibleScore += (weightage != null ? weightage : 1);
+        maxPossibleScore += (weightage != null ? weightage : 1.0);
         
         // Calculate percentage
         if (maxPossibleScore > 0) {
-            scorePercentage = (double) totalScore / maxPossibleScore * 100.0;
+            scorePercentage = totalScore / maxPossibleScore * 100.0;
         }
         
         // Generate summary
@@ -133,7 +133,7 @@ public class DetailedCategoryScore {
         private String indicatorName;
         private String displayName;
         private Boolean isSatisfied;
-        private Integer weightage;
+        private Double weightage;
         private String description;
         private String timeframe; // "1min", "5min", "15min"
     }

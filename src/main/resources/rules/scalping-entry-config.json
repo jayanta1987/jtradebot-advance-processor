@@ -44,7 +44,7 @@
           "oi_bullish_signal_1min": 0.5,
           "oi_bullish_signal_15min": 1,
 
-          "price_above_resistance": 2
+          "price_above_resistance": 1
         }
       },
       "candlestick": {
@@ -103,7 +103,7 @@
           "oi_bearish_signal_1min": 0.5,
           "oi_bearish_signal_15min": 1,
 
-          "price_below_support": 2
+          "price_below_support": 1
         }
       },
       "candlestick": {
