@@ -11,9 +11,7 @@ import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
-import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.exit.ExitSignalTrackingService;
-import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.OptionPricingService;
 import com.zerodhatech.kiteconnect.KiteConnect;
@@ -111,13 +109,6 @@ public class ActiveOrderTrackingService {
     }
 
 
-    public List<JtradeOrder> getActiveOrdersByType(OrderTypeEnum orderType) {
-        return activeOrdersMap.values().stream()
-                .filter(order -> order.getOrderType() == orderType)
-                .toList();
-    }
-
-
     /**
      * Calculate current LTP based on index movement
      * LTP = Entry Price + (Current Index Price - Entry Index Price)
@@ -153,7 +144,7 @@ public class ActiveOrderTrackingService {
     }
 
 
-    private ExitReasonEnum determineExitReason(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
+    private ExitReasonEnum checkPrimaryExitReason(JtradeOrder order, Double currentLTP) {
         // Check if we have valid stop loss and target prices
         if (order.getStopLossPrice() == null || order.getTargetPrice() == null) {
             log.warn("⚠️ Missing stop loss or target price - Order: {} | Stop Loss: {} | Target: {}",
@@ -181,9 +172,10 @@ public class ActiveOrderTrackingService {
      * Enhanced exit reason determination including time-based and strategy-based exits
      * Priority order: Stop Loss/Target > Strategy-based > Time-based
      */
-    public ExitReasonEnum determineEnhancedExitReason(JtradeOrder order, Double currentLTP, Double currentIndexPrice, Tick tick) {
+    public ExitReasonEnum determineEnhancedExitReason(JtradeOrder order, Double currentLTP, Tick tick, double qualityScore, String dominantTrend) {
+
         // Check traditional stop loss and target FIRST (highest priority)
-        ExitReasonEnum stopLossOrTargetReason = determineExitReason(order, currentLTP, currentIndexPrice);
+        ExitReasonEnum stopLossOrTargetReason = checkPrimaryExitReason(order, currentLTP);
         if (stopLossOrTargetReason == ExitReasonEnum.STOPLOSS_HIT ||
                 stopLossOrTargetReason == ExitReasonEnum.TARGET_HIT) {
             log.info("🎯 PRIORITY EXIT - Order: {} | Reason: {} | Current LTP: {}",
@@ -198,7 +190,7 @@ public class ActiveOrderTrackingService {
         }
 
         // Check strategy-based exit
-        if (exitSignalTrackingService.shouldExitBasedOnStrategy(order, tick)) {
+        if (exitSignalTrackingService.shouldExitBasedOnStrategy(order, tick, qualityScore, dominantTrend)) {
             log.info("📊 STRATEGY EXIT - Order: {} | Reason: EXIT_SIGNAL", order.getId());
             return ExitReasonEnum.EXIT_SIGNAL;
         }
@@ -296,7 +288,7 @@ public class ActiveOrderTrackingService {
     }
 
 
-    public List<JtradeOrder> getOrdersForExit(Tick tick) {
+    public List<JtradeOrder> getOrdersForExit(Tick tick, double qualityScore, String dominantTrend) {
 
         // Get current index price
         Double currentIndexPrice = tick.getLastTradedPrice(); // As tick is for index itself
@@ -310,15 +302,15 @@ public class ActiveOrderTrackingService {
             // Update index price tracking for all active orders
             updateIndexPriceTracking(order, currentIndexPrice);
 
-            // Log that we're checking exits for this order
-            log.debug("🔍 Checking exits for order: {} - Entry time: {}, Current LTP: {}, Stop Loss: {}, Target: {}, Profile: {}",
-                    order.getId(), order.getEntryTime(), currentLTP, order.getStopLossPrice(), order.getTargetPrice(),
-                    getActiveProfile());
+            // Handle milestone system for additional target-based exits (lowest priority)
+            if (order.getTargetMilestones() != null && !order.getTargetMilestones().isEmpty()) {
+                handleTrailingStopLossAndMilestones(order, currentLTP, currentIndexPrice);
+            }
 
             // Check all exit conditions including time-based, strategy-based, and market-based
-            if (shouldExitOrder(order, currentLTP, currentIndexPrice) ||
-                    shouldExitBasedOnTime(order, tick.getTickTimestamp()) ||
-                    exitSignalTrackingService.shouldExitBasedOnStrategy(order, tick)) {
+            ExitReasonEnum exitReason = determineEnhancedExitReason(order, currentLTP, tick, qualityScore, dominantTrend);
+            if (exitReason != null) {
+                order.setExitReason(exitReason);
                 ordersToExit.add(order);
             }
         }
@@ -326,39 +318,12 @@ public class ActiveOrderTrackingService {
 
     }
 
-    public boolean shouldExitOrder(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
-        // MANDATORY: Check stop loss FIRST for ALL orders (highest priority)
-        if (order.getStopLossPrice() != null && currentLTP <= order.getStopLossPrice()) {
-            log.info("🛑 MANDATORY STOP LOSS HIT - Order: {} | Current: {} | Stop Loss: {} | Difference: {}",
-                    order.getId(), currentLTP, order.getStopLossPrice(), order.getStopLossPrice() - currentLTP);
-            return true;
-        }
-
-        // Check target price for ALL orders (second priority)
-        if (order.getTargetPrice() != null && currentLTP >= order.getTargetPrice()) {
-            log.info("🎯 MANDATORY TARGET HIT - Order: {} | Current: {} | Target: {} | Difference: {}",
-                    order.getId(), currentLTP, order.getTargetPrice(), currentLTP - order.getTargetPrice());
-            return true;
-        }
-
-        // Check milestone system for additional target-based exits (lowest priority)
-        if (order.getTargetMilestones() != null && !order.getTargetMilestones().isEmpty()) {
-            log.debug("🔍 CHECKING MILESTONE SYSTEM - Order: {} | Milestones: {} | Current LTP: {}",
-                    order.getId(), order.getTargetMilestones().size(), currentLTP);
-            return shouldExitOrderWithMilestones(order, currentLTP, currentIndexPrice);
-        }
-
-        log.debug("✅ No exit conditions met - Order: {} | Current: {} | Stop Loss: {} | Target: {}",
-                order.getId(), currentLTP, order.getStopLossPrice(), order.getTargetPrice());
-        return false;
-    }
-
-    private boolean shouldExitOrderWithMilestones(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
+    private void handleTrailingStopLossAndMilestones(JtradeOrder order, Double currentLTP, Double currentIndexPrice) {
         // Milestone system only handles milestone-specific target exits
         // Stop loss and main target are handled in the main shouldExitOrder method
         List<MilestoneSystem.Milestone> targetMilestones = order.getTargetMilestones();
         if (targetMilestones == null || targetMilestones.isEmpty()) {
-            return false;
+            return;
         }
 
         // Check each milestone for additional target-based exits
@@ -391,11 +356,9 @@ public class ActiveOrderTrackingService {
                         order.getOrderType(), order.getTradingSymbol(), currentLTP,
                         milestone.getMilestoneNumber(), milestone.getPoints(), order.getStopLossPrice());
 
-                return true;
+                return;
             }
         }
-
-        return false;
     }
 
 

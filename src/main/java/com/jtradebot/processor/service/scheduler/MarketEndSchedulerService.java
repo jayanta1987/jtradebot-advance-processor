@@ -81,15 +81,12 @@ public class MarketEndSchedulerService {
                 try {
                     log.info("🕒 TRADING HOURS CHECK - Closing order: {} (Type: {}, Symbol: {})", 
                             order.getId(), order.getOrderType(), order.getTradingSymbol());
-                    
-                    // Exit the order with market end reason
-                    // For market end closure, we'll use the current market price
-                    // The exit strategy service will handle price calculation
+
                     orderManagementService.exitOrder(
                             order.getId(), 
                             ExitReasonEnum.MARKET_END_CLOSURE, 
-                            null, // Let the service calculate current price
-                            null, // Let the service calculate current index price
+                            null, // TO DO
+                            null, // TO DO
                             new Date()
                     );
                     

@@ -129,7 +129,7 @@ public class TickOrchestrationService {
                     // Step 6: Execute orders if signals are generated
                     if (filtersPassed) {
                         // Get entry decision directly from DynamicRuleEvaluatorService
-                        ScalpingEntryDecision scenarioDecision = null;
+                        ScalpingEntryDecision scenarioDecision;
                         try {
                             scenarioDecision = dynamicRuleEvaluatorService.getEntryDecision(tick, indicators, result, qualityScore, dominantTrend, callScores, putScores);
                         } catch (Exception e) {
@@ -146,20 +146,12 @@ public class TickOrchestrationService {
                     try {
                         if (activeOrderTrackingService.hasActiveOrder()) {
                             activeOrderTrackingService.updateLivePnL(tick);
-                            List<JtradeOrder> ordersToExit = activeOrderTrackingService.getOrdersForExit(tick);
+                            List<JtradeOrder> ordersToExit = activeOrderTrackingService.getOrdersForExit(tick, qualityScore, dominantTrend);
 
                             Double currentIndexPrice = tick.getLastTradedPrice(); // Use current tick price as index price
                             // Process exits
                             for (JtradeOrder order : ordersToExit) {
-                                Double currentLTP = activeOrderTrackingService.getCurrentPrice(order, currentIndexPrice);
-                                ExitReasonEnum exitReason = activeOrderTrackingService.determineEnhancedExitReason(order, currentLTP, currentIndexPrice, tick);
-
-                                // Only exit if we have a valid exit reason
-                                if (exitReason != null) {
-                                    orderManagementService.exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice, tick.getTickTimestamp()); // Use tick timestamp for accurate backtesting
-                                } else {
-                                    log.debug("⏸️ SKIPPING EXIT - Order: {} | No exit conditions met", order.getId());
-                                }
+                                orderManagementService.exitOrder(tick, order, currentIndexPrice);
                             }
                         }
                     } catch (KiteException e) {

@@ -266,6 +266,11 @@ public class OrderManagementService {
         }
     }
 
+    public void exitOrder(Tick tick, JtradeOrder order, Double currentIndexPrice) {
+        Double currentLTP = activeOrderTrackingService.getCurrentPrice(order, currentIndexPrice);
+        exitOrder(order.getId(), order.getExitReason(), currentLTP, currentIndexPrice, tick.getTickTimestamp()); // Use tick timestamp for accurate backtesting
+    }
+
     public void exitOrder(String orderId, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice, Date exitTime) {
         JtradeOrder order = activeOrderTrackingService.getOrderById(orderId);
         if (order == null) {
