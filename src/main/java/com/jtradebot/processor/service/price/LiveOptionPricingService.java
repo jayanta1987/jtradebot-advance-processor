@@ -48,7 +48,7 @@ public class LiveOptionPricingService {
             log.info("🔍 SEARCHING FOR OPTION INSTRUMENT - Index Price: {}, Option Type: {}", niftyIndexPrice, optionType);
             Optional<Instrument> optionInstrument = strikePriceCalculator.findOptionInstrument(niftyIndexPrice, optionType);
 
-            if (!optionInstrument.isPresent()) {
+            if (optionInstrument.isEmpty()) {
                 log.warn("❌ NO OPTION INSTRUMENT FOUND - Strike: {}, Type: {}, Index: {}", 
                         strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType), optionType, niftyIndexPrice);
                 return Optional.empty();

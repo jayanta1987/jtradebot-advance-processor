@@ -1,18 +1,22 @@
 package com.jtradebot.processor.service;
 
-import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
+import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
+import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
+import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.repository.document.JtradeOrder;
+import com.jtradebot.processor.service.analysis.MarketDirectionService;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
-import com.jtradebot.processor.service.analysis.MarketDirectionService;
-import com.jtradebot.processor.service.order.ExitStrategyService;
-import com.jtradebot.processor.service.order.OrderExecutionService;
+import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
+import com.jtradebot.processor.service.order.OrderManagementService;
 import com.jtradebot.processor.service.scheduler.TickEventTracker;
+import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,8 +41,8 @@ public class TickOrchestrationService {
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     private final MarketDirectionService marketDirectionService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
-    private final OrderExecutionService orderExecutionService;
-    private final ExitStrategyService exitStrategyService;
+    private final OrderManagementService orderManagementService;
+    private final ActiveOrderTrackingService activeOrderTrackingService;
     private final DynamicStrategyConfigService configService;
 
     public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) {
@@ -93,14 +97,14 @@ public class TickOrchestrationService {
                     // Step 2: Analyze no trade zones filter checks
                     UnstableMarketConditionAnalysisService.FlexibleFilteringResult result = unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
                     boolean inTradingZone = result.isConditionsMet();
-                    if(inTradingZone){
+                    if (inTradingZone) {
                         log.info("✅ IN TRADING ZONE - All no-trade zone conditions clear");
                     }
 
                     // Step 3: Calculate Category Scores and Quality Score
                     Map<String, Double> callScores = marketDirectionService.getWeightedCategoryScores(indicators, "CALL");
                     Map<String, Double> putScores = marketDirectionService.getWeightedCategoryScores(indicators, "PUT");
-                    
+
                     // 🔥 NEW: Get detailed category scores with individual indicator breakdowns
                     Map<String, DetailedCategoryScore> detailedCallScores = marketDirectionService.getDetailedCategoryScores(indicators, "CALL");
                     Map<String, DetailedCategoryScore> detailedPutScores = marketDirectionService.getDetailedCategoryScores(indicators, "PUT");
@@ -115,7 +119,7 @@ public class TickOrchestrationService {
                     logComprehensiveIndicatorAnalysis(tick, qualityScore, callScores, putScores, dominantTrend);
 
                     // Step 5: Block entries after recent stop-loss hits
-                    if (exitStrategyService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken())) {
+                    if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken())) {
                         log.warn("🚫 ORDER CREATION BLOCKED - Recent STOPLOSS_HIT exit in same 5-min candle");
                         return;
                     }
@@ -124,11 +128,43 @@ public class TickOrchestrationService {
 
                     // Step 6: Execute orders if signals are generated
                     if (filtersPassed) {
-                        orderExecutionService.executeOrdersIfSignalsGenerated(tick, indicators, result, qualityScore, dominantTrend, callScores, putScores, detailedCallScores, detailedPutScores);
+                        // Get entry decision directly from DynamicRuleEvaluatorService
+                        ScalpingEntryDecision scenarioDecision = null;
+                        try {
+                            scenarioDecision = dynamicRuleEvaluatorService.getEntryDecision(tick, indicators, result, qualityScore, dominantTrend, callScores, putScores);
+                        } catch (Exception e) {
+                            log.error("Error getting entry decision for order execution: {}", e.getMessage());
+                            return;
+                        }
+
+                        if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
+                            orderManagementService.validateAndExecuteOrder(tick, scenarioDecision, result.isConditionsMet(), dominantTrend, qualityScore, callScores, putScores, detailedCallScores, detailedPutScores);
+                        }
                     }
 
-                    // Step 7: Handle order management
-                    orderExecutionService.handleOrderManagement(tick);
+                    // Step 7: Handle  active orders - exits, trailing SL, P&L updates
+                    try {
+                        if (activeOrderTrackingService.hasActiveOrder()) {
+                            activeOrderTrackingService.updateLivePnL(tick);
+                            List<JtradeOrder> ordersToExit = activeOrderTrackingService.getOrdersForExit(tick);
+
+                            Double currentIndexPrice = tick.getLastTradedPrice(); // Use current tick price as index price
+                            // Process exits
+                            for (JtradeOrder order : ordersToExit) {
+                                Double currentLTP = activeOrderTrackingService.getCurrentPrice(order, currentIndexPrice);
+                                ExitReasonEnum exitReason = activeOrderTrackingService.determineEnhancedExitReason(order, currentLTP, currentIndexPrice, tick);
+
+                                // Only exit if we have a valid exit reason
+                                if (exitReason != null) {
+                                    orderManagementService.exitOrder(order.getId(), exitReason, currentLTP, currentIndexPrice, tick.getTickTimestamp()); // Use tick timestamp for accurate backtesting
+                                } else {
+                                    log.debug("⏸️ SKIPPING EXIT - Order: {} | No exit conditions met", order.getId());
+                                }
+                            }
+                        }
+                    } catch (KiteException e) {
+                        log.error("Error updating live P&L for tick: {}", tick.getInstrumentToken(), e);
+                    }
 
                 } catch (Exception e) {
                     log.error("Error processing tick for instrument {}: {}", tick.getInstrumentToken(), e.getMessage());

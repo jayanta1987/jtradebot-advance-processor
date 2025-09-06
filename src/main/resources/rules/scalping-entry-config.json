@@ -15,11 +15,23 @@
       "name": "SAFE_ENTRY_SIGNAL",
       "description": "Conservative entry with strong confirmations using category-based scoring system",
       "requirements": {
-        "minQualityScore": 8.5,
+        "minQualityScore": 7.5,
         "ema_min_score": 2.5,
         "futureAndVolume_min_score": 6.5,
         "candlestick_min_score": 3.5,
         "momentum_min_score": 2.5,
+        "flatMarketFilter": true
+      }
+    },
+    {
+      "name": "HIGH_RISK_TRADE",
+      "description": "High risk with strong confirmations using category-based scoring system",
+      "requirements": {
+        "minQualityScore": 9.0,
+        "ema_min_score": 1.5,
+        "futureAndVolume_min_score": 3.5,
+        "candlestick_min_score": 3.0,
+        "momentum_min_score": 1.0,
         "flatMarketFilter": true
       }
     }
