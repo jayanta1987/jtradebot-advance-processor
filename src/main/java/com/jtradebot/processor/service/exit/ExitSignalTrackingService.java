@@ -1,7 +1,5 @@
 package com.jtradebot.processor.service.exit;
 
-import com.jtradebot.processor.model.MilestoneSystem;
-import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
@@ -9,9 +7,6 @@ import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Service
 @Slf4j
@@ -23,7 +18,7 @@ public class ExitSignalTrackingService {
     /**
      * Check if order should be exited based on strategy reversal
      */
-    public boolean shouldExitBasedOnStrategy(JtradeOrder order, Tick tick) {
+    public boolean shouldExitBasedOnStrategy(JtradeOrder order, Tick tick, double qualityScore, String dominantTrend) {
         try {
             // For CALL orders, exit if PUT entry conditions are met (strategy reversal)
             if (order.getOrderType() == OrderTypeEnum.CALL_BUY) {
