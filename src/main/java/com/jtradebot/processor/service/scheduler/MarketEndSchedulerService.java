@@ -2,14 +2,12 @@ package com.jtradebot.processor.service.scheduler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
-import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
-import com.jtradebot.processor.service.order.ExitStrategyService;
-import com.zerodhatech.models.Tick;
+import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
+import com.jtradebot.processor.service.order.OrderManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -26,7 +24,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MarketEndSchedulerService {
     
-    private final ExitStrategyService exitStrategyService;
+    private final ActiveOrderTrackingService activeOrderTrackingService;
+    private final OrderManagementService orderManagementService;
     private final TradingHoursConfig tradingHoursConfig;
     private final TickDataManager tickDataManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -68,7 +67,7 @@ public class MarketEndSchedulerService {
                     startHour, String.format("%02d", startMinute), endHour, String.format("%02d", endMinute));
             
             // Get all active orders
-            List<com.jtradebot.processor.repository.document.JtradeOrder> activeOrders = exitStrategyService.getActiveOrders();
+            List<com.jtradebot.processor.repository.document.JtradeOrder> activeOrders = activeOrderTrackingService.getActiveOrders();
             
             if (activeOrders.isEmpty()) {
                 log.info("🕒 TRADING HOURS CHECK - No active orders to close");
@@ -86,7 +85,7 @@ public class MarketEndSchedulerService {
                     // Exit the order with market end reason
                     // For market end closure, we'll use the current market price
                     // The exit strategy service will handle price calculation
-                    exitStrategyService.exitOrder(
+                    orderManagementService.exitOrder(
                             order.getId(), 
                             ExitReasonEnum.MARKET_END_CLOSURE, 
                             null, // Let the service calculate current price

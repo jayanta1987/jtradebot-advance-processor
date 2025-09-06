@@ -34,6 +34,17 @@ public class DateTimeHandler {
             e.printStackTrace();
         }
     }
+    // Utility methods for IST time formatting
+    public static String formatDateToIST(Date date) {
+        if (date == null) return null;
+        ZonedDateTime istTime = date.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
+        return istTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"));
+    }
+
+    public static String getCurrentISTTime() {
+        ZonedDateTime istTime = ZonedDateTime.now(ZoneId.of("Asia/Kolkata"));
+        return istTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"));
+    }
 
     private static void adjustToLastWorkingDay(Calendar calendar) {
         // Check if current day is a working day, and adjust if it's not
