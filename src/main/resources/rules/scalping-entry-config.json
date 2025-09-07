@@ -256,7 +256,7 @@
   
   "tradingConfiguration": {
     "quantitySettings": {
-      "minLotSize": 225,
+      "minLotSize": 75,
       "maxQuantityPerTrade": 550
     },
     "investmentLimits": {
