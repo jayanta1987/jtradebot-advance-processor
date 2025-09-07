@@ -128,51 +128,6 @@ public class DynamicRiskManagementService {
     }
 
     /**
-     * Get market volatility score based on recent 5-minute candles
-     */
-    public double getMarketVolatilityScore(String instrumentToken) {
-        try {
-            // Get configurable candle timeframe
-            CandleTimeFrameEnum candleTimeframe = getCandleTimeframeFromConfig();
-            BarSeries candleSeries = barSeriesManager.getBarSeriesForTimeFrame(instrumentToken, candleTimeframe);
-
-            int minRequiredBars = tradingConfigService.getMinRequiredBars();
-            if (candleSeries == null || candleSeries.getBarCount() < minRequiredBars) {
-                log.warn("Insufficient {} candle data for volatility calculation for instrument: {} (required: {}, available: {})",
-                        candleTimeframe, instrumentToken, minRequiredBars,
-                        candleSeries != null ? candleSeries.getBarCount() : 0);
-                return tradingConfigService.getDefaultVolatilityScore();
-            }
-
-            // Calculate average range of last N candles (configurable lookback period)
-            double totalRange = 0.0;
-            int lookbackPeriod = tradingConfigService.getVolatilityLookbackPeriod();
-            int candleCount = Math.min(lookbackPeriod, candleSeries.getBarCount());
-
-            for (int i = candleSeries.getEndIndex() - candleCount + 1; i <= candleSeries.getEndIndex(); i++) {
-                Bar bar = candleSeries.getBar(i);
-                double range = bar.getHighPrice().doubleValue() - bar.getLowPrice().doubleValue();
-                totalRange += range;
-            }
-
-            double avgRange = totalRange / candleCount;
-            double currentIndexPrice = candleSeries.getLastBar().getClosePrice().doubleValue();
-
-            // Volatility score as percentage of index price
-            double volatilityScore = (avgRange / currentIndexPrice) * 100;
-
-            log.debug("📊 MARKET VOLATILITY SCORE - Instrument: {} | Timeframe: {} | Lookback: {} | Avg Range: {:.2f} | Volatility: {:.2f}%",
-                    instrumentToken, candleTimeframe, lookbackPeriod, avgRange, volatilityScore);
-
-            return volatilityScore;
-
-        } catch (Exception e) {
-            log.error("Error calculating market volatility score for instrument: {}", instrumentToken, e);
-            return tradingConfigService.getDefaultVolatilityScore();
-        }
-    }
-
-    /**
      * Get candle timeframe from configuration
      */
     private CandleTimeFrameEnum getCandleTimeframeFromConfig() {
@@ -191,34 +146,15 @@ public class DynamicRiskManagementService {
             } catch (IllegalArgumentException e) {
                 // Try to map common formats to enum values
                 String normalized = timeframeStr.trim().toLowerCase();
-                switch (normalized) {
-                    case "1min":
-                    case "1_min":
-                    case "one_min":
-                        return CandleTimeFrameEnum.ONE_MIN;
-                    case "3min":
-                    case "3_min":
-                    case "three_min":
-                        return CandleTimeFrameEnum.THREE_MIN;
-                    case "5min":
-                    case "5_min":
-                    case "five_min":
-                        return CandleTimeFrameEnum.FIVE_MIN;
-                    case "15min":
-                    case "15_min":
-                    case "fifteen_min":
-                        return CandleTimeFrameEnum.FIFTEEN_MIN;
-                    case "1hour":
-                    case "1_hour":
-                    case "one_hour":
-                        return CandleTimeFrameEnum.ONE_HOUR;
-                    case "1day":
-                    case "1_day":
-                    case "one_day":
-                        return CandleTimeFrameEnum.ONE_DAY;
-                    default:
-                        throw new IllegalArgumentException("Unknown timeframe format: " + timeframeStr);
-                }
+                return switch (normalized) {
+                    case "1min", "1_min", "one_min" -> CandleTimeFrameEnum.ONE_MIN;
+                    case "3min", "3_min", "three_min" -> CandleTimeFrameEnum.THREE_MIN;
+                    case "5min", "5_min", "five_min" -> CandleTimeFrameEnum.FIVE_MIN;
+                    case "15min", "15_min", "fifteen_min" -> CandleTimeFrameEnum.FIFTEEN_MIN;
+                    case "1hour", "1_hour", "one_hour" -> CandleTimeFrameEnum.ONE_HOUR;
+                    case "1day", "1_day", "one_day" -> CandleTimeFrameEnum.ONE_DAY;
+                    default -> throw new IllegalArgumentException("Unknown timeframe format: " + timeframeStr);
+                };
             }
         } catch (Exception e) {
             log.warn("Error parsing candle timeframe from config: {}, using FIVE_MIN as default. Error: {}",

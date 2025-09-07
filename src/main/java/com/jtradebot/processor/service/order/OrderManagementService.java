@@ -236,16 +236,15 @@ public class OrderManagementService {
             double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, jsonMilestonePoints);
             
             // Use the dynamic milestone points for milestone creation
-            double milestonePoints = dynamicMilestonePoints;
 
             // Create target milestones
             List<MilestoneSystem.Milestone> targetMilestones = new ArrayList<>();
             List<String> milestoneHistory = new ArrayList<>();
 
-            if (milestonePoints > 0) {
-                int milestoneCount = (int) Math.ceil(totalTargetPoints / milestonePoints);
+            if (dynamicMilestonePoints > 0) {
+                int milestoneCount = (int) Math.ceil(totalTargetPoints / dynamicMilestonePoints);
                 for (int i = 1; i <= milestoneCount; i++) {
-                    double points = Math.min(i * milestonePoints, totalTargetPoints);
+                    double points = Math.min(i * dynamicMilestonePoints, totalTargetPoints);
                     double targetPrice = order.getEntryPrice() + points; // Target is always entry + points
 
                     MilestoneSystem.Milestone milestone = MilestoneSystem.Milestone.builder()
