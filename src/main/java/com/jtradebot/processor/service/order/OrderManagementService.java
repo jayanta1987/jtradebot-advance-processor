@@ -1,5 +1,6 @@
 package com.jtradebot.processor.service.order;
 
+import com.jtradebot.processor.common.CommonUtils;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
@@ -11,11 +12,15 @@ import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
+import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
+import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisService;
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
-import com.jtradebot.processor.service.price.OptionPricingService;
+import com.jtradebot.processor.service.price.MockOptionPricingService;
 import com.jtradebot.processor.service.risk.DynamicRiskManagementService;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
+import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,95 +40,77 @@ import static com.jtradebot.processor.service.order.LogOrderService.logScores;
 public class OrderManagementService {
 
     private final LiveOptionPricingService liveOptionPricingService;
+    private final MockOptionPricingService mockOptionPricingService;
     private final TradingConfigurationService tradingConfigService;
     private final DynamicRiskManagementService dynamicRiskManagementService;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final TickDataManager tickDataManager;
-    private final OptionPricingService optionPricingService;
     private final ActiveOrderTrackingService activeOrderTrackingService;
     private final DynamicStrategyConfigService configService;
     private final OrderNotificationService orderNotificationService;
     private final JtradeOrderRepository jtradeOrderRepository;
+    private final KiteOrderService kiteOrderService;
+    private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
+    private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
 
-    public void createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable, double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, String dominantTrend,
-                                 Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) throws KiteException {
+    public JtradeOrder createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable,
+                                        double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, String dominantTrend,
+                                        Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) throws KiteException {
+        JtradeOrder order = new JtradeOrder();
         try {
-            String instrumentToken = String.valueOf(tick.getInstrumentToken());
-
-            // Get dynamic stop loss and target points based on 5-minute candle range
             double stopLossPoints, targetPoints;
             String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
             Tick niftyTick = tickDataManager.getLastTick(niftyToken);
 
             if (niftyTick == null) {
                 log.error("No Nifty index data available for order creation");
-                return;
+                return order;
             }
-
             double currentIndexPrice = niftyTick.getLastTradedPrice();
 
             // Calculate dynamic stop loss and target based on 5-minute candle range
             stopLossPoints = dynamicRiskManagementService.calculateDynamicStopLoss(niftyToken, currentIndexPrice);
             targetPoints = dynamicRiskManagementService.calculateDynamicTarget(stopLossPoints);
 
-            // Log dynamic risk management info
-            String dynamicRiskInfo = optionPricingService.getDynamicRiskInfo(niftyToken, currentIndexPrice);
-            log.info("🎯 DYNAMIC RISK MANAGEMENT - Stop Loss: {} pts, Target: {} pts | {}",
-                    String.format("%.2f", stopLossPoints),
-                    String.format("%.2f", targetPoints),
-                    dynamicRiskInfo);
-
             // Try to get live option pricing first (for live profile)
-            Optional<LiveOptionPricingService.LiveOptionPricingInfo> livePricing = liveOptionPricingService.getLiveOptionPricing(orderType);
+            Optional<LiveOptionPricingService.LiveOptionPricingInfo> liveOptionPricing = liveOptionPricingService.getLiveOptionPricing(orderType);
 
-            double optionEntryPrice, stopLossPrice, targetPrice;
+            double optionEntryPrice;
             String optionSymbol;
             long optionInstrumentToken;
 
-            if (livePricing.isPresent()) {
-                // Use live option pricing
-                LiveOptionPricingService.LiveOptionPricingInfo pricingInfo = livePricing.get();
+            if (liveOptionPricing.isPresent()) { // live pricing available
+                LiveOptionPricingService.LiveOptionPricingInfo pricingInfo = liveOptionPricing.get();
                 optionEntryPrice = pricingInfo.getOptionLTP();
-                stopLossPrice = Math.max(0.0, optionEntryPrice - stopLossPoints);
-                targetPrice = optionEntryPrice + targetPoints;
                 optionSymbol = pricingInfo.getOptionInstrument().getTradingSymbol();
                 optionInstrumentToken = pricingInfo.getOptionInstrument().getInstrumentToken();
-                currentIndexPrice = pricingInfo.getNiftyIndexPrice();
-
                 log.info("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {}",
                         optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice);
-            } else {
-                // Fallback to placeholder pricing (for local profile or when live pricing fails)
-                // Calculate option entry price (1% of index price as premium)
-                optionEntryPrice = currentIndexPrice * 0.01; // Simplified calculation
-
-                // Calculate stop loss and target prices using dynamic points
-                stopLossPrice = Math.max(0.0, optionEntryPrice - stopLossPoints);
-                targetPrice = optionEntryPrice + targetPoints;
-
+            } else { // local or fallback to mock pricing
+                optionEntryPrice = mockOptionPricingService.calculateEntryLTP(currentIndexPrice);
                 // Use placeholder option symbols since we're analyzing with index/future tokens
                 optionSymbol = "CALL_BUY".equals(orderType) ? "TEST_OPTION_CE" : "TEST_OPTION_PE";
                 optionInstrumentToken = 0L; // No instrument token (using placeholder symbols)
-
                 log.info("📊 USING PLACEHOLDER PRICING - Index: {}, Premium: {} (1% of index)",
                         currentIndexPrice, optionEntryPrice);
             }
 
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
-
                 if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(Long.valueOf(niftyToken))) {
                     log.warn("🚫 ORDER CREATION BLOCKED - Recent STOPLOSS_HIT exit in same 5-min candle. Entry time: {}",
                             formatDateToIST(tick.getTickTimestamp()));
-                    return;
+                    return order;
                 }
 
                 // Check if there's already an active order
                 if (activeOrderTrackingService.hasActiveOrder()) {
                     log.warn("Cannot create new order - there's already an active order. Please exit existing order first.");
-                    return;
+                    return order;
                 }
 
-                JtradeOrder order = new JtradeOrder();
+                double stopLossPrice = Math.max(0.0, optionEntryPrice - stopLossPoints);
+                double targetPrice = optionEntryPrice + targetPoints;
+
                 order.setId(UUID.randomUUID().toString());
                 order.setOrderType(OrderTypeEnum.valueOf(orderType));
                 order.setTradingSymbol(optionSymbol);
@@ -162,8 +149,20 @@ public class OrderManagementService {
                 // Store market condition details at entry time
                 order.setEntryMarketConditionSuitable(entryMarketConditionSuitable);
 
+                // Populate market condition details with ATR values and other metrics
+                try {
+                    // Get flattened indicators for the current tick
+                    FlattenedIndicators indicators = dynamicRuleEvaluatorService.getFlattenedIndicators(tick);
+                    if (indicators != null) {
+                        Map<String, Object> marketConditionDetails = unstableMarketConditionAnalysisService.getStructuredMarketConditionDetails(tick, indicators);
+                        order.setEntryMarketConditionDetails(marketConditionDetails);
+                    }
+                } catch (Exception e) {
+                    log.error("Error populating market condition details for order: {}", order.getId(), e);
+                }
+
                 // Initialize milestone system
-                initializeMilestoneSystem(order);
+                initializeMilestoneSystem(order, tick);
 
                 // Store in memory
                 activeOrderTrackingService.setActiveOrderMap(order);
@@ -194,16 +193,24 @@ public class OrderManagementService {
         } catch (Exception e) {
             log.error("Error creating trade order for tick: {}", tick.getInstrumentToken(), e);
         }
+        return order;
     }
 
 
-    public void validateAndExecuteOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend, double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
+    public void entryOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend,
+                           double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, Map<String,
+                    DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         try {
             boolean hasActiveOrder = activeOrderTrackingService.hasActiveOrder();
             if (!hasActiveOrder) {
                 // Determine order type based on entry decision
                 String orderType = determineOrderType(dominantTrend);
-                createTradeOrder(tick, orderType, entryDecision, inTradingZone, qualityScore, callScores, putScores, dominantTrend, detailedCallScores, detailedPutScores);
+                JtradeOrder jtradeOrder = createTradeOrder(tick, orderType, entryDecision, inTradingZone, qualityScore, callScores, putScores, dominantTrend, detailedCallScores, detailedPutScores);
+                if (jtradeOrder.getId() == null) {
+                    log.warn("Order creation failed - Order ID is null.");
+                    return;
+                }
+                kiteOrderService.placeOrder(jtradeOrder, Constants.TRANSACTION_TYPE_BUY);
             } else {
                 log.warn("⚠️ ACTIVE ORDER EXISTS - Cannot create new order.");
             }
@@ -215,15 +222,21 @@ public class OrderManagementService {
     }
 
     /**
-     * Initialize milestone system for a new order (simplified)
+     * Initialize milestone system for a new order with dynamic milestone calculation
      */
-    private void initializeMilestoneSystem(JtradeOrder order) {
+    private void initializeMilestoneSystem(JtradeOrder order, Tick tick) {
         try {
-            // Get milestone configuration from strategy config
-            double milestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
+            // Get milestone configuration from strategy config (JSON value)
+            double jsonMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
                     configService.getCallMilestonePoints() : configService.getPutMilestonePoints();
             double totalTargetPoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
                     configService.getCallTargetPoints() : configService.getPutTargetPoints();
+
+            // Calculate dynamic milestone points using ATR values
+            double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, jsonMilestonePoints);
+            
+            // Use the dynamic milestone points for milestone creation
+            double milestonePoints = dynamicMilestonePoints;
 
             // Create target milestones
             List<MilestoneSystem.Milestone> targetMilestones = new ArrayList<>();
@@ -255,8 +268,8 @@ public class OrderManagementService {
             order.setMinIndexPrice(order.getEntryIndexPrice());
             order.setMaxIndexPrice(order.getEntryIndexPrice());
 
-            log.info("🎯 Simplified milestone system initialized for {} order - Milestones: {}, Step: {}, Total Target: {}",
-                    order.getOrderType(), targetMilestones.size(), milestonePoints, totalTargetPoints);
+            log.info("🎯 Dynamic milestone system initialized for {} order - Milestones: {}, Dynamic Step: {} (JSON: {}), Total Target: {}",
+                    order.getOrderType(), targetMilestones.size(), dynamicMilestonePoints, jsonMilestonePoints, totalTargetPoints);
 
         } catch (Exception e) {
             log.error("Error initializing milestone system for order: {}", order.getId(), e);
@@ -272,31 +285,27 @@ public class OrderManagementService {
     }
 
     public void exitOrder(String orderId, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice, Date exitTime) {
-        JtradeOrder order = activeOrderTrackingService.getOrderById(orderId);
-        if (order == null) {
+        JtradeOrder jtradeOrder = activeOrderTrackingService.getOrderById(orderId);
+        if (jtradeOrder == null) {
             log.warn("Order not found for exit: {}", orderId);
             return;
         }
 
-        order.markExited(exitReason, exitPrice, exitIndexPrice, exitTime);
+        jtradeOrder.markExited(exitReason, exitPrice, exitIndexPrice, exitTime);
 
         // Calculate profit/loss using option pricing service
-        Double points = optionPricingService.calculateProfitLoss(
-                order.getEntryPrice(),
-                exitPrice,
-                order.getOrderType()
-        );
+        Double points = liveOptionPricingService.calculateProfitLoss(jtradeOrder.getEntryPrice(), exitPrice); //
 
-        order.setTotalPoints(points);
-        order.setTotalProfit(points * order.getQuantity());
+        jtradeOrder.setTotalPoints(points);
+        jtradeOrder.setTotalProfit(points * jtradeOrder.getQuantity());
 
         activeOrderTrackingService.updateExitTracking(exitReason, exitTime);
 
         // Save exited order to database immediately
         try {
-            order.updateLastUpdated();
-            jtradeOrderRepository.save(order);
-            log.info("💾 EXITED ORDER SAVED TO DATABASE - ID: {}, Status: {}", order.getId(), order.getStatus());
+            jtradeOrder.updateLastUpdated();
+            jtradeOrderRepository.save(jtradeOrder);
+            log.info("💾 EXITED ORDER SAVED TO DATABASE - ID: {}, Status: {}", jtradeOrder.getId(), jtradeOrder.getStatus());
         } catch (Exception e) {
             log.error("Error saving exited order to database: {}", e.getMessage(), e);
         }
@@ -305,19 +314,20 @@ public class OrderManagementService {
 
         // Enhanced exit logging with clear visual indicator
         log.info("<<<<<<<<<EXIT>>>>>>>>> - Order: {} - {} @ {} (Reason: {}, Points: {}, Profit: {})",
-                order.getOrderType(), order.getTradingSymbol(), exitPrice,
-                exitReason, points, order.getTotalProfit());
+                jtradeOrder.getOrderType(), jtradeOrder.getTradingSymbol(), exitPrice,
+                exitReason, points, jtradeOrder.getTotalProfit());
 
         // Log exit details for analysis
         log.info("EXIT Details - Entry: {}, Exit: {}, Index Entry: {}, Index Exit: {}, Duration: {} minutes",
-                order.getEntryPrice(), exitPrice, order.getEntryIndexPrice(), exitIndexPrice,
-                calculateOrderDurationMinutes(order));
+                jtradeOrder.getEntryPrice(), exitPrice, jtradeOrder.getEntryIndexPrice(), exitIndexPrice,
+                calculateOrderDurationMinutes(jtradeOrder));
 
+        kiteOrderService.placeOrder(jtradeOrder, Constants.TRANSACTION_TYPE_SELL);
         // Send notification for order exit
         try {
-            orderNotificationService.sendOrderExitNotification(order, exitReason, exitPrice, exitIndexPrice);
+            orderNotificationService.sendOrderExitNotification(jtradeOrder, exitReason, exitPrice, exitIndexPrice);
         } catch (Exception e) {
-            log.error("Failed to send order exit notification for order: {}", order.getId(), e);
+            log.error("Failed to send order exit notification for order: {}", jtradeOrder.getId(), e);
         }
     }
 

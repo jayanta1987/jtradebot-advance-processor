@@ -1,4 +1,4 @@
-package com.jtradebot.processor.handler;
+package com.jtradebot.processor.service.price;
 
 import com.jtradebot.processor.repository.InstrumentRepository;
 import com.jtradebot.processor.repository.document.Instrument;
@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -96,7 +95,7 @@ public class StrikePriceCalculator {
                         return 0;
                     }
                 })
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
             
             // Debug: Show first few instruments
             log.info("📊 TOTAL VALID NIFTY OPTIONS FOUND (not expired): {}", niftyOptions.size());
@@ -137,7 +136,7 @@ public class StrikePriceCalculator {
                                tradingSymbol.contains(String.valueOf(strikePrice)) &&
                                tradingSymbol.endsWith(optionType);
                     })
-                    .collect(java.util.stream.Collectors.toList());
+                    .toList();
                 
                 if (!allOptionsWithStrike.isEmpty()) {
                     log.warn("🔍 DEBUG: Found {} options with strike {} but all are expired:", strikePrice, allOptionsWithStrike.size());

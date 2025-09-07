@@ -2,6 +2,7 @@ package com.jtradebot.processor.handler;
 
 import com.jtradebot.processor.repository.InstrumentRepository;
 import com.jtradebot.processor.repository.document.Instrument;
+import com.jtradebot.processor.service.price.StrikePriceCalculator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

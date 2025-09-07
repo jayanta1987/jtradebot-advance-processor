@@ -46,6 +46,9 @@ public class JtradeOrder {
     private Double targetPrice;
     
     private Integer quantity;
+
+    private String kiteOrderId;
+    private String kiteOrderStatus; // "OPEN", "COMPLETE", "CANCELLED", etc.
     
     @Indexed
     private String status; // "ACTIVE", "EXITED", "CANCELLED"
@@ -73,7 +76,7 @@ public class JtradeOrder {
     
     // Market Condition Details at Entry Time
     private Boolean entryMarketConditionSuitable;
-    private Map<String, Object> entryMarketConditionDetails; // Structured market condition details
+    private Map<String, Object> entryMarketConditionDetails; // Structured market condition details including ATR values: atr5min, atr15min, atr1min
     
     // Scenario-based Entry Information
     private String entryScenarioName;

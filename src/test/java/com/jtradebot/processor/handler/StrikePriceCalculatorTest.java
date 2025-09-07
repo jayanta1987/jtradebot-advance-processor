@@ -2,14 +2,13 @@ package com.jtradebot.processor.handler;
 
 import com.jtradebot.processor.repository.InstrumentRepository;
 import com.jtradebot.processor.repository.document.Instrument;
+import com.jtradebot.processor.service.price.StrikePriceCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
