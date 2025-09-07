@@ -5,7 +5,6 @@ import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
-import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
@@ -70,6 +69,8 @@ public class TickOrchestrationService {
 
     private void processLiveTicks(List<Tick> ticks) {
 
+        long startTime = System.currentTimeMillis();
+
         Map<Long, Tick> latestTicks = new HashMap<>();
         for (Tick tick : ticks) {
             latestTicks.put(tick.getInstrumentToken(), tick);
@@ -98,7 +99,7 @@ public class TickOrchestrationService {
                     UnstableMarketConditionAnalysisService.FlexibleFilteringResult result = unstableMarketConditionAnalysisService.checkFlexibleFilteringConditions(tick, indicators);
                     boolean inTradingZone = result.isConditionsMet();
                     if (inTradingZone) {
-                        log.info("✅ IN TRADING ZONE - All no-trade zone conditions clear");
+                        log.debug("✅ IN TRADING ZONE - All no-trade zone conditions clear");
                     }
 
                     // Step 3: Calculate Category Scores and Quality Score
@@ -138,7 +139,7 @@ public class TickOrchestrationService {
                         }
 
                         if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
-                            orderManagementService.validateAndExecuteOrder(tick, scenarioDecision, result.isConditionsMet(), dominantTrend, qualityScore, callScores, putScores, detailedCallScores, detailedPutScores);
+                            orderManagementService.entryOrder(tick, scenarioDecision, result.isConditionsMet(), dominantTrend, qualityScore, callScores, putScores, detailedCallScores, detailedPutScores);
                         }
                     }
 
@@ -163,6 +164,9 @@ public class TickOrchestrationService {
                 }
             }
         }
+
+        long endTime = System.currentTimeMillis();
+        log.debug("Tick processing time: {} ms for {} ticks", (endTime - startTime), ticks.size());
     }
 
     private boolean isEligibleForEntryCheck(Tick tick, double qualityScore, boolean inTradingZone) {

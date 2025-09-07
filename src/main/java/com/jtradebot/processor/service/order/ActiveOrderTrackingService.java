@@ -2,9 +2,7 @@ package com.jtradebot.processor.service.order;
 
 import com.jtradebot.processor.common.ProfileUtil;
 import com.jtradebot.processor.config.TradingConfigurationService;
-import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.BarSeriesManager;
-import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.MilestoneSystem;
 import com.jtradebot.processor.model.MilestoneSystem.Milestone;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
@@ -13,8 +11,7 @@ import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.exit.ExitSignalTrackingService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
-import com.jtradebot.processor.service.price.OptionPricingService;
-import com.zerodhatech.kiteconnect.KiteConnect;
+import com.jtradebot.processor.service.price.MockOptionPricingService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
 import jakarta.annotation.PostConstruct;
@@ -43,16 +40,14 @@ import static com.jtradebot.processor.handler.DateTimeHandler.formatDateToIST;
 public class ActiveOrderTrackingService {
 
     private final JtradeOrderRepository jtradeOrderRepository;
-    private final OptionPricingService optionPricingService;
+    private final MockOptionPricingService mockOptionPricingService;
 
     private final TradingConfigurationService tradingConfigurationService;
     private final ExitSignalTrackingService exitSignalTrackingService;
     private final Environment environment;
     private final LiveOptionPricingService liveOptionPricingService;
     private final BarSeriesManager barSeriesManager;
-    private final KiteInstrumentHandler kiteInstrumentHandler;
-    private final TickDataManager tickDataManager;
-    private final KiteConnect kiteConnect;
+
 
     // In-memory storage for active orders
     private final Map<String, JtradeOrder> activeOrdersMap = new ConcurrentHashMap<>();
@@ -106,25 +101,6 @@ public class ActiveOrderTrackingService {
 
     public List<JtradeOrder> getActiveOrders() {
         return new ArrayList<>(activeOrdersMap.values());
-    }
-
-
-    /**
-     * Calculate current LTP based on index movement
-     * LTP = Entry Price + (Current Index Price - Entry Index Price)
-     */
-    private Double calculateCurrentLTP(JtradeOrder order, Double currentIndexPrice) {
-        Double calculatedLTP = optionPricingService.calculateCurrentLTP(
-                order.getEntryPrice(),
-                order.getEntryIndexPrice(),
-                currentIndexPrice,
-                order.getOrderType()
-        );
-
-        log.info("🧮 LTP CALCULATION - Order: {} | Entry Price: {} | Entry Index: {} | Current Index: {} | Calculated LTP: {} | Order Type: {}",
-                order.getId(), order.getEntryPrice(), order.getEntryIndexPrice(), currentIndexPrice, calculatedLTP, order.getOrderType());
-
-        return calculatedLTP;
     }
 
     private void loadActiveOrdersFromDatabase() {
@@ -429,7 +405,7 @@ public class ActiveOrderTrackingService {
         }
     }
 
-    public void updateLivePnL(Tick tick) throws KiteException {
+    public void updateLivePnL(Tick indexTick) throws KiteException {
         try {
             // Get active order from ExitStrategyService (global check)
             List<JtradeOrder> activeOrders = getActiveOrders();
@@ -439,43 +415,8 @@ public class ActiveOrderTrackingService {
 
             JtradeOrder activeOrder = activeOrders.get(0); // Get the first active order
 
-            double currentOptionPrice;
-            double currentIndexPrice;
-
-            // Check if we're in live profile and have real option instrument token
-            if (isLiveProfile() && activeOrder.getInstrumentToken() != null && activeOrder.getInstrumentToken() > 0) {
-                // Get real option LTP for live profile using Kite Connect API
-                String instrumentToken = String.valueOf(activeOrder.getInstrumentToken());
-                currentOptionPrice = kiteConnect.getLTP(new String[]{instrumentToken}).get(instrumentToken).lastPrice;
-
-                // Get current Nifty index price for reference
-                String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
-                Tick niftyTick = tickDataManager.getLastTick(niftyToken);
-                currentIndexPrice = niftyTick != null ? niftyTick.getLastTradedPrice() : activeOrder.getEntryIndexPrice();
-
-                log.debug("🎯 USING REAL OPTION LTP FROM KITE API - Token: {}, Symbol: {}, LTP: {}, Index: {}",
-                        activeOrder.getInstrumentToken(), activeOrder.getTradingSymbol(), currentOptionPrice, currentIndexPrice);
-            } else {
-                // Use calculated option price for local profile or when no real instrument token
-                String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
-                Tick niftyTick = tickDataManager.getLastTick(niftyToken);
-                if (niftyTick == null) {
-                    log.warn("No Nifty index data available for P&L calculation");
-                    return;
-                }
-
-                currentIndexPrice = niftyTick.getLastTradedPrice();
-                double entryIndexPrice = activeOrder.getEntryIndexPrice();
-                double entryOptionPrice = activeOrder.getEntryPrice();
-
-                // Calculate current option price based on index movement
-                currentOptionPrice = optionPricingService.calculateCurrentLTP(
-                        entryOptionPrice, entryIndexPrice, currentIndexPrice, activeOrder.getOrderType());
-
-                log.debug("📊 USING CALCULATED OPTION PRICE - Entry: {}, Current: {}, Index: {}",
-                        entryOptionPrice, currentOptionPrice, currentIndexPrice);
-            }
-
+            double currentIndexPrice = indexTick.getLastTradedPrice();
+            double currentOptionPrice = getCurrentPrice(activeOrder, currentIndexPrice);
             double entryOptionPrice = activeOrder.getEntryPrice();
             double points = currentOptionPrice - entryOptionPrice;
             double pnl = points * activeOrder.getQuantity();
@@ -486,7 +427,7 @@ public class ActiveOrderTrackingService {
                     orderTypeDisplay, String.format("%+.2f", points), String.format("%.2f", pnl), String.format("%.2f", currentOptionPrice));
 
         } catch (Exception e) {
-            log.error("Error updating live P&L for tick: {}", tick.getInstrumentToken(), e);
+            log.error("Error updating live P&L for tick: {}", indexTick.getInstrumentToken(), e);
         }
     }
 
@@ -500,24 +441,13 @@ public class ActiveOrderTrackingService {
                     order.getInstrumentToken(), order.getTradingSymbol(), currentPrice);
             return currentPrice;
         } else {
-            // Calculated price (local profile or fallback)
-            // Use provided current index price if available, otherwise fallback to entry index price
-            Double indexPriceForCalculation = currentIndexPrice != null ? currentIndexPrice : order.getEntryIndexPrice();
-            Double calculatedPrice = calculateCurrentLTP(order, indexPriceForCalculation);
-            log.info("📊 USING CALCULATED PRICE - Token: {}, Symbol: {}, Price: {}, Index: {}, Entry Index: {}",
-                    order.getInstrumentToken(), order.getTradingSymbol(), calculatedPrice, indexPriceForCalculation, order.getEntryIndexPrice());
-            return calculatedPrice;
+            return mockOptionPricingService.calculateCurrentLTP(
+                    order.getEntryPrice(),
+                    order.getEntryIndexPrice(),
+                    currentIndexPrice,
+                    order.getOrderType()
+            );
         }
-    }
-
-
-    private boolean isLiveProfile() {
-        return ProfileUtil.isProfileActive(environment, "live");
-    }
-
-
-    private String getActiveProfile() {
-        return isLiveProfile() ? "LIVE" : "LOCAL";
     }
 
     public boolean hasActiveOrder() {

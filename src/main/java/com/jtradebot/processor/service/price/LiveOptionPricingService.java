@@ -1,11 +1,11 @@
 package com.jtradebot.processor.service.price;
 
-import com.jtradebot.processor.handler.StrikePriceCalculator;
+import com.jtradebot.processor.common.ProfileUtil;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.repository.document.Instrument;
-import com.zerodhatech.models.Tick;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
+import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
@@ -29,8 +29,7 @@ public class LiveOptionPricingService {
     public Optional<LiveOptionPricingInfo> getLiveOptionPricing(String orderType) throws KiteException {
         try {
             // Check if we're in live profile
-            if (!isLiveProfile()) {
-                log.debug("Not in live profile, using placeholder pricing");
+            if (!ProfileUtil.isProfileActive(environment, "live")) {
                 return Optional.empty();
             }
 
@@ -95,7 +94,7 @@ public class LiveOptionPricingService {
      */
     public Double getCurrentPrice(Long instrumentToken) {
         try {
-            if (isLiveProfile() && instrumentToken != null && instrumentToken > 0) {
+            if (ProfileUtil.isProfileActive(environment, "live") && instrumentToken != null && instrumentToken > 0) {
                 // Get real option LTP for live profile using Kite Connect API
                 String token = String.valueOf(instrumentToken);
                 double realLTP = kiteConnect.getLTP(new String[]{token}).get(token).lastPrice;
@@ -116,20 +115,15 @@ public class LiveOptionPricingService {
         }
     }
 
-    /**
-     * Check if we're in live profile
-     */
-    private boolean isLiveProfile() {
-        String[] activeProfiles = environment.getActiveProfiles();
-        log.debug("🔍 PROFILE CHECK - Active profiles: {}", String.join(", ", activeProfiles));
-        for (String profile : activeProfiles) {
-            if ("live".equals(profile)) {
-                log.debug("✅ LIVE PROFILE DETECTED");
-                return true;
-            }
+
+
+    public Double calculateProfitLoss(Double entryPrice, Double exitPrice) {
+        if (entryPrice == null || exitPrice == null) {
+            log.warn("Invalid parameters for profit/loss calculation: entryPrice={}, exitPrice={}",
+                    entryPrice, exitPrice);
+            return 0.0;
         }
-        log.debug("❌ LIVE PROFILE NOT DETECTED");
-        return false;
+        return exitPrice - entryPrice;
     }
 
     /**

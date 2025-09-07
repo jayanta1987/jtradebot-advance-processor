@@ -43,7 +43,7 @@ public class DynamicRuleEvaluatorService {
     // Cache for flattened indicators to prevent multiple calculations
     private final Map<String, FlattenedIndicators> indicatorsCache = new ConcurrentHashMap<>();
     private final Map<String, Long> cacheTimestamps = new ConcurrentHashMap<>();
-    private static final long CACHE_DURATION_MS = 1000; // 1 second cache
+    private static final long CACHE_DURATION_MS = 700; // 700ms cache
 
     
     // Initialize rules from configuration
@@ -192,6 +192,7 @@ public class DynamicRuleEvaluatorService {
     
 
     public FlattenedIndicators getFlattenedIndicators(Tick indexTick) {
+        log.debug("_________Calculating flattened indicators for index tick: {}", indexTick.getInstrumentToken());
         try {
             String instrumentToken = String.valueOf(indexTick.getInstrumentToken());
             long currentTime = System.currentTimeMillis();
