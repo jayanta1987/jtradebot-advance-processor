@@ -6,6 +6,7 @@ import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgeCallRule;
 import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgePutRule;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
@@ -167,9 +168,9 @@ public class DynamicRuleEvaluatorService {
 
 
     public ScalpingEntryDecision getEntryDecision(Tick tick, FlattenedIndicators indicators, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
-                                                  double qualityScore, String dominantTrend, Map<String, Double> callScores, Map<String, Double> putScores) {
+                                                  double qualityScore, String dominantTrend, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         try {
-            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, callScores, putScores, qualityScore, result, dominantTrend);
+            ScalpingEntryDecision decision = scalpingEntryService.evaluateEntry(tick, detailedCallScores, detailedPutScores, qualityScore, result, dominantTrend);
             
             if (decision.isShouldEntry()) {
                 log.debug("🎯 ENTRY DECISION - Instrument: {}, Price: {}, Scenario: {}, Confidence: {}/10, Time: {}", 

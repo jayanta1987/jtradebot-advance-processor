@@ -87,8 +87,6 @@ public class JtradeOrder {
     
     // 🔥 NEW: Quality Score and Direction Scores at Entry Time
     private Double entryQualityScore;
-    private Map<String, Double> entryCallScores;
-    private Map<String, Double> entryPutScores;
     private String entryDominantTrend;
     
     // 🔥 NEW: Detailed Category Scores with Individual Indicator Breakdowns

@@ -17,8 +17,14 @@ import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisServ
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
-import com.jtradebot.processor.service.risk.DynamicRiskManagementService;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
+import com.jtradebot.processor.indicator.SupportResistanceIndicator;
+import com.jtradebot.processor.model.indicator.Support;
+import com.jtradebot.processor.model.indicator.Resistance;
+import com.jtradebot.processor.model.indicator.EmaIndicatorInfo;
+import com.jtradebot.processor.manager.BarSeriesManager;
+import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
+import org.ta4j.core.BarSeries;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Tick;
@@ -42,7 +48,6 @@ public class OrderManagementService {
     private final LiveOptionPricingService liveOptionPricingService;
     private final MockOptionPricingService mockOptionPricingService;
     private final TradingConfigurationService tradingConfigService;
-    private final DynamicRiskManagementService dynamicRiskManagementService;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final TickDataManager tickDataManager;
     private final ActiveOrderTrackingService activeOrderTrackingService;
@@ -52,13 +57,15 @@ public class OrderManagementService {
     private final KiteOrderService kiteOrderService;
     private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
+    private final SupportResistanceIndicator supportResistanceIndicator;
+    private final BarSeriesManager barSeriesManager;
 
     public JtradeOrder createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable,
-                                        double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, String dominantTrend,
+                                        double qualityScore, String dominantTrend,
                                         Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) throws KiteException {
         JtradeOrder order = new JtradeOrder();
+        double stopLossPoints = 0.0, targetPoints = 0.0;
         try {
-            double stopLossPoints, targetPoints;
             String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
             Tick niftyTick = tickDataManager.getLastTick(niftyToken);
 
@@ -67,10 +74,6 @@ public class OrderManagementService {
                 return order;
             }
             double currentIndexPrice = niftyTick.getLastTradedPrice();
-
-            // Calculate dynamic stop loss and target based on 5-minute candle range
-            stopLossPoints = dynamicRiskManagementService.calculateDynamicStopLoss(niftyToken, currentIndexPrice);
-            targetPoints = dynamicRiskManagementService.calculateDynamicTarget(stopLossPoints);
 
             // Try to get live option pricing first (for live profile)
             Optional<LiveOptionPricingService.LiveOptionPricingInfo> liveOptionPricing = liveOptionPricingService.getLiveOptionPricing(orderType);
@@ -93,6 +96,36 @@ public class OrderManagementService {
                 optionInstrumentToken = 0L; // No instrument token (using placeholder symbols)
                 log.info("📊 USING PLACEHOLDER PRICING - Index: {}, Premium: {} (1% of index)",
                         currentIndexPrice, optionEntryPrice);
+            }
+
+            // Always calculate stoploss as percentage from JSON
+            double stopLossPercentage = tradingConfigService.getStopLossPercentage();
+            stopLossPoints = optionEntryPrice * (stopLossPercentage / 100.0);
+            
+            // Get the targetMode from the scenario
+            String targetMode = configService.getTargetModeForScenario(entryDecision.getScenarioName());
+            
+            if ("SR".equals(targetMode)) {
+                // Calculate target based on Support/Resistance
+                double srTargetPoints = calculateSupportResistanceTarget(tick, currentIndexPrice, orderType);
+                targetPoints = srTargetPoints;
+                
+                log.info("🎯 MIXED CALCULATION - Entry Price: {} | SL %: {}% | Target Mode: SR | SL Points: {} | Target Points: {}",
+                        String.format("%.2f", optionEntryPrice),
+                        String.format("%.1f", stopLossPercentage),
+                        String.format("%.2f", stopLossPoints),
+                        String.format("%.2f", targetPoints));
+            } else {
+                // Default to PER (Percentage) mode for target
+                double targetPercentage = tradingConfigService.getTargetPercentage();
+                targetPoints = optionEntryPrice * (targetPercentage / 100.0);
+                
+                log.info("🎯 PERCENTAGE CALCULATION - Entry Price: {} | SL %: {}% | Target %: {}% | SL Points: {} | Target Points: {}",
+                        String.format("%.2f", optionEntryPrice),
+                        String.format("%.1f", stopLossPercentage),
+                        String.format("%.1f", targetPercentage),
+                        String.format("%.2f", stopLossPoints),
+                        String.format("%.2f", targetPoints));
             }
 
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
@@ -142,8 +175,6 @@ public class OrderManagementService {
 
                 // 🔥 NEW: Store quality score and direction scores
                 order.setEntryQualityScore(qualityScore);
-                order.setEntryCallScores(callScores);
-                order.setEntryPutScores(putScores);
                 order.setEntryDominantTrend(dominantTrend);
 
                 // Store market condition details at entry time
@@ -198,14 +229,13 @@ public class OrderManagementService {
 
 
     public void entryOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend,
-                           double qualityScore, Map<String, Double> callScores, Map<String, Double> putScores, Map<String,
-                    DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
+                           double qualityScore, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         try {
             boolean hasActiveOrder = activeOrderTrackingService.hasActiveOrder();
             if (!hasActiveOrder) {
                 // Determine order type based on entry decision
                 String orderType = determineOrderType(dominantTrend);
-                JtradeOrder jtradeOrder = createTradeOrder(tick, orderType, entryDecision, inTradingZone, qualityScore, callScores, putScores, dominantTrend, detailedCallScores, detailedPutScores);
+                JtradeOrder jtradeOrder = createTradeOrder(tick, orderType, entryDecision, inTradingZone, qualityScore, dominantTrend, detailedCallScores, detailedPutScores);
                 if (jtradeOrder.getId() == null) {
                     log.warn("Order creation failed - Order ID is null.");
                     return;
@@ -229,8 +259,9 @@ public class OrderManagementService {
             // Get milestone configuration from strategy config (JSON value)
             double jsonMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
                     configService.getCallMilestonePoints() : configService.getPutMilestonePoints();
-            double totalTargetPoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
-                    configService.getCallTargetPoints() : configService.getPutTargetPoints();
+            
+            // Use the actual calculated target points from the order instead of JSON value
+            double totalTargetPoints = order.getTargetPrice() - order.getEntryPrice();
 
             // Calculate dynamic milestone points using ATR values
             double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, jsonMilestonePoints);
@@ -267,8 +298,8 @@ public class OrderManagementService {
             order.setMinIndexPrice(order.getEntryIndexPrice());
             order.setMaxIndexPrice(order.getEntryIndexPrice());
 
-            log.info("🎯 Dynamic milestone system initialized for {} order - Milestones: {}, Dynamic Step: {} (JSON: {}), Total Target: {}",
-                    order.getOrderType(), targetMilestones.size(), dynamicMilestonePoints, jsonMilestonePoints, totalTargetPoints);
+            log.info("🎯 Dynamic milestone system initialized for {} order - Milestones: {}, Dynamic Step: {} (JSON: {}), Total Target: {} (Entry: {}, Target: {})",
+                    order.getOrderType(), targetMilestones.size(), dynamicMilestonePoints, jsonMilestonePoints, totalTargetPoints, order.getEntryPrice(), order.getTargetPrice());
 
         } catch (Exception e) {
             log.error("Error initializing milestone system for order: {}", order.getId(), e);
@@ -373,6 +404,77 @@ public class OrderManagementService {
 
         } catch (Exception e) {
             log.error("Error updating orders to database: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Calculate target based on Support/Resistance levels
+     * @return target points
+     */
+    private double calculateSupportResistanceTarget(Tick tick, double currentIndexPrice, String orderType) {
+        try {
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            
+            // Get 5-minute bar series for support/resistance calculation
+            BarSeries fiveMinSeries = barSeriesManager.getBarSeriesForTimeFrame(niftyToken, CandleTimeFrameEnum.FIVE_MIN);
+            
+            if (fiveMinSeries == null || fiveMinSeries.getBarCount() < 20) {
+                log.warn("Insufficient 5-minute data for support/resistance calculation, falling back to percentage mode");
+                // Fallback to percentage mode
+                double targetPercentage = tradingConfigService.getTargetPercentage();
+                double fallbackTarget = currentIndexPrice * (targetPercentage / 100.0);
+                return fallbackTarget;
+            }
+
+            // Create EMA indicator info for support/resistance calculation
+            EmaIndicatorInfo emaInfo = new EmaIndicatorInfo();
+            emaInfo.setEma9(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 9));
+            emaInfo.setEma14(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 14));
+            emaInfo.setEma20(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 20));
+
+            // Calculate support and resistance levels
+            Set<Resistance> resistances = supportResistanceIndicator.calculateResistances(CandleTimeFrameEnum.FIVE_MIN, fiveMinSeries, currentIndexPrice, emaInfo, new int[]{20, 50, 100});
+            Set<Support> supports = supportResistanceIndicator.calculateSupports(CandleTimeFrameEnum.FIVE_MIN, fiveMinSeries, currentIndexPrice, emaInfo, new int[]{20, 50, 100});
+
+            // Get nearest resistance and support levels
+            double nearestResistance = resistances.isEmpty() ? currentIndexPrice * 1.02 : resistances.iterator().next().getResistanceValue();
+            double nearestSupport = supports.isEmpty() ? currentIndexPrice * 0.98 : supports.iterator().next().getSupportValue();
+
+            // Calculate target based on order type
+            double calculatedTarget;
+            
+            if ("CALL_BUY".equals(orderType)) {
+                // For CALL orders: target at resistance
+                double resistanceDistance = nearestResistance - currentIndexPrice;
+                calculatedTarget = Math.max(resistanceDistance, 10.0); // Minimum 10 points
+                
+                log.info("🎯 CALL SR TARGET - Current: {} | Resistance: {} | Target Points: {}",
+                        String.format("%.2f", currentIndexPrice),
+                        String.format("%.2f", nearestResistance),
+                        String.format("%.2f", calculatedTarget));
+                        
+            } else if ("PUT_BUY".equals(orderType)) {
+                // For PUT orders: target at support
+                double supportDistance = currentIndexPrice - nearestSupport;
+                calculatedTarget = Math.max(supportDistance, 10.0); // Minimum 10 points
+                
+                log.info("🎯 PUT SR TARGET - Current: {} | Support: {} | Target Points: {}",
+                        String.format("%.2f", currentIndexPrice),
+                        String.format("%.2f", nearestSupport),
+                        String.format("%.2f", calculatedTarget));
+            } else {
+                // Default fallback
+                calculatedTarget = 10.0;
+            }
+            
+            return calculatedTarget;
+
+        } catch (Exception e) {
+            log.error("Error calculating support/resistance target: {}", e.getMessage(), e);
+            // Fallback to percentage mode
+            double targetPercentage = tradingConfigService.getTargetPercentage();
+            double fallbackTarget = currentIndexPrice * (targetPercentage / 100.0);
+            return fallbackTarget;
         }
     }
 

@@ -12,19 +12,24 @@
   
   "scenarios": [
     {
-      "name": "SAFE_ENTRY_SIGNAL",
+      "name": "BALANCED_TRADE",
       "description": "Conservative entry with strong confirmations using category-based scoring system",
       "requirements": {
         "minQualityScore": 7.5,
         "ema_min_score": 2.5,
-        "futureAndVolume_min_score": 6.5,
+        "futureAndVolume_min_score": 3.5,
         "candlestick_min_score": 3.5,
         "momentum_min_score": 2.5,
-        "flatMarketFilter": true
-      }
+        "flatMarketFilter": true,
+        "min_ema_per": 75.0,
+        "min_future_signal_per": 30.0,
+        "min_candlestick_per": 30.0,
+        "min_momentum_per": 30.0
+      },
+      "targetMode": "PER"
     },
     {
-      "name": "HIGH_RISK_TRADE",
+      "name": "HIGH_VOLUME_TRADE",
       "description": "High risk with strong confirmations using category-based scoring system",
       "requirements": {
         "minQualityScore": 9.0,
@@ -32,8 +37,13 @@
         "futureAndVolume_min_score": 3.5,
         "candlestick_min_score": 3.0,
         "momentum_min_score": 1.0,
-        "flatMarketFilter": true
-      }
+        "flatMarketFilter": true,
+        "min_ema_per": 20.0,
+        "min_future_signal_per": 70.0,
+        "min_candlestick_per": 20.0,
+        "min_momentum_per": 20.0
+      },
+      "targetMode": "SR"
     }
   ],
   
@@ -231,7 +241,7 @@
       },
       "nearToSupportResistance": {
         "enabled": true,
-        "ntp": 1,
+        "ntp": 2,
         "name": "Near Support/Resistance Filter",
         "description": "Filter out entries when price is very near support/resistance levels or round figure index prices",
         "priority": 9,
@@ -256,7 +266,7 @@
   
   "tradingConfiguration": {
     "quantitySettings": {
-      "minLotSize": 75,
+      "minLotSize": 225,
       "maxQuantityPerTrade": 550
     },
     "investmentLimits": {
@@ -274,29 +284,8 @@
       },
       "volumeSurgeMultiplier": 1.5,
       "signalStrength": 0.7,
-      "stopLossPercentage": 0.3,
-      "targetPercentage": 0.8,
-      "stopLossPoints": 10.0,
-      "targetPoints": 20.0,
-      "dynamicRiskManagement": {
-        "enabled": false,
-        "stopLossPercentage": 0.25,
-        "targetMultiplier": 2.5,
-        "minStopLoss": 5.0,
-        "maxStopLoss": 10.0,
-        "minTarget": 10.0,
-        "maxTarget": 30.0,
-        "fallbackValues": {
-          "defaultStopLossWhenDisabled": 10.0,
-          "defaultTargetWhenDisabled": 20.0,
-          "defaultVolatilityScore": 0.5
-        },
-        "technicalParameters": {
-          "minRequiredBars": 20,
-          "volatilityLookbackPeriod": 14,
-          "candleTimeframe": "FIVE_MIN"
-        }
-      }
+      "stopLossPercentage": 5,
+      "targetPercentage": 15
     },
     "tradeSettings": {
       "maxTradeHoldingTimeInSec": 150

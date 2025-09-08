@@ -3,7 +3,6 @@ package com.jtradebot.processor.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
-import com.jtradebot.processor.model.strategy.ProfitableTradeFilterConfig;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -93,6 +92,11 @@ public class DynamicStrategyConfigService {
                 .filter(scenario -> scenario.getName().equals(scenarioName))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public String getTargetModeForScenario(String scenarioName) {
+        ScalpingEntryConfig.Scenario scenario = getScenarioByName(scenarioName);
+        return scenario != null ? scenario.getTargetMode() : "PER"; // Default to PER if not found
     }
 
     public Map<String, List<String>> getCallCategories() {
