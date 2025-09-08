@@ -113,57 +113,7 @@ public class TradingConfigurationService implements InitializingBean {
         return tradingConfig.getRiskManagement().getTargetPoints();
     }
 
-    public boolean isDynamicRiskManagementEnabled() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().isEnabled();
-    }
 
-    public double getDynamicStopLossPercentage() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getStopLossPercentage();
-    }
-
-    public double getDynamicTargetMultiplier() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getTargetMultiplier();
-    }
-
-    public double getDynamicMinStopLoss() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getMinStopLoss();
-    }
-
-    public double getDynamicMaxStopLoss() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getMaxStopLoss();
-    }
-
-    public double getDynamicMinTarget() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getMinTarget();
-    }
-
-    public double getDynamicMaxTarget() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getMaxTarget();
-    }
-
-    public double getDefaultStopLossWhenDisabled() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getFallbackValues().getDefaultStopLossWhenDisabled();
-    }
-
-    public double getDefaultTargetWhenDisabled() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getFallbackValues().getDefaultTargetWhenDisabled();
-    }
-
-    public double getDefaultVolatilityScore() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getFallbackValues().getDefaultVolatilityScore();
-    }
-
-    public int getMinRequiredBars() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getTechnicalParameters().getMinRequiredBars();
-    }
-
-    public int getVolatilityLookbackPeriod() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getTechnicalParameters().getVolatilityLookbackPeriod();
-    }
-
-    public String getCandleTimeframe() {
-        return tradingConfig.getRiskManagement().getDynamicRiskManagement().getTechnicalParameters().getCandleTimeframe();
-    }
 
     @Data
     public static class TradingConfig {
@@ -197,7 +147,6 @@ public class TradingConfigurationService implements InitializingBean {
         private double targetPercentage;
         private double stopLossPoints;
         private double targetPoints;
-        private DynamicRiskManagement dynamicRiskManagement;
     }
 
     @Data
@@ -208,32 +157,6 @@ public class TradingConfigurationService implements InitializingBean {
         private boolean enableRsiMaComparison;
     }
 
-    @Data
-    public static class DynamicRiskManagement {
-        private boolean enabled;
-        private double stopLossPercentage;
-        private double targetMultiplier;
-        private double minStopLoss;
-        private double maxStopLoss;
-        private double minTarget;
-        private double maxTarget;
-        private FallbackValues fallbackValues;
-        private TechnicalParameters technicalParameters;
-    }
-
-    @Data
-    public static class FallbackValues {
-        private double defaultStopLossWhenDisabled;
-        private double defaultTargetWhenDisabled;
-        private double defaultVolatilityScore;
-    }
-
-    @Data
-    public static class TechnicalParameters {
-        private int minRequiredBars;
-        private int volatilityLookbackPeriod;
-        private String candleTimeframe;
-    }
 
     @Data
     public static class TradeSettings {

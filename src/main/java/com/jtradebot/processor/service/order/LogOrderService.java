@@ -21,11 +21,11 @@ public class LogOrderService {
             if (order.getEntryQualityScore() != null) {
                 log.info("🎯 QUALITY SCORE - {}/10", String.format("%.1f", order.getEntryQualityScore()));
             }
-            if (order.getEntryCallScores() != null) {
-                log.info("📈 CALL SCORES - {}", order.getEntryCallScores());
+            if (order.getEntryDetailedCallScores() != null) {
+                log.info("📈 CALL SCORES - {}", order.getEntryDetailedCallScores());
             }
-            if (order.getEntryPutScores() != null) {
-                log.info("📉 PUT SCORES - {}", order.getEntryPutScores());
+            if (order.getEntryDetailedPutScores() != null) {
+                log.info("📉 PUT SCORES - {}", order.getEntryDetailedPutScores());
             }
             if (order.getEntryDominantTrend() != null) {
                 log.info("🎯 DOMINANT TREND - {}", order.getEntryDominantTrend());

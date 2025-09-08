@@ -100,6 +100,7 @@ public class ScalpingEntryConfig {
         private String description;
         private ScenarioRequirements requirements;
         private ScenarioRiskManagement riskManagement;
+        private String targetMode;
     }
     
     @Data
@@ -114,6 +115,12 @@ public class ScalpingEntryConfig {
         private Double momentum_min_score;
         private Double minQualityScore;
         private Boolean flatMarketFilter;
+        
+        // Minimum score percentage requirements for each category
+        private Double min_ema_per;
+        private Double min_future_signal_per;
+        private Double min_candlestick_per;
+        private Double min_momentum_per;
     }
     
     @Data

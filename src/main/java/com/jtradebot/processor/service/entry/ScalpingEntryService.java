@@ -2,6 +2,7 @@ package com.jtradebot.processor.service.entry;
 
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.ScoringConfigurationService;
+import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.service.analysis.SignalDeterminationService;
@@ -24,7 +25,7 @@ public class ScalpingEntryService {
     private final SignalDeterminationService signalDeterminationService;
 
 
-    public ScalpingEntryDecision evaluateEntry(Tick tick, Map<String, Double> callScores, Map<String, Double> putScores, double qualityScore, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, 
+    public ScalpingEntryDecision evaluateEntry(Tick tick, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores, double qualityScore, UnstableMarketConditionAnalysisService.FlexibleFilteringResult result, 
  String dominantTrend) {
         try {
 
@@ -33,7 +34,7 @@ public class ScalpingEntryService {
             List<ScenarioEvaluation> scenarioEvaluations = new ArrayList<>();
             
             for (ScalpingEntryConfig.Scenario scenario : scenarios) {
-                ScenarioEvaluation evaluation = evaluateScenario(scenario, qualityScore, result, dominantTrend, callScores, putScores);
+                ScenarioEvaluation evaluation = evaluateScenario(scenario, qualityScore, result, dominantTrend, detailedCallScores, detailedPutScores);
                 scenarioEvaluations.add(evaluation);
             }
             
@@ -83,7 +84,7 @@ public class ScalpingEntryService {
     private ScenarioEvaluation evaluateScenario(ScalpingEntryConfig.Scenario scenario,
                                                 double qualityScore,
                                                 UnstableMarketConditionAnalysisService.FlexibleFilteringResult result,
-                                                String dominantTrend, Map<String, Double> callScores, Map<String, Double> putScores) {
+                                                String dominantTrend, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
 
         
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
@@ -149,32 +150,32 @@ public class ScalpingEntryService {
         boolean isCallDirection = "CALL".equals(dominantTrend);
         
         // Get weighted category scores based on market direction
-        Map<String, Double> weightedCategoryScores = isCallDirection ? callScores : putScores;
+        Map<String, DetailedCategoryScore> weightedDetailedScores = isCallDirection ? detailedCallScores : detailedPutScores;
         
         // Use weighted scores for category validation
         if (requirements.getEma_min_score() != null) {
-            double emaScore = weightedCategoryScores.getOrDefault("ema", 0.0);
+            double emaScore = weightedDetailedScores.getOrDefault("ema", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("ema").getTotalScore() : 0.0;
             categoryScores.put("ema", emaScore);
         }
         
         if (requirements.getFutureAndVolume_min_score() != null) {
-            double volumeScore = weightedCategoryScores.getOrDefault("futureAndVolume", 0.0);
+            double volumeScore = weightedDetailedScores.getOrDefault("futureAndVolume", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("futureAndVolume").getTotalScore() : 0.0;
             categoryScores.put("futureAndVolume", volumeScore);
         }
         
         if (requirements.getCandlestick_min_score() != null) {
-            double candlestickScore = weightedCategoryScores.getOrDefault("candlestick", 0.0);
+            double candlestickScore = weightedDetailedScores.getOrDefault("candlestick", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("candlestick").getTotalScore() : 0.0;
             categoryScores.put("candlestick", candlestickScore);
         }
         
         if (requirements.getMomentum_min_score() != null) {
-            double momentumScore = weightedCategoryScores.getOrDefault("momentum", 0.0);
+            double momentumScore = weightedDetailedScores.getOrDefault("momentum", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("momentum").getTotalScore() : 0.0;
             categoryScores.put("momentum", momentumScore);
         }
         
 
         
-        // Keep category-based checks for entry decisions
+        // Keep category-based checks for entry decisions (absolute scores)
         boolean categoryRequirementsPassed = true;
         List<String> failedCategories = new ArrayList<>();
         
@@ -202,10 +203,50 @@ public class ScalpingEntryService {
             failedCategories.add("M: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_score());
         }
         
+        // NEW: Check percentage-based requirements for each category
+        boolean percentageRequirementsPassed = true;
+        List<String> failedPercentageCategories = new ArrayList<>();
+        
+        if (requirements.getMin_ema_per() != null) {
+            double emaPercentage = weightedDetailedScores.getOrDefault("ema", new DetailedCategoryScore()).getScorePercentage() != null ? 
+                weightedDetailedScores.get("ema").getScorePercentage() : 0.0;
+            if (emaPercentage < requirements.getMin_ema_per()) {
+                percentageRequirementsPassed = false;
+                failedPercentageCategories.add("EMA: " + String.format("%.1f", emaPercentage) + "%/" + requirements.getMin_ema_per() + "%");
+            }
+        }
+        
+        if (requirements.getMin_future_signal_per() != null) {
+            double futureSignalPercentage = weightedDetailedScores.getOrDefault("futureAndVolume", new DetailedCategoryScore()).getScorePercentage() != null ? 
+                weightedDetailedScores.get("futureAndVolume").getScorePercentage() : 0.0;
+            if (futureSignalPercentage < requirements.getMin_future_signal_per()) {
+                percentageRequirementsPassed = false;
+                failedPercentageCategories.add("FV: " + String.format("%.1f", futureSignalPercentage) + "%/" + requirements.getMin_future_signal_per() + "%");
+            }
+        }
+        
+        if (requirements.getMin_candlestick_per() != null) {
+            double candlestickPercentage = weightedDetailedScores.getOrDefault("candlestick", new DetailedCategoryScore()).getScorePercentage() != null ? 
+                weightedDetailedScores.get("candlestick").getScorePercentage() : 0.0;
+            if (candlestickPercentage < requirements.getMin_candlestick_per()) {
+                percentageRequirementsPassed = false;
+                failedPercentageCategories.add("CS: " + String.format("%.1f", candlestickPercentage) + "%/" + requirements.getMin_candlestick_per() + "%");
+            }
+        }
+        
+        if (requirements.getMin_momentum_per() != null) {
+            double momentumPercentage = weightedDetailedScores.getOrDefault("momentum", new DetailedCategoryScore()).getScorePercentage() != null ? 
+                weightedDetailedScores.get("momentum").getScorePercentage() : 0.0;
+            if (momentumPercentage < requirements.getMin_momentum_per()) {
+                percentageRequirementsPassed = false;
+                failedPercentageCategories.add("M: " + String.format("%.1f", momentumPercentage) + "%/" + requirements.getMin_momentum_per() + "%");
+            }
+        }
+        
 
         
-        // Final decision: entry filtering + category requirements + quality score
-        boolean passed = qualityScorePassed && categoryRequirementsPassed;
+        // Final decision: entry filtering + category requirements + percentage requirements + quality score
+        boolean passed = qualityScorePassed && categoryRequirementsPassed && percentageRequirementsPassed;
         
         evaluation.setPassed(passed);
         evaluation.setScore(passed ? qualityScore : 0.0);
@@ -217,9 +258,9 @@ public class ScalpingEntryService {
         StringBuilder reason = new StringBuilder();
         if (passed) {
             reason.append("All entry conditions met");
-            log.info("🎯 SCENARIO PASSED - '{}' - Quality: {}/{} ({}), Categories: {}, Market Direction: {}", 
+            log.info("🎯 SCENARIO PASSED - '{}' - Quality: {}/{} ({}), Categories: {}, Percentages: {}, Market Direction: {}", 
                     scenario.getName(), qualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL",
-                    categoryScores, dominantTrend);
+                    categoryScores, getPercentageSummary(weightedDetailedScores), dominantTrend);
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
@@ -228,17 +269,44 @@ public class ScalpingEntryService {
             if (!categoryRequirementsPassed) {
                 failures.add("Failed categories: " + String.join(", ", failedCategories));
             }
+            if (!percentageRequirementsPassed) {
+                failures.add("Failed percentages: " + String.join(", ", failedPercentageCategories));
+            }
             reason.append(String.join("; ", failures));
             
-            log.warn("❌ SCENARIO FAILED - '{}' - Quality: {}/{} ({}), Categories: {}, Failed: {}", 
+            log.warn("❌ SCENARIO FAILED - '{}' - Quality: {}/{} ({}), Categories: {}, Percentages: {}, Failed: {}", 
                     scenario.getName(), qualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL",
-                    categoryScores, String.join(", ", failures));
+                    categoryScores, getPercentageSummary(weightedDetailedScores), String.join(", ", failures));
         }
         evaluation.setReason(reason.toString());
         
         return evaluation;
     }
 
+    /**
+     * Helper method to generate percentage summary for logging
+     */
+    private String getPercentageSummary(Map<String, DetailedCategoryScore> weightedDetailedScores) {
+        List<String> percentages = new ArrayList<>();
+        
+        double emaPercentage = weightedDetailedScores.getOrDefault("ema", new DetailedCategoryScore()).getScorePercentage() != null ? 
+            weightedDetailedScores.get("ema").getScorePercentage() : 0.0;
+        percentages.add("EMA:" + String.format("%.1f", emaPercentage) + "%");
+        
+        double futureSignalPercentage = weightedDetailedScores.getOrDefault("futureAndVolume", new DetailedCategoryScore()).getScorePercentage() != null ? 
+            weightedDetailedScores.get("futureAndVolume").getScorePercentage() : 0.0;
+        percentages.add("FV:" + String.format("%.1f", futureSignalPercentage) + "%");
+        
+        double candlestickPercentage = weightedDetailedScores.getOrDefault("candlestick", new DetailedCategoryScore()).getScorePercentage() != null ? 
+            weightedDetailedScores.get("candlestick").getScorePercentage() : 0.0;
+        percentages.add("CS:" + String.format("%.1f", candlestickPercentage) + "%");
+        
+        double momentumPercentage = weightedDetailedScores.getOrDefault("momentum", new DetailedCategoryScore()).getScorePercentage() != null ? 
+            weightedDetailedScores.get("momentum").getScorePercentage() : 0.0;
+        percentages.add("M:" + String.format("%.1f", momentumPercentage) + "%");
+        
+        return String.join(", ", percentages);
+    }
 
     
     // Helper class for scenario evaluation results
