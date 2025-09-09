@@ -53,11 +53,42 @@ public class RuleHelper {
                     double currentPrice = oneMinSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance1min = currentPrice - ema200_1min;
                     indicators.setEma200_distance_1min(ema200Distance1min);
+                    
+                    // Calculate new EMA price position indicators for 1min
+                    indicators.setPrice_above_ema5_1min(currentPrice > ema5_1min);
+                    indicators.setPrice_above_ema34_1min(currentPrice > ema34_1min);
+                    indicators.setPrice_below_ema5_1min(currentPrice < ema5_1min);
+                    indicators.setPrice_below_ema34_1min(currentPrice < ema34_1min);
+                    
+                    // Calculate EMA crossover indicators for 1min
+                    if (oneMinSeries.getBarCount() >= 2) {
+                        EmaInfo prevEmaInfo_1min = multiEmaIndicator.calculateEmaValues(
+                            oneMinSeries.getSubSeries(0, oneMinSeries.getBarCount() - 1), ONE_MIN);
+                        double prevEma5_1min = prevEmaInfo_1min.getEma5();
+                        double prevEma34_1min = prevEmaInfo_1min.getEma34();
+                        
+                        // Bullish crossover: EMA5 crosses above EMA34
+                        boolean bullishCrossover = prevEma5_1min <= prevEma34_1min && ema5_1min > ema34_1min;
+                        // Bearish crossover: EMA5 crosses below EMA34
+                        boolean bearishCrossover = prevEma5_1min >= prevEma34_1min && ema5_1min < ema34_1min;
+                        
+                        indicators.setEma_crossover_bullish_1min(bullishCrossover);
+                        indicators.setEma_crossover_bearish_1min(bearishCrossover);
+                    } else {
+                        indicators.setEma_crossover_bullish_1min(false);
+                        indicators.setEma_crossover_bearish_1min(false);
+                    }
                 } catch (Exception e) {
                     log.error("Error calculating 1min EMA", e);
                     indicators.setEma5_1min_gt_ema34_1min(null);
                     indicators.setEma5_1min_lt_ema34_1min(null);
                     indicators.setEma200_distance_1min(null);
+                    indicators.setPrice_above_ema5_1min(null);
+                    indicators.setPrice_above_ema34_1min(null);
+                    indicators.setPrice_below_ema5_1min(null);
+                    indicators.setPrice_below_ema34_1min(null);
+                    indicators.setEma_crossover_bullish_1min(null);
+                    indicators.setEma_crossover_bearish_1min(null);
                 }
                 
                 // Calculate MACD indicators for 1min
@@ -81,6 +112,12 @@ public class RuleHelper {
                 indicators.setEma5_1min_gt_ema34_1min(null);
                 indicators.setEma5_1min_lt_ema34_1min(null);
                 indicators.setEma200_distance_1min(null);
+                indicators.setPrice_above_ema5_1min(null);
+                indicators.setPrice_above_ema34_1min(null);
+                indicators.setPrice_below_ema5_1min(null);
+                indicators.setPrice_below_ema34_1min(null);
+                indicators.setEma_crossover_bullish_1min(null);
+                indicators.setEma_crossover_bearish_1min(null);
             }
 
             // 5-minute EMA calculation
@@ -103,6 +140,31 @@ public class RuleHelper {
                     indicators.setEma34_5min(ema34_5min);
                     indicators.setEma200_5min(ema200_5min);
                     
+                    // Calculate new EMA price position indicators for 5min
+                    indicators.setPrice_above_ema5_5min(currentPrice > ema5_5min);
+                    indicators.setPrice_above_ema34_5min(currentPrice > ema34_5min);
+                    indicators.setPrice_below_ema5_5min(currentPrice < ema5_5min);
+                    indicators.setPrice_below_ema34_5min(currentPrice < ema34_5min);
+                    
+                    // Calculate EMA crossover indicators for 5min
+                    if (fiveMinSeries.getBarCount() >= 2) {
+                        EmaInfo prevEmaInfo_5min = multiEmaIndicator.calculateEmaValues(
+                            fiveMinSeries.getSubSeries(0, fiveMinSeries.getBarCount() - 1), FIVE_MIN);
+                        double prevEma5_5min = prevEmaInfo_5min.getEma5();
+                        double prevEma34_5min = prevEmaInfo_5min.getEma34();
+                        
+                        // Bullish crossover: EMA5 crosses above EMA34
+                        boolean bullishCrossover = prevEma5_5min <= prevEma34_5min && ema5_5min > ema34_5min;
+                        // Bearish crossover: EMA5 crosses below EMA34
+                        boolean bearishCrossover = prevEma5_5min >= prevEma34_5min && ema5_5min < ema34_5min;
+                        
+                        indicators.setEma_crossover_bullish_5min(bullishCrossover);
+                        indicators.setEma_crossover_bearish_5min(bearishCrossover);
+                    } else {
+                        indicators.setEma_crossover_bullish_5min(false);
+                        indicators.setEma_crossover_bearish_5min(false);
+                    }
+                    
                     // Calculate MACD indicators for 5min
                     MACDIndicator.MACDResult macdResult5min = macdIndicator.calculateMACD(fiveMinSeries);
                     indicators.setMacd_bullish_crossover_5min(macdResult5min.isBullishCrossover());
@@ -116,6 +178,12 @@ public class RuleHelper {
                     indicators.setEma200_distance_5min(null);
                     indicators.setEma34_5min(null);
                     indicators.setEma200_5min(null);
+                    indicators.setPrice_above_ema5_5min(null);
+                    indicators.setPrice_above_ema34_5min(null);
+                    indicators.setPrice_below_ema5_5min(null);
+                    indicators.setPrice_below_ema34_5min(null);
+                    indicators.setEma_crossover_bullish_5min(null);
+                    indicators.setEma_crossover_bearish_5min(null);
                 }
             } else {
                 log.warn("5min BarSeries insufficient data - BarCount: {}", fiveMinSeries != null ? fiveMinSeries.getBarCount() : 0);
@@ -124,6 +192,12 @@ public class RuleHelper {
                 indicators.setEma200_distance_5min(null);
                 indicators.setEma34_5min(null);
                 indicators.setEma200_5min(null);
+                indicators.setPrice_above_ema5_5min(null);
+                indicators.setPrice_above_ema34_5min(null);
+                indicators.setPrice_below_ema5_5min(null);
+                indicators.setPrice_below_ema34_5min(null);
+                indicators.setEma_crossover_bullish_5min(null);
+                indicators.setEma_crossover_bearish_5min(null);
             }
 
             // 15-minute EMA calculation
@@ -478,6 +552,12 @@ public class RuleHelper {
             // Additional patterns
             setPatternIndicator(indicators, "inside_bar_breakout", timeframe, CandlestickPattern.isInsideBarBreakout(previousBar, currentBar));
             setPatternIndicator(indicators, "inside_bar_breakdown", timeframe, CandlestickPattern.isInsideBarBreakdown(previousBar, currentBar));
+            
+            // Current candle crossed previous high/low patterns (only for 5min timeframe)
+            if ("5min".equals(timeframe)) {
+                setPatternIndicator(indicators, "current_candle_crossed_above_prev_high", timeframe, CandlestickPattern.isCurrentCandleCrossedAbovePrevHigh(previousBar, currentBar));
+                setPatternIndicator(indicators, "current_candle_crossed_below_prev_low", timeframe, CandlestickPattern.isCurrentCandleCrossedBelowPrevLow(previousBar, currentBar));
+            }
         }
 
         // Three candle patterns
@@ -752,6 +832,12 @@ public class RuleHelper {
                 break;
             case "wick_rejection_filter_bullish_5min":
                 indicators.setWick_rejection_filter_bullish_5min(value);
+                break;
+            case "current_candle_crossed_above_prev_high_5min":
+                indicators.setCurrent_candle_crossed_above_prev_high_5min(value);
+                break;
+            case "current_candle_crossed_below_prev_low_5min":
+                indicators.setCurrent_candle_crossed_below_prev_low_5min(value);
                 break;
         }
     }

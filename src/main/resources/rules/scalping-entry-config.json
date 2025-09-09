@@ -16,15 +16,11 @@
       "description": "Conservative entry with strong confirmations using category-based scoring system",
       "requirements": {
         "minQualityScore": 7.5,
-        "ema_min_score": 2.5,
-        "futureAndVolume_min_score": 3.5,
-        "candlestick_min_score": 3.5,
-        "momentum_min_score": 2.5,
         "flatMarketFilter": true,
-        "min_ema_per": 75.0,
-        "min_future_signal_per": 30.0,
-        "min_candlestick_per": 30.0,
-        "min_momentum_per": 30.0
+        "min_ema_per": 60.0,
+        "min_future_signal_per": 35.0,
+        "min_candlestick_per": 40.0,
+        "min_momentum_per": 35.0
       },
       "targetMode": "PER"
     },
@@ -32,16 +28,12 @@
       "name": "HIGH_VOLUME_TRADE",
       "description": "High risk with strong confirmations using category-based scoring system",
       "requirements": {
-        "minQualityScore": 9.0,
-        "ema_min_score": 1.5,
-        "futureAndVolume_min_score": 3.5,
-        "candlestick_min_score": 3.0,
-        "momentum_min_score": 1.0,
+        "minQualityScore": 8.5,
         "flatMarketFilter": true,
-        "min_ema_per": 20.0,
-        "min_future_signal_per": 70.0,
-        "min_candlestick_per": 20.0,
-        "min_momentum_per": 20.0
+        "min_ema_per": 25.0,
+        "min_future_signal_per": 65.0,
+        "min_candlestick_per": 30.0,
+        "min_momentum_per": 25.0
       },
       "targetMode": "SR"
     }
@@ -53,18 +45,26 @@
         "indicators": {
           "ema5_5min_gt_ema34_5min": 2,
           "ema5_1min_gt_ema34_1min": 0.5,
-          "ema5_15min_gt_ema34_15min": 1
+          "ema5_15min_gt_ema34_15min": 1,
+          
+          "price_above_ema5_5min": 1.5,
+          "price_above_ema5_1min": 0.5,
+          "price_above_ema34_5min": 2,
+          "price_above_ema34_1min": 0.5,
+          
+          "ema_crossover_bullish_5min": 2.5,
+          "ema_crossover_bullish_1min": 1
         }
       },
       "futureAndVolume": {
         "indicators": {
           "price_volume_bullish_surge_5min": 3,
-          "price_volume_bullish_surge_1min": 1.5,
-          "price_volume_bullish_surge_15min": 2,
+          "price_volume_bullish_surge_1min": 0.5,
+          "price_volume_bullish_surge_15min": 0.5,
 
           "oi_bullish_signal_5min": 2,
           "oi_bullish_signal_1min": 0.5,
-          "oi_bullish_signal_15min": 1,
+          "oi_bullish_signal_15min": 0.5,
 
           "price_above_resistance": 1
         }
@@ -85,7 +85,8 @@
           "bullish_marubozu_5min": 2,
           "inside_bar_breakout_5min": 2,
           "wick_rejection_filter_bullish_1min": 2,
-          "wick_rejection_filter_bullish_5min": 2
+          "wick_rejection_filter_bullish_5min": 2,
+          "current_candle_crossed_above_prev_high_5min": 2
         }
       },
       "momentum": {
@@ -112,7 +113,15 @@
         "indicators": {
           "ema5_5min_lt_ema34_5min": 2,
           "ema5_1min_lt_ema34_1min": 0.5,
-          "ema5_15min_lt_ema34_15min": 1
+          "ema5_15min_lt_ema34_15min": 1,
+          
+          "price_below_ema5_5min": 1.5,
+          "price_below_ema5_1min": 0.5,
+          "price_below_ema34_5min": 2,
+          "price_below_ema34_1min": 0.5,
+          
+          "ema_crossover_bearish_5min": 2.5,
+          "ema_crossover_bearish_1min": 1
         }
       },
       "futureAndVolume": {
@@ -144,7 +153,8 @@
           "bearish_marubozu_5min": 2,
           "inside_bar_breakdown_5min": 2,
           "wick_rejection_filter_bearish_1min": 2,
-          "wick_rejection_filter_bearish_5min": 2
+          "wick_rejection_filter_bearish_5min": 2,
+          "current_candle_crossed_below_prev_low_5min": 2
         }
       },
       "momentum": {
@@ -284,7 +294,7 @@
       },
       "volumeSurgeMultiplier": 1.5,
       "signalStrength": 0.7,
-      "stopLossPercentage": 5,
+      "stopLossPercentage": 2.5,
       "targetPercentage": 15
     },
     "tradeSettings": {

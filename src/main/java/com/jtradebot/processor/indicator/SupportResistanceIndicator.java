@@ -14,6 +14,7 @@ import org.ta4j.core.BarSeries;
 import org.ta4j.core.indicators.EMAIndicator;
 
 import java.util.*;
+import java.util.Objects;
 
 import static com.jtradebot.processor.model.enums.OrderTypeEnum.CALL_BUY;
 import static com.jtradebot.processor.model.enums.OrderTypeEnum.PUT_BUY;
@@ -50,15 +51,17 @@ public class SupportResistanceIndicator {
         EMAIndicator[] emaIndicators = new EMAIndicator[]{emaIndicatorInfo.getEma9(), emaIndicatorInfo.getEma14(),
                 emaIndicatorInfo.getEma20(), emaIndicatorInfo.getEma34(), emaIndicatorInfo.getEma200()};
 
-        Arrays.stream(emaIndicators).forEach(emaIndicator -> {
-            Support support = new Support();
-            support.setCandleTimeFrame(timeFrame);
-            support.setEma(true);
-            if (emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue() < ltp) {
-                support.setSupportValue(emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue());
-                supports.add(support);
-            }
-        });
+        Arrays.stream(emaIndicators)
+                .filter(Objects::nonNull) // Filter out null indicators
+                .forEach(emaIndicator -> {
+                    Support support = new Support();
+                    support.setCandleTimeFrame(timeFrame);
+                    support.setEma(true);
+                    if (emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue() < ltp) {
+                        support.setSupportValue(emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue());
+                        supports.add(support);
+                    }
+                });
         return supports;
     }
 
@@ -86,15 +89,17 @@ public class SupportResistanceIndicator {
         EMAIndicator[] emaIndicators = new EMAIndicator[]{emaIndicatorInfo.getEma9(), emaIndicatorInfo.getEma14(),
                 emaIndicatorInfo.getEma20(), emaIndicatorInfo.getEma34(), emaIndicatorInfo.getEma200()};
 
-        Arrays.stream(emaIndicators).forEach(emaIndicator -> {
-            Resistance resistance = new Resistance();
-            resistance.setCandleTimeFrame(timeFrame);
-            resistance.setEma(true);
-            if (emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue() > ltp) {
-                resistance.setResistanceValue(emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue());
-                resistances.add(resistance);
-            }
-        });
+        Arrays.stream(emaIndicators)
+                .filter(Objects::nonNull) // Filter out null indicators
+                .forEach(emaIndicator -> {
+                    Resistance resistance = new Resistance();
+                    resistance.setCandleTimeFrame(timeFrame);
+                    resistance.setEma(true);
+                    if (emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue() > ltp) {
+                        resistance.setResistanceValue(emaIndicator.getValue(barSeriesForTimeFrame.getEndIndex()).intValue());
+                        resistances.add(resistance);
+                    }
+                });
 
         return resistances;
     }

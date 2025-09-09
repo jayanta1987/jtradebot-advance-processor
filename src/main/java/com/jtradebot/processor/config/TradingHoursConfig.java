@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
+import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
@@ -22,101 +23,92 @@ public class TradingHoursConfig {
     private static final int DEFAULT_START_MINUTE = 15;
     private static final int DEFAULT_END_HOUR = 15;
     private static final int DEFAULT_END_MINUTE = 30;
+    
+    // Cached configuration values
+    private int marketStartHour = DEFAULT_START_HOUR;
+    private int marketStartMinute = DEFAULT_START_MINUTE;
+    private int marketEndHour = DEFAULT_END_HOUR;
+    private int marketEndMinute = DEFAULT_END_MINUTE;
+
+    @PostConstruct
+    public void loadTradingHoursConfiguration() {
+        try {
+            ClassPathResource resource = getConfigResource();
+            InputStream inputStream = resource.getInputStream();
+            JsonNode rootNode = objectMapper.readTree(inputStream);
+            
+            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
+            if (tradingHours != null) {
+                // Load start hour
+                if (tradingHours.has("startHour")) {
+                    marketStartHour = tradingHours.get("startHour").asInt();
+                    log.info("✅ TRADING HOURS CONFIG - Market start hour loaded: {}", marketStartHour);
+                } else {
+                    log.warn("⚠️ TRADING HOURS CONFIG - No start hour found in config, using default: {}", DEFAULT_START_HOUR);
+                }
+                
+                // Load start minute
+                if (tradingHours.has("startMinute")) {
+                    marketStartMinute = tradingHours.get("startMinute").asInt();
+                    log.info("✅ TRADING HOURS CONFIG - Market start minute loaded: {}", marketStartMinute);
+                } else {
+                    log.warn("⚠️ TRADING HOURS CONFIG - No start minute found in config, using default: {}", DEFAULT_START_MINUTE);
+                }
+                
+                // Load end hour
+                if (tradingHours.has("endHour")) {
+                    marketEndHour = tradingHours.get("endHour").asInt();
+                    log.info("✅ TRADING HOURS CONFIG - Market end hour loaded: {}", marketEndHour);
+                } else {
+                    log.warn("⚠️ TRADING HOURS CONFIG - No end hour found in config, using default: {}", DEFAULT_END_HOUR);
+                }
+                
+                // Load end minute
+                if (tradingHours.has("endMinute")) {
+                    marketEndMinute = tradingHours.get("endMinute").asInt();
+                    log.info("✅ TRADING HOURS CONFIG - Market end minute loaded: {}", marketEndMinute);
+                } else {
+                    log.warn("⚠️ TRADING HOURS CONFIG - No end minute found in config, using default: {}", DEFAULT_END_MINUTE);
+                }
+            } else {
+                log.warn("⚠️ TRADING HOURS CONFIG - No tradingHours section found in config, using defaults");
+            }
+            
+            log.info("✅ TRADING HOURS CONFIG - Configuration loaded successfully: {}:{} - {}:{}", 
+                    marketStartHour, marketStartMinute, marketEndHour, marketEndMinute);
+            
+        } catch (IOException e) {
+            log.error("❌ TRADING HOURS CONFIG - Error loading configuration: {}", e.getMessage(), e);
+            log.warn("⚠️ TRADING HOURS CONFIG - Using default values due to configuration loading error");
+        }
+    }
 
     /**
-     * Get market start hour from configuration
+     * Get market start hour from cached configuration
      */
     public int getMarketStartHour() {
-        try {
-            ClassPathResource resource = getConfigResource();
-            InputStream inputStream = resource.getInputStream();
-            JsonNode rootNode = objectMapper.readTree(inputStream);
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("startHour")) {
-                int startHour = tradingHours.get("startHour").asInt();
-                log.debug("✅ TRADING HOURS CONFIG - Market start hour loaded: {}", startHour);
-                return startHour;
-            }
-            log.warn("⚠️ TRADING HOURS CONFIG - No start hour found in config, using default: {}", DEFAULT_START_HOUR);
-            return DEFAULT_START_HOUR;
-            
-        } catch (IOException e) {
-            log.error("❌ TRADING HOURS CONFIG - Error loading start hour: {}", e.getMessage(), e);
-            return DEFAULT_START_HOUR;
-        }
+        return marketStartHour;
     }
 
     /**
-     * Get market start minute from configuration
+     * Get market start minute from cached configuration
      */
     public int getMarketStartMinute() {
-        try {
-            ClassPathResource resource = getConfigResource();
-            InputStream inputStream = resource.getInputStream();
-            JsonNode rootNode = objectMapper.readTree(inputStream);
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("startMinute")) {
-                int startMinute = tradingHours.get("startMinute").asInt();
-                log.debug("✅ TRADING HOURS CONFIG - Market start minute loaded: {}", startMinute);
-                return startMinute;
-            }
-            log.warn("⚠️ TRADING HOURS CONFIG - No start minute found in config, using default: {}", DEFAULT_START_MINUTE);
-            return DEFAULT_START_MINUTE;
-            
-        } catch (IOException e) {
-            log.error("❌ TRADING HOURS CONFIG - Error loading start minute: {}", e.getMessage(), e);
-            return DEFAULT_START_MINUTE;
-        }
+        return marketStartMinute;
     }
 
     /**
-     * Get market end hour from configuration
+     * Get market end hour from cached configuration
      */
     public int getMarketEndHour() {
-        try {
-            ClassPathResource resource = getConfigResource();
-            InputStream inputStream = resource.getInputStream();
-            JsonNode rootNode = objectMapper.readTree(inputStream);
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("endHour")) {
-                int endHour = tradingHours.get("endHour").asInt();
-                log.debug("✅ TRADING HOURS CONFIG - Market end hour loaded: {}", endHour);
-                return endHour;
-            }
-            log.warn("⚠️ TRADING HOURS CONFIG - No end hour found in config, using default: {}", DEFAULT_END_HOUR);
-            return DEFAULT_END_HOUR;
-            
-        } catch (IOException e) {
-            log.error("❌ TRADING HOURS CONFIG - Error loading end hour: {}", e.getMessage(), e);
-            return DEFAULT_END_HOUR;
-        }
+        return marketEndHour;
     }
 
     /**
-     * Get market end minute from configuration
+     * Get market end minute from cached configuration
      */
     public int getMarketEndMinute() {
-        try {
-            ClassPathResource resource = getConfigResource();
-            InputStream inputStream = resource.getInputStream();
-            JsonNode rootNode = objectMapper.readTree(inputStream);
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("endMinute")) {
-                int endMinute = tradingHours.get("endMinute").asInt();
-                log.debug("✅ TRADING HOURS CONFIG - Market end minute loaded: {}", endMinute);
-                return endMinute;
-            }
-            log.warn("⚠️ TRADING HOURS CONFIG - No end minute found in config, using default: {}", DEFAULT_END_MINUTE);
-            return DEFAULT_END_MINUTE;
-            
-        } catch (IOException e) {
-            log.error("❌ TRADING HOURS CONFIG - Error loading end minute: {}", e.getMessage(), e);
-            return DEFAULT_END_MINUTE;
-        }
+        return marketEndMinute;
     }
 
     private ClassPathResource getConfigResource() {
@@ -124,7 +116,7 @@ public class TradingHoursConfig {
     }
 
     public Date getLastMarketTime(Date date) {
-        return DateTimeHandler.getLastMarketTime(date, DEFAULT_START_HOUR, DEFAULT_START_MINUTE,
-                DEFAULT_END_HOUR, DEFAULT_END_MINUTE);
+        return DateTimeHandler.getLastMarketTime(date, marketStartHour, marketStartMinute,
+                marketEndHour, marketEndMinute);
     }
 }

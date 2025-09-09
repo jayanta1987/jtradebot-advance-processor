@@ -1,10 +1,10 @@
 package com.jtradebot.processor.service.order;
 
-import com.jtradebot.processor.common.ProfileUtil;
 import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.manager.BarSeriesManager;
 import com.jtradebot.processor.model.MilestoneSystem;
 import com.jtradebot.processor.model.MilestoneSystem.Milestone;
+import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
@@ -69,23 +69,21 @@ public class ActiveOrderTrackingService {
     }
 
 
-    public boolean shouldBlockEntryAfterStopLoss(Long instrumentToken) {
-        // If no previous exit or not a STOPLOSS_HIT, allow entry
-        if (lastExitReason != ExitReasonEnum.STOPLOSS_HIT || lastExitTime == null) {
+    public boolean shouldBlockEntryAfterStopLoss(Long instrumentToken, CandleTimeFrameEnum timeframe, ExitReasonEnum... exitReasons) {
+        // If no previous exit or lastExitReason not in provided reasons, allow entry
+        if (lastExitTime == null || !java.util.Arrays.asList(exitReasons).contains(lastExitReason)) {
             return false;
         }
 
-        // Check if the 5-minute candle has closed since the last exit
-        boolean isCandleOpen = barSeriesManager.is5MinCandleOpen(String.valueOf(instrumentToken), lastExitTime);
+        // Check if the candle has closed since the last exit
+        boolean isCandleOpen = barSeriesManager.isCandleOpen(String.valueOf(instrumentToken), lastExitTime, timeframe);
 
         if (isCandleOpen) {
-            log.info("🚫 ENTRY BLOCKED - Recent STOPLOSS_HIT exit in same 5-min candle. Last exit: {} at {}",
-                    formatDateToIST(lastExitTime), formatDateToIST(lastExitTime));
             return true;
         }
         lastExitTime = null; // Reset to avoid repeated blocks
         lastExitReason = null; // Reset to avoid repeated blocks
-        log.info("ENTRY ALLOWED - 5-min candle has closed now");
+        log.info("ENTRY ALLOWED - {} candle has closed now", timeframe);
         return false;
     }
 
@@ -131,7 +129,16 @@ public class ActiveOrderTrackingService {
         // For both CALL and PUT orders, stop loss is hit when current price <= stop loss price
         // When option price goes down, it's a loss for both CALL and PUT
         if (currentLTP <= order.getStopLossPrice()) {
-            return ExitReasonEnum.STOPLOSS_HIT;
+            // Check if this is a trailing stoploss hit by comparing stopLossPrice with targetMilestones or entryPrice
+            if (isTrailingStopLossHit(order)) {
+                log.info("🔒 TRAILING STOPLOSS HIT - Order: {} | Stop Loss Price: {} matches target milestone or entry price",
+                        order.getId(), order.getStopLossPrice());
+                return ExitReasonEnum.TRAILING_STOPLOSS_HIT;
+            } else {
+                log.info("🛑 REGULAR STOPLOSS HIT - Order: {} | Stop Loss Price: {}",
+                        order.getId(), order.getStopLossPrice());
+                return ExitReasonEnum.STOPLOSS_HIT;
+            }
         }
 
         // For both CALL and PUT orders, target is hit when current price >= target price
@@ -145,6 +152,44 @@ public class ActiveOrderTrackingService {
     }
 
     /**
+     * Check if the current stoploss hit is a trailing stoploss hit
+     * A trailing stoploss hit occurs when the stopLossPrice matches:
+     * 1. Any target milestone price, OR
+     * 2. The entry price
+     */
+    private boolean isTrailingStopLossHit(JtradeOrder order) {
+        Double stopLossPrice = order.getStopLossPrice();
+        Double entryPrice = order.getEntryPrice();
+        
+        if (stopLossPrice == null || entryPrice == null) {
+            return false;
+        }
+        
+        // Check if stopLossPrice matches entryPrice
+        if (Math.abs(stopLossPrice - entryPrice) < 0.01) { // Using small tolerance for double comparison
+            log.debug("🔒 Trailing stoploss detected - StopLossPrice {} matches EntryPrice {}", 
+                    stopLossPrice, entryPrice);
+            return true;
+        }
+        
+        // Check if stopLossPrice matches any target milestone price
+        List<MilestoneSystem.Milestone> targetMilestones = order.getTargetMilestones();
+        if (targetMilestones != null && !targetMilestones.isEmpty()) {
+            for (MilestoneSystem.Milestone milestone : targetMilestones) {
+                Double milestoneTargetPrice = milestone.getTargetPrice();
+                if (milestoneTargetPrice != null && 
+                    Math.abs(stopLossPrice - milestoneTargetPrice) < 0.01) { // Using small tolerance for double comparison
+                    log.debug("🔒 Trailing stoploss detected - StopLossPrice {} matches Milestone {} TargetPrice {}", 
+                            stopLossPrice, milestone.getMilestoneNumber(), milestoneTargetPrice);
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    /**
      * Enhanced exit reason determination including time-based and strategy-based exits
      * Priority order: Stop Loss/Target > Strategy-based > Time-based
      */
@@ -153,6 +198,7 @@ public class ActiveOrderTrackingService {
         // Check traditional stop loss and target FIRST (highest priority)
         ExitReasonEnum stopLossOrTargetReason = checkPrimaryExitReason(order, currentLTP);
         if (stopLossOrTargetReason == ExitReasonEnum.STOPLOSS_HIT ||
+                stopLossOrTargetReason == ExitReasonEnum.TRAILING_STOPLOSS_HIT ||
                 stopLossOrTargetReason == ExitReasonEnum.TARGET_HIT) {
             log.info("🎯 PRIORITY EXIT - Order: {} | Reason: {} | Current LTP: {}",
                     order.getId(), stopLossOrTargetReason, currentLTP);

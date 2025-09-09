@@ -5,6 +5,8 @@ import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.MilestoneSystem.Milestone;
 import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
+import com.jtradebot.processor.model.indicator.Support;
+import com.jtradebot.processor.model.indicator.Resistance;
 
 import lombok.Data;
 import lombok.ToString;
@@ -18,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Document(collection = "jtrade_orders")
 @Data
@@ -98,6 +101,12 @@ public class JtradeOrder {
     private Integer optionalFiltersFailed;
     private Integer totalFiltersChecked;
     private List<String> filterFailureReason; // List of failed filter names with NTP values
+    
+    // Support and Resistance Data at Entry Time
+    private Set<Support> entrySupports; // All support levels found at entry time
+    private Set<Resistance> entryResistances; // All resistance levels found at entry time
+    private Double entryNearestSupport; // Nearest support level at entry time
+    private Double entryNearestResistance; // Nearest resistance level at entry time
     
     // Helper methods
     public boolean isActive() {
