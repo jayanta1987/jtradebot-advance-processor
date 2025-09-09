@@ -15,6 +15,8 @@ import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +24,7 @@ import java.util.Map;
 public class DynamicStrategyConfigService {
 
     private final TradingConfigurationService tradingConfigurationService;
+    private final ScoringConfigurationService scoringConfigService;
     @Getter
     private ScalpingEntryConfig scalpingEntryConfig;
 
@@ -292,16 +295,45 @@ public class DynamicStrategyConfigService {
         try {
             var scenario = getScenarioByName(scenarioName);
             if (scenario == null) {
-                throw new IllegalStateException("SAFE_ENTRY_SIGNAL scenario not found in configuration");
+                throw new IllegalStateException("Scenario '" + scenarioName + "' not found in configuration");
             }
             if (scenario.getRequirements() == null) {
-                throw new IllegalStateException("Requirements not found in SAFE_ENTRY_SIGNAL scenario");
+                throw new IllegalStateException("Requirements not found in scenario '" + scenarioName + "'");
             }
             if (scenario.getRequirements().getMinQualityScore() == null) {
-                throw new IllegalStateException("minQualityScore not found in SAFE_ENTRY_SIGNAL scenario requirements");
+                throw new IllegalStateException("minQualityScore not found in scenario '" + scenarioName + "' requirements");
             }
 
             return scenario.getRequirements().getMinQualityScore();
+        } catch (Exception e) {
+            log.error("❌ CRITICAL ERROR: Cannot read minQualityScore from scenario configuration: {}", e.getMessage());
+            throw new RuntimeException("Failed to read quality score threshold from configuration", e);
+        }
+    }
+
+    /**
+     * Get the minimum quality threshold from the least restrictive scenario
+     * This is used for initial filtering before dynamic scenario evaluation
+     * We use the lowest threshold to avoid blocking valid scenarios
+     */
+    public double getMinQualityThresholdFromLeastRestrictiveScenario() {
+        try {
+            List<ScalpingEntryConfig.Scenario> scenarios = getScenarios();
+            if (scenarios.isEmpty()) {
+                throw new IllegalStateException("No scenarios found in configuration");
+            }
+
+            // Find the scenario with the lowest quality score requirement (least restrictive)
+            Optional<ScalpingEntryConfig.Scenario> leastRestrictive = scenarios.stream()
+                    .filter(scenario -> scenario.getRequirements() != null && scenario.getRequirements().getMinQualityScore() != null)
+                    .min(Comparator.comparing(scenario -> scenario.getRequirements().getMinQualityScore()));
+
+            if (leastRestrictive.isPresent()) {
+                return leastRestrictive.get().getRequirements().getMinQualityScore();
+            } else {
+                // Fallback to scoring config if no scenario has quality score requirement
+                return scoringConfigService.getMinQualityScore();
+            }
         } catch (Exception e) {
             log.error("❌ CRITICAL ERROR: Cannot read minQualityScore from scenario configuration: {}", e.getMessage());
             throw new RuntimeException("Failed to read quality score threshold from configuration", e);

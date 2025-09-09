@@ -106,9 +106,19 @@ public class OrderManagementService {
             String targetMode = configService.getTargetModeForScenario(entryDecision.getScenarioName());
             
             if ("SR".equals(targetMode)) {
-                // Calculate target based on Support/Resistance
-                double srTargetPoints = calculateSupportResistanceTarget(tick, currentIndexPrice, orderType);
-                targetPoints = srTargetPoints;
+                // Calculate target based on Support/Resistance and store SR data
+                SupportResistanceData srData = calculateSupportResistanceTargetWithData(tick, currentIndexPrice, orderType);
+                targetPoints = srData.getTargetPoints();
+                
+                // Store support and resistance data in order
+                order.setEntrySupports(srData.getSupports());
+                order.setEntryResistances(srData.getResistances());
+                order.setEntryNearestSupport(srData.getNearestSupport());
+                order.setEntryNearestResistance(srData.getNearestResistance());
+                
+                log.info("📊 SR DATA STORED - Supports: {} levels, Resistances: {} levels, Nearest Support: {}, Nearest Resistance: {}",
+                        srData.getSupports().size(), srData.getResistances().size(), 
+                        srData.getNearestSupport(), srData.getNearestResistance());
                 
                 log.info("🎯 MIXED CALCULATION - Entry Price: {} | SL %: {}% | Target Mode: SR | SL Points: {} | Target Points: {}",
                         String.format("%.2f", optionEntryPrice),
@@ -129,11 +139,6 @@ public class OrderManagementService {
             }
 
             if (entryDecision.isShouldEntry() && entryDecision.getScenarioName() != null) {
-                if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(Long.valueOf(niftyToken))) {
-                    log.warn("🚫 ORDER CREATION BLOCKED - Recent STOPLOSS_HIT exit in same 5-min candle. Entry time: {}",
-                            formatDateToIST(tick.getTickTimestamp()));
-                    return order;
-                }
 
                 // Check if there's already an active order
                 if (activeOrderTrackingService.hasActiveOrder()) {
@@ -431,6 +436,8 @@ public class OrderManagementService {
             emaInfo.setEma9(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 9));
             emaInfo.setEma14(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 14));
             emaInfo.setEma20(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 20));
+            emaInfo.setEma34(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 34));
+            emaInfo.setEma200(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 200));
 
             // Calculate support and resistance levels
             Set<Resistance> resistances = supportResistanceIndicator.calculateResistances(CandleTimeFrameEnum.FIVE_MIN, fiveMinSeries, currentIndexPrice, emaInfo, new int[]{20, 50, 100});
@@ -443,6 +450,29 @@ public class OrderManagementService {
             // Calculate target based on order type
             double calculatedTarget;
             
+            // Log all resistances and supports for debugging
+            log.info("🔍 ALL RESISTANCES FOUND:");
+            int resistanceCount = 0;
+            for (Resistance resistance : resistances) {
+                resistanceCount++;
+                double distance = resistance.getResistanceValue() - currentIndexPrice;
+                log.info("   Resistance {}: {} (Distance: {})", 
+                        resistanceCount, 
+                        resistance.getResistanceValue(),
+                        String.format("%.2f", distance));
+            }
+            
+            log.info("🔍 ALL SUPPORTS FOUND:");
+            int supportCount = 0;
+            for (Support support : supports) {
+                supportCount++;
+                double distance = currentIndexPrice - support.getSupportValue();
+                log.info("   Support {}: {} (Distance: {})", 
+                        supportCount, 
+                        support.getSupportValue(),
+                        String.format("%.2f", distance));
+            }
+
             if ("CALL_BUY".equals(orderType)) {
                 // For CALL orders: target at resistance
                 double resistanceDistance = nearestResistance - currentIndexPrice;
@@ -475,6 +505,102 @@ public class OrderManagementService {
             double targetPercentage = tradingConfigService.getTargetPercentage();
             double fallbackTarget = currentIndexPrice * (targetPercentage / 100.0);
             return fallbackTarget;
+        }
+    }
+
+    /**
+     * Calculate target based on Support/Resistance levels and return data for storage
+     * @return SupportResistanceData containing target points and all SR data
+     */
+    private SupportResistanceData calculateSupportResistanceTargetWithData(Tick tick, double currentIndexPrice, String orderType) {
+        try {
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            
+            // Get 5-minute bar series for support/resistance calculation
+            BarSeries fiveMinSeries = barSeriesManager.getBarSeriesForTimeFrame(niftyToken, CandleTimeFrameEnum.FIVE_MIN);
+            
+            if (fiveMinSeries == null || fiveMinSeries.getBarCount() < 20) {
+                log.warn("Insufficient 5-minute data for support/resistance calculation, falling back to percentage mode");
+                // Fallback to percentage mode
+                double targetPercentage = tradingConfigService.getTargetPercentage();
+                double fallbackTarget = currentIndexPrice * (targetPercentage / 100.0);
+                return new SupportResistanceData(fallbackTarget, new HashSet<>(), new HashSet<>(), null, null);
+            }
+
+            // Create EMA indicator info for support/resistance calculation
+            EmaIndicatorInfo emaInfo = new EmaIndicatorInfo();
+            emaInfo.setEma9(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 9));
+            emaInfo.setEma14(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 14));
+            emaInfo.setEma20(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 20));
+            emaInfo.setEma34(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 34));
+            emaInfo.setEma200(new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(fiveMinSeries), 200));
+
+            // Calculate support and resistance levels
+            Set<Resistance> resistances = supportResistanceIndicator.calculateResistances(CandleTimeFrameEnum.FIVE_MIN, fiveMinSeries, currentIndexPrice, emaInfo, new int[]{20, 50, 100});
+            Set<Support> supports = supportResistanceIndicator.calculateSupports(CandleTimeFrameEnum.FIVE_MIN, fiveMinSeries, currentIndexPrice, emaInfo, new int[]{20, 50, 100});
+
+            // Get nearest resistance and support levels
+            double nearestResistance = resistances.isEmpty() ? currentIndexPrice * 1.02 : resistances.iterator().next().getResistanceValue();
+            double nearestSupport = supports.isEmpty() ? currentIndexPrice * 0.98 : supports.iterator().next().getSupportValue();
+
+            // Calculate target based on order type
+            double calculatedTarget;
+            
+            // Log all resistances and supports for debugging
+            log.info("🔍 ALL RESISTANCES FOUND:");
+            int resistanceCount = 0;
+            for (Resistance resistance : resistances) {
+                resistanceCount++;
+                double distance = resistance.getResistanceValue() - currentIndexPrice;
+                log.info("   Resistance {}: {} (Distance: {})", 
+                        resistanceCount, 
+                        resistance.getResistanceValue(),
+                        String.format("%.2f", distance));
+            }
+            
+            log.info("🔍 ALL SUPPORTS FOUND:");
+            int supportCount = 0;
+            for (Support support : supports) {
+                supportCount++;
+                double distance = currentIndexPrice - support.getSupportValue();
+                log.info("   Support {}: {} (Distance: {})", 
+                        supportCount, 
+                        support.getSupportValue(),
+                        String.format("%.2f", distance));
+            }
+
+            if ("CALL_BUY".equals(orderType)) {
+                // For CALL orders: target at resistance
+                double resistanceDistance = nearestResistance - currentIndexPrice;
+                calculatedTarget = Math.max(resistanceDistance, 10.0); // Minimum 10 points
+                
+                log.info("🎯 CALL SR TARGET - Current: {} | Resistance: {} | Target Points: {}",
+                        String.format("%.2f", currentIndexPrice),
+                        String.format("%.2f", nearestResistance),
+                        String.format("%.2f", calculatedTarget));
+                        
+            } else if ("PUT_BUY".equals(orderType)) {
+                // For PUT orders: target at support
+                double supportDistance = currentIndexPrice - nearestSupport;
+                calculatedTarget = Math.max(supportDistance, 10.0); // Minimum 10 points
+                
+                log.info("🎯 PUT SR TARGET - Current: {} | Support: {} | Target Points: {}",
+                        String.format("%.2f", currentIndexPrice),
+                        String.format("%.2f", nearestSupport),
+                        String.format("%.2f", calculatedTarget));
+            } else {
+                // Default fallback
+                calculatedTarget = 10.0;
+            }
+            
+            return new SupportResistanceData(calculatedTarget, supports, resistances, nearestSupport, nearestResistance);
+
+        } catch (Exception e) {
+            log.error("Error calculating support/resistance target: {}", e.getMessage(), e);
+            // Fallback to percentage mode
+            double targetPercentage = tradingConfigService.getTargetPercentage();
+            double fallbackTarget = currentIndexPrice * (targetPercentage / 100.0);
+            return new SupportResistanceData(fallbackTarget, new HashSet<>(), new HashSet<>(), null, null);
         }
     }
 

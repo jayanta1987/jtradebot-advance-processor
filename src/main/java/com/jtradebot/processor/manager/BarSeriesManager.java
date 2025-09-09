@@ -249,8 +249,8 @@ public class BarSeriesManager {
         return !instrumentSeriesMap.isEmpty() && instrumentSeriesMap.containsKey(instrumentToken);
     }
 
-    public boolean is5MinCandleOpen(String instrumentToken, Date tickTimestamp) {
-        BarSeries series = getBarSeriesForTimeFrame(instrumentToken, CandleTimeFrameEnum.FIVE_MIN);
+    public boolean isCandleOpen(String instrumentToken, Date tickTimestamp, CandleTimeFrameEnum timeFrame) {
+        BarSeries series = getBarSeriesForTimeFrame(instrumentToken, timeFrame);
         if (series == null || series.isEmpty()) return false;
 
         ZonedDateTime tickTime = tickTimestamp.toInstant().atZone(ZoneId.of("Asia/Kolkata"));

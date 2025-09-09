@@ -127,12 +127,12 @@ public class ScalpingEntryService {
             }
         }
         
-        // If scenario only requires quality score (no category requirements)
+        // If scenario only requires quality score (no percentage requirements)
         if (requirements.getMinQualityScore() != null && 
-            requirements.getEma_min_score() == null && 
-            requirements.getFutureAndVolume_min_score() == null && 
-            requirements.getCandlestick_min_score() == null && 
-            requirements.getMomentum_min_score() == null) {
+            requirements.getMin_ema_per() == null && 
+            requirements.getMin_future_signal_per() == null && 
+            requirements.getMin_candlestick_per() == null && 
+            requirements.getMin_momentum_per() == null) {
             
             evaluation.setPassed(qualityScorePassed);
             evaluation.setScore(qualityScore);
@@ -143,7 +143,6 @@ public class ScalpingEntryService {
         }
         
         // Evaluate category-based requirements using weighted scores
-        Map<String, Double> categoryScores = new HashMap<>();
         Map<String, List<String>> matchedConditions = new HashMap<>();
         
         // Use the market direction passed as parameter
@@ -152,58 +151,7 @@ public class ScalpingEntryService {
         // Get weighted category scores based on market direction
         Map<String, DetailedCategoryScore> weightedDetailedScores = isCallDirection ? detailedCallScores : detailedPutScores;
         
-        // Use weighted scores for category validation
-        if (requirements.getEma_min_score() != null) {
-            double emaScore = weightedDetailedScores.getOrDefault("ema", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("ema").getTotalScore() : 0.0;
-            categoryScores.put("ema", emaScore);
-        }
-        
-        if (requirements.getFutureAndVolume_min_score() != null) {
-            double volumeScore = weightedDetailedScores.getOrDefault("futureAndVolume", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("futureAndVolume").getTotalScore() : 0.0;
-            categoryScores.put("futureAndVolume", volumeScore);
-        }
-        
-        if (requirements.getCandlestick_min_score() != null) {
-            double candlestickScore = weightedDetailedScores.getOrDefault("candlestick", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("candlestick").getTotalScore() : 0.0;
-            categoryScores.put("candlestick", candlestickScore);
-        }
-        
-        if (requirements.getMomentum_min_score() != null) {
-            double momentumScore = weightedDetailedScores.getOrDefault("momentum", new DetailedCategoryScore()).getTotalScore() != null ? weightedDetailedScores.get("momentum").getTotalScore() : 0.0;
-            categoryScores.put("momentum", momentumScore);
-        }
-        
-
-        
-        // Keep category-based checks for entry decisions (absolute scores)
-        boolean categoryRequirementsPassed = true;
-        List<String> failedCategories = new ArrayList<>();
-        
-        if (requirements.getEma_min_score() != null && 
-            categoryScores.get("ema") < requirements.getEma_min_score()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("EMA: " + categoryScores.get("ema") + "/" + requirements.getEma_min_score());
-        }
-        
-        if (requirements.getFutureAndVolume_min_score() != null && 
-            categoryScores.get("futureAndVolume") < requirements.getFutureAndVolume_min_score()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("FV: " + categoryScores.get("futureAndVolume") + "/" + requirements.getFutureAndVolume_min_score());
-        }
-        
-        if (requirements.getCandlestick_min_score() != null && 
-            categoryScores.get("candlestick") < requirements.getCandlestick_min_score()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("CS: " + categoryScores.get("candlestick") + "/" + requirements.getCandlestick_min_score());
-        }
-        
-        if (requirements.getMomentum_min_score() != null && 
-            categoryScores.get("momentum") < requirements.getMomentum_min_score()) {
-            categoryRequirementsPassed = false;
-            failedCategories.add("M: " + categoryScores.get("momentum") + "/" + requirements.getMomentum_min_score());
-        }
-        
-        // NEW: Check percentage-based requirements for each category
+        // Check percentage-based requirements for each category
         boolean percentageRequirementsPassed = true;
         List<String> failedPercentageCategories = new ArrayList<>();
         
@@ -245,12 +193,11 @@ public class ScalpingEntryService {
         
 
         
-        // Final decision: entry filtering + category requirements + percentage requirements + quality score
-        boolean passed = qualityScorePassed && categoryRequirementsPassed && percentageRequirementsPassed;
+        // Final decision: entry filtering + percentage requirements + quality score
+        boolean passed = qualityScorePassed && percentageRequirementsPassed;
         
         evaluation.setPassed(passed);
         evaluation.setScore(passed ? qualityScore : 0.0);
-        evaluation.setCategoryScores(categoryScores);
         evaluation.setMatchedConditions(matchedConditions);
         evaluation.setMarketDirection(dominantTrend); // Set the determined market direction
         
@@ -258,25 +205,22 @@ public class ScalpingEntryService {
         StringBuilder reason = new StringBuilder();
         if (passed) {
             reason.append("All entry conditions met");
-            log.info("🎯 SCENARIO PASSED - '{}' - Quality: {}/{} ({}), Categories: {}, Percentages: {}, Market Direction: {}", 
+            log.info("🎯 SCENARIO PASSED - '{}' - Quality: {}/{} ({}), Percentages: {}, Market Direction: {}", 
                     scenario.getName(), qualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL",
-                    categoryScores, getPercentageSummary(weightedDetailedScores), dominantTrend);
+                    getPercentageSummary(weightedDetailedScores), dominantTrend);
         } else {
             List<String> failures = new ArrayList<>();
             if (!qualityScorePassed) {
                 failures.add("Quality score " + qualityScore + " below threshold " + minQualityThreshold);
-            }
-            if (!categoryRequirementsPassed) {
-                failures.add("Failed categories: " + String.join(", ", failedCategories));
             }
             if (!percentageRequirementsPassed) {
                 failures.add("Failed percentages: " + String.join(", ", failedPercentageCategories));
             }
             reason.append(String.join("; ", failures));
             
-            log.warn("❌ SCENARIO FAILED - '{}' - Quality: {}/{} ({}), Categories: {}, Percentages: {}, Failed: {}", 
+            log.warn("❌ SCENARIO FAILED - '{}' - Quality: {}/{} ({}), Percentages: {}, Failed: {}", 
                     scenario.getName(), qualityScore, minQualityThreshold, qualityScorePassed ? "PASS" : "FAIL",
-                    categoryScores, getPercentageSummary(weightedDetailedScores), String.join(", ", failures));
+                    getPercentageSummary(weightedDetailedScores), String.join(", ", failures));
         }
         evaluation.setReason(reason.toString());
         

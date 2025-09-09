@@ -5,9 +5,12 @@ import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
+import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
+import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
+import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.analysis.MarketDirectionService;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
@@ -25,6 +28,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -116,8 +121,9 @@ public class TickOrchestrationService {
                     logComprehensiveIndicatorAnalysis(tick, qualityScore, detailedCallScores, detailedPutScores, dominantTrend);
 
                     // Step 5: Block entries after recent stop-loss hits
-                    if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken())) {
-                        log.warn("🚫 ORDER CREATION BLOCKED - Recent STOPLOSS_HIT exit in same 5-min candle");
+                    CandleTimeFrameEnum timeframe = CandleTimeFrameEnum.ONE_MIN;
+                    if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken(), timeframe, ExitReasonEnum.STOPLOSS_HIT)) {
+                        log.warn("🚫 ORDER CREATION BLOCKED - Recent stoploss exit in same {} candle", timeframe);
                         return;
                     }
 
@@ -172,7 +178,7 @@ public class TickOrchestrationService {
             return false;
         }
 
-        double minQualityThreshold = configService.getMinQualityThresholdFromScenario("SAFE_ENTRY_SIGNAL");
+        double minQualityThreshold = configService.getMinQualityThresholdFromLeastRestrictiveScenario();
         if (qualityScore < minQualityThreshold) {
             log.debug("🚫 Entry blocked - Quality score too low: {}/10 (threshold: {})",
                     String.format("%.1f", qualityScore), minQualityThreshold);
@@ -239,17 +245,24 @@ public class TickOrchestrationService {
      */
     private String getCategoryBreakdownWithRequirements(Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
         try {
-            // Get requirements from SAFE_ENTRY_SIGNAL scenario
-            var scenario = configService.getScenarioByName("SAFE_ENTRY_SIGNAL");
-            if (scenario == null || scenario.getRequirements() == null) {
+            // Get requirements from the least restrictive scenario for display purposes
+            List<ScalpingEntryConfig.Scenario> scenarios = configService.getScenarios();
+            if (scenarios.isEmpty()) {
                 return "";
             }
 
-            var requirements = scenario.getRequirements();
-            double emaRequired = requirements.getEma_min_score() != null ? requirements.getEma_min_score() : 0.0;
-            double fvRequired = requirements.getFutureAndVolume_min_score() != null ? requirements.getFutureAndVolume_min_score() : 0.0;
-            double csRequired = requirements.getCandlestick_min_score() != null ? requirements.getCandlestick_min_score() : 0.0;
-            double mRequired = requirements.getMomentum_min_score() != null ? requirements.getMomentum_min_score() : 0.0;
+            // Find the least restrictive scenario (lowest quality score requirement)
+            Optional<ScalpingEntryConfig.Scenario> leastRestrictive = scenarios.stream()
+                    .filter(scenario -> scenario.getRequirements() != null && scenario.getRequirements().getMinQualityScore() != null)
+                    .min(Comparator.comparing(scenario -> scenario.getRequirements().getMinQualityScore()));
+
+            if (!leastRestrictive.isPresent()) {
+                return "";
+            }
+
+            ScalpingEntryConfig.Scenario scenario = leastRestrictive.get();
+
+            ScalpingEntryConfig.ScenarioRequirements requirements = scenario.getRequirements();
 
             // Get percentage requirements
             double emaPerRequired = requirements.getMin_ema_per() != null ? requirements.getMin_ema_per() : 0.0;
@@ -257,18 +270,7 @@ public class TickOrchestrationService {
             double csPerRequired = requirements.getMin_candlestick_per() != null ? requirements.getMin_candlestick_per() : 0.0;
             double mPerRequired = requirements.getMin_momentum_per() != null ? requirements.getMin_momentum_per() : 0.0;
 
-            // Format the breakdown with actual scores and percentages for both directions
-            String callEma = (detailedCallScores.getOrDefault("ema", new DetailedCategoryScore()).getTotalScore() != null ? detailedCallScores.get("ema").getTotalScore() : 0.0) + "/" + emaRequired;
-            String callFv = (detailedCallScores.getOrDefault("futureAndVolume", new DetailedCategoryScore()).getTotalScore() != null ? detailedCallScores.get("futureAndVolume").getTotalScore() : 0.0) + "/" + fvRequired;
-            String callCs = (detailedCallScores.getOrDefault("candlestick", new DetailedCategoryScore()).getTotalScore() != null ? detailedCallScores.get("candlestick").getTotalScore() : 0.0) + "/" + csRequired;
-            String callM = (detailedCallScores.getOrDefault("momentum", new DetailedCategoryScore()).getTotalScore() != null ? detailedCallScores.get("momentum").getTotalScore() : 0.0) + "/" + mRequired;
-
-            String putEma = (detailedPutScores.getOrDefault("ema", new DetailedCategoryScore()).getTotalScore() != null ? detailedPutScores.get("ema").getTotalScore() : 0.0) + "/" + emaRequired;
-            String putFv = (detailedPutScores.getOrDefault("futureAndVolume", new DetailedCategoryScore()).getTotalScore() != null ? detailedPutScores.get("futureAndVolume").getTotalScore() : 0.0) + "/" + fvRequired;
-            String putCs = (detailedPutScores.getOrDefault("candlestick", new DetailedCategoryScore()).getTotalScore() != null ? detailedPutScores.get("candlestick").getTotalScore() : 0.0) + "/" + csRequired;
-            String putM = (detailedPutScores.getOrDefault("momentum", new DetailedCategoryScore()).getTotalScore() != null ? detailedPutScores.get("momentum").getTotalScore() : 0.0) + "/" + mRequired;
-
-            // Format percentage breakdown
+            // Format percentage breakdown only (min scores removed)
             String callEmaPer = String.format("%.1f", detailedCallScores.getOrDefault("ema", new DetailedCategoryScore()).getScorePercentage() != null ? detailedCallScores.get("ema").getScorePercentage() : 0.0) + "%/" + emaPerRequired + "%";
             String callFvPer = String.format("%.1f", detailedCallScores.getOrDefault("futureAndVolume", new DetailedCategoryScore()).getScorePercentage() != null ? detailedCallScores.get("futureAndVolume").getScorePercentage() : 0.0) + "%/" + fvPerRequired + "%";
             String callCsPer = String.format("%.1f", detailedCallScores.getOrDefault("candlestick", new DetailedCategoryScore()).getScorePercentage() != null ? detailedCallScores.get("candlestick").getScorePercentage() : 0.0) + "%/" + csPerRequired + "%";
@@ -279,9 +281,9 @@ public class TickOrchestrationService {
             String putCsPer = String.format("%.1f", detailedPutScores.getOrDefault("candlestick", new DetailedCategoryScore()).getScorePercentage() != null ? detailedPutScores.get("candlestick").getScorePercentage() : 0.0) + "%/" + csPerRequired + "%";
             String putMPer = String.format("%.1f", detailedPutScores.getOrDefault("momentum", new DetailedCategoryScore()).getScorePercentage() != null ? detailedPutScores.get("momentum").getScorePercentage() : 0.0) + "%/" + mPerRequired + "%";
 
-            return String.format("Call: EMA=%s(%s), FV=%s(%s), CS=%s(%s), M=%s(%s) | Put: EMA=%s(%s), FV=%s(%s), CS=%s(%s), M=%s(%s)",
-                    callEma, callEmaPer, callFv, callFvPer, callCs, callCsPer, callM, callMPer,
-                    putEma, putEmaPer, putFv, putFvPer, putCs, putCsPer, putM, putMPer);
+            return String.format("Call: EMA=%s, FV=%s, CS=%s, M=%s | Put: EMA=%s, FV=%s, CS=%s, M=%s",
+                    callEmaPer, callFvPer, callCsPer, callMPer,
+                    putEmaPer, putFvPer, putCsPer, putMPer);
 
         } catch (Exception e) {
             log.error("Error getting category breakdown with requirements: {}", e.getMessage());

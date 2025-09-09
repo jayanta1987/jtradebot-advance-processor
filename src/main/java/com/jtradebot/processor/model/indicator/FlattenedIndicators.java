@@ -37,6 +37,24 @@ public class FlattenedIndicators {
     private Double ema34_5min; // EMA 34 value in 5min timeframe
     private Double ema200_5min; // EMA 200 value in 5min timeframe
     
+    // New EMA price position indicators
+    private Boolean price_above_ema5_5min;
+    private Boolean price_above_ema5_1min;
+    private Boolean price_above_ema34_5min;
+    private Boolean price_above_ema34_1min;
+    
+    // New EMA price position indicators for PUT strategy
+    private Boolean price_below_ema5_5min;
+    private Boolean price_below_ema5_1min;
+    private Boolean price_below_ema34_5min;
+    private Boolean price_below_ema34_1min;
+    
+    // New EMA crossover indicators
+    private Boolean ema_crossover_bullish_5min;
+    private Boolean ema_crossover_bullish_1min;
+    private Boolean ema_crossover_bearish_5min;
+    private Boolean ema_crossover_bearish_1min;
+    
     // RSI indicators - Updated thresholds
     private Boolean rsi_1min_gt_80;
     private Boolean rsi_5min_gt_80;
@@ -221,6 +239,10 @@ public class FlattenedIndicators {
     private Boolean wick_rejection_filter_bullish_1min;
     private Boolean wick_rejection_filter_bullish_3min;
     private Boolean wick_rejection_filter_bullish_5min;
+    
+    // Current candle crossed previous high/low patterns
+    private Boolean current_candle_crossed_above_prev_high_5min;
+    private Boolean current_candle_crossed_below_prev_low_5min;
     
     // Futuresignals for each timeframe
     private FuturesignalData futuresignals;

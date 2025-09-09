@@ -409,4 +409,40 @@ public class CandlestickPattern {
         return smallUpperShadow && largeBody;
     }
 
+    /**
+     * Check if current candle has crossed above the previous candle's high
+     * This indicates bullish momentum and potential breakout
+     */
+    public static boolean isCurrentCandleCrossedAbovePrevHigh(Bar previousBar, Bar currentBar) {
+        if (previousBar == null) return false;
+        
+        Num prevHigh = previousBar.getHighPrice();
+        Num currHigh = currentBar.getHighPrice();
+        Num currLow = currentBar.getLowPrice();
+        
+        // Current candle crosses above previous high: current high > previous high
+        // and current low was below previous high (indicating a cross)
+        boolean crossedAbove = currHigh.isGreaterThan(prevHigh) && currLow.isLessThanOrEqual(prevHigh);
+        
+        return crossedAbove;
+    }
+
+    /**
+     * Check if current candle has crossed below the previous candle's low
+     * This indicates bearish momentum and potential breakdown
+     */
+    public static boolean isCurrentCandleCrossedBelowPrevLow(Bar previousBar, Bar currentBar) {
+        if (previousBar == null) return false;
+        
+        Num prevLow = previousBar.getLowPrice();
+        Num currHigh = currentBar.getHighPrice();
+        Num currLow = currentBar.getLowPrice();
+        
+        // Current candle crosses below previous low: current low < previous low
+        // and current high was above previous low (indicating a cross)
+        boolean crossedBelow = currLow.isLessThan(prevLow) && currHigh.isGreaterThanOrEqual(prevLow);
+        
+        return crossedBelow;
+    }
+
 }

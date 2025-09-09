@@ -211,6 +211,48 @@ public class MarketDirectionService {
             if (condition.equals("ema5_15min_gt_ema34_15min")) {
                 return Boolean.TRUE.equals(indicators.getEma5_15min_gt_ema34_15min());
             }
+            
+            // New EMA price position indicators
+            if (condition.equals("price_above_ema5_5min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_above_ema5_5min());
+            }
+            if (condition.equals("price_above_ema5_1min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_above_ema5_1min());
+            }
+            if (condition.equals("price_above_ema34_5min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_above_ema34_5min());
+            }
+            if (condition.equals("price_above_ema34_1min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_above_ema34_1min());
+            }
+            
+            // New EMA price position indicators for PUT strategy
+            if (condition.equals("price_below_ema5_5min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_below_ema5_5min());
+            }
+            if (condition.equals("price_below_ema5_1min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_below_ema5_1min());
+            }
+            if (condition.equals("price_below_ema34_5min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_below_ema34_5min());
+            }
+            if (condition.equals("price_below_ema34_1min")) {
+                return Boolean.TRUE.equals(indicators.getPrice_below_ema34_1min());
+            }
+            
+            // New EMA crossover indicators
+            if (condition.equals("ema_crossover_bullish_5min")) {
+                return Boolean.TRUE.equals(indicators.getEma_crossover_bullish_5min());
+            }
+            if (condition.equals("ema_crossover_bullish_1min")) {
+                return Boolean.TRUE.equals(indicators.getEma_crossover_bullish_1min());
+            }
+            if (condition.equals("ema_crossover_bearish_5min")) {
+                return Boolean.TRUE.equals(indicators.getEma_crossover_bearish_5min());
+            }
+            if (condition.equals("ema_crossover_bearish_1min")) {
+                return Boolean.TRUE.equals(indicators.getEma_crossover_bearish_1min());
+            }
             if (condition.equals("ema5_5min_lt_ema34_5min")) {
                 return Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min());
             }
@@ -523,6 +565,14 @@ public class MarketDirectionService {
             }
             if (condition.equals("oi_bearish_signal_15min")) {
                 return Boolean.TRUE.equals(indicators.getOi_bearish_signal_15min());
+            }
+
+            // Current candle crossed previous high/low patterns
+            if (condition.equals("current_candle_crossed_above_prev_high_5min")) {
+                return Boolean.TRUE.equals(indicators.getCurrent_candle_crossed_above_prev_high_5min());
+            }
+            if (condition.equals("current_candle_crossed_below_prev_low_5min")) {
+                return Boolean.TRUE.equals(indicators.getCurrent_candle_crossed_below_prev_low_5min());
             }
 
             // Default case - condition not recognized
