@@ -22,7 +22,7 @@
         "min_candlestick_per": 40.0,
         "min_momentum_per": 35.0
       },
-      "targetMode": "PER"
+      "targetMode": "SR"
     },
     {
       "name": "HIGH_VOLUME_TRADE",
@@ -35,7 +35,7 @@
         "min_candlestick_per": 30.0,
         "min_momentum_per": 25.0
       },
-      "targetMode": "SR"
+      "targetMode": "PER"
     }
   ],
   
@@ -276,7 +276,7 @@
   
   "tradingConfiguration": {
     "quantitySettings": {
-      "minLotSize": 225,
+      "minLotSize": 75,
       "maxQuantityPerTrade": 550
     },
     "investmentLimits": {
