@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.jtradebot.processor.handler.DateTimeHandler.formatDate;
+import static com.jtradebot.processor.handler.DateTimeHandler.getTodaysDateString;
 
 
 @Service
@@ -224,6 +225,7 @@ public class KiteInstrumentHandler {
     }
 
     public void saveInstrumentTokens(String exchange) throws IOException, KiteException {
+        String createdAt = getTodaysDateString("Asia/Kolkata", "'IST-'yyyy-MM-dd");
         List<com.zerodhatech.models.Instrument> instruments = kiteConnect.getInstruments(exchange);
         instruments
                 .forEach(instrument -> {
@@ -239,6 +241,7 @@ public class KiteInstrumentHandler {
                         newInstrument.setName(instrument.name);
                         newInstrument.setSegment(instrument.segment);
                         newInstrument.setStrike(instrument.strike);
+                        newInstrument.setCreatedAt(createdAt);
                         instrumentRepository.save(newInstrument);
                     }
                 });
