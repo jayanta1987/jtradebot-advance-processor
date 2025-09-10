@@ -27,14 +27,14 @@ public class KiteOrderService {
     private final KiteConnect kiteConnect;
     private final Environment environment;
 
-    public void placeOrder(JtradeOrder jtradeOrder, String orderType) {
+    public void placeOrder(JtradeOrder jtradeOrder, String transactionType) {
         try {
             if(!ProfileUtil.isProfileActive(environment, "live")) {
                 log.warn("Not in live profile. Skipping order placement for order ID: {}", jtradeOrder.getId());
                 return;
             }
-            log.info("Placing order with JTradeOrder: {} with orderType: {}", jtradeOrder, orderType);
-            OrderParams orderParams = getEntryExitOrderParams(jtradeOrder, orderType);
+            log.info("Placing order with JTradeOrder: {} with transactionType: {}", jtradeOrder, transactionType);
+            OrderParams orderParams = getEntryExitOrderParams(jtradeOrder, transactionType);
             Order placedOrder = kiteConnect.placeOrder(orderParams, Constants.VARIETY_REGULAR);
 
             if (placedOrder != null) {
@@ -43,7 +43,7 @@ public class KiteOrderService {
                 jtradeOrder.setLastUpdated(getCurrentISTTime());
                 jtradeOrderRepository.save(jtradeOrder);
                 log.info("🛒 ORDER PLACED - ID: {}, Kite Order ID: {}, Order Type: {}, Status: {}, Qty: {}, Price: {}",
-                        jtradeOrder.getId(), placedOrder.orderId, orderType, placedOrder.status,
+                        jtradeOrder.getId(), placedOrder.orderId, transactionType, placedOrder.status,
                         placedOrder.quantity, placedOrder.price);
             } else {
                 log.error("Order placement failed for order ID: {}", jtradeOrder.getId());
@@ -53,9 +53,9 @@ public class KiteOrderService {
         }
     }
 
-    private static OrderParams getEntryExitOrderParams(JtradeOrder tradeOrder, String orderType) {
+    private static OrderParams getEntryExitOrderParams(JtradeOrder tradeOrder, String transactionType) {
         OrderParams orderParams = new OrderParams();
-        orderParams.transactionType = Constants.TRANSACTION_TYPE_BUY;
+        orderParams.transactionType = transactionType;
         orderParams.exchange = Constants.EXCHANGE_NFO;
         orderParams.tradingsymbol = tradeOrder.getTradingSymbol();
         orderParams.orderType = Constants.ORDER_TYPE_MARKET;

@@ -51,7 +51,7 @@ public class ConnectionMonitorService {
 
 
         if (tickDataManager.getLastTickTime() != null
-                && DateTimeHandler.isMarketOpen(tickDataManager.getLastTickTime(), startHour, startMinute, endHour, endMinute)) {
+                && !DateTimeHandler.isMarketOpen(tickDataManager.getLastTickTime(), startHour, startMinute, endHour, endMinute)) {
             log.warn("Market is not open. Skipping connection check.");
             return;
         }
