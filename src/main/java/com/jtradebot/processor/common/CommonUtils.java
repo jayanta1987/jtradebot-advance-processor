@@ -1,18 +1,10 @@
 package com.jtradebot.processor.common;
 
-import com.jtradebot.processor.model.enums.EntryReason;
-import com.jtradebot.processor.model.enums.OrderTypeEnum;
-import com.jtradebot.processor.repository.Transaction;
-import com.jtradebot.processor.repository.document.TradeOrder;
 import com.jtradebot.processor.manager.TickDataManager;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.indicators.ATRIndicator;
 import com.zerodhatech.models.Tick;
 
-import java.util.TreeSet;
-
-import static com.jtradebot.processor.model.enums.OrderTypeEnum.CALL_BUY;
-import static com.jtradebot.processor.model.enums.OrderTypeEnum.PUT_BUY;
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.FIVE_MIN;
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.ONE_MIN;
 
@@ -52,21 +44,24 @@ public class CommonUtils {
     /**
      * Calculate dynamic milestone points based on ATR values and JSON configuration.
      * Returns the minimum of:
-     * 1. 1/3 of ATR5Min
-     * 2. 1/2 of ATR1Min  
-     * 3. JSON milestone points
+     * 1. 1/4 of ATR5Min
+     * 2. 1/3 of ATR1Min  
+     * 3. maxMilestonePoints
+     * 
+     * The result is constrained between minMilestonePoints and maxMilestonePoints.
      * 
      * @param tick The tick data for ATR calculation
      * @param tickDataManager Manager to get bar series data
-     * @param jsonMilestonePoints The milestone points from JSON configuration
-     * @return The calculated milestone points
+     * @param minMilestonePoints The minimum milestone points from JSON configuration
+     * @param maxMilestonePoints The maximum milestone points from JSON configuration
+     * @return The calculated milestone points constrained between min and max
      */
-    public static double calculateDynamicMilestonePoints(Tick tick, TickDataManager tickDataManager, double jsonMilestonePoints) {
+    public static double calculateDynamicMilestonePoints(Tick tick, TickDataManager tickDataManager, double minMilestonePoints, double maxMilestonePoints) {
         try {
             // Null checks
             if (tick == null || tickDataManager == null) {
-                System.out.println("❌ Null parameters provided, using JSON fallback: " + jsonMilestonePoints);
-                return jsonMilestonePoints;
+                System.out.println("❌ Null parameters provided, using maxMilestone fallback: " + maxMilestonePoints);
+                return maxMilestonePoints;
             }
             
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
@@ -87,24 +82,26 @@ public class CommonUtils {
                 atr1Min = atrIndicator1Min.getValue(barSeries1Min.getBarCount() - 1).doubleValue();
             }
             
-            // Calculate the three options
+            // Calculate the ATR-based options
             double option1 = atr5Min / 4.0;  // 1/4 of ATR5Min
             double option2 = atr1Min / 3.0;  // 1/3 of ATR1Min
-            // JSON milestone points
-
-            // Return the minimum of jsonMilestonePoints, max(option1, option2)
-            double calculatedMilestone = Math.min(Math.max(option1, option2), jsonMilestonePoints);
             
-            // Ensure minimum milestone points (fallback to JSON value if calculation fails)
+            // Use the maximum of the ATR-based calculations, but cap it at maxMilestonePoints
+            double calculatedMilestone = Math.min(Math.max(option1, option2), maxMilestonePoints);
+            
+            // Ensure the result is within the min/max bounds
+            calculatedMilestone = Math.max(minMilestonePoints, Math.min(maxMilestonePoints, calculatedMilestone));
+            
+            // Ensure minimum milestone points (fallback to maxMilestone if calculation fails)
             if (calculatedMilestone <= 0 || Double.isNaN(calculatedMilestone) || Double.isInfinite(calculatedMilestone)) {
-                return jsonMilestonePoints;
+                return maxMilestonePoints;
             }
             
             return calculatedMilestone;
             
         } catch (Exception e) {
-            // Fallback to JSON milestone points if any error occurs
-            return jsonMilestonePoints;
+            // Fallback to maxMilestone if any error occurs
+            return maxMilestonePoints;
         }
     }
 

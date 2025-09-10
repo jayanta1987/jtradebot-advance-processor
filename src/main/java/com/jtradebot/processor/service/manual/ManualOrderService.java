@@ -183,14 +183,16 @@ public class ManualOrderService {
      */
     private void initializeMilestoneSystem(JtradeOrder order, Tick tick) {
         try {
-            // Get milestone configuration from strategy config
-            double jsonMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
-                    configService.getCallMilestonePoints() : configService.getPutMilestonePoints();
+            // Get milestone configuration from strategy config (min/max values)
+            double minMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
+                    configService.getCallMinMilestonePoints() : configService.getPutMinMilestonePoints();
+            double maxMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
+                    configService.getCallMaxMilestonePoints() : configService.getPutMaxMilestonePoints();
             
             double totalTargetPoints = order.getTargetPrice() - order.getEntryPrice();
 
-            // Calculate dynamic milestone points using ATR values
-            double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, jsonMilestonePoints);
+            // Calculate dynamic milestone points using ATR values with min/max constraints
+            double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, minMilestonePoints, maxMilestonePoints);
             
             // Create target milestones
             List<MilestoneSystem.Milestone> targetMilestones = new ArrayList<>();

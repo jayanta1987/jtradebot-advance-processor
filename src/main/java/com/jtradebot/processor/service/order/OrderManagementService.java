@@ -261,15 +261,17 @@ public class OrderManagementService {
      */
     private void initializeMilestoneSystem(JtradeOrder order, Tick tick) {
         try {
-            // Get milestone configuration from strategy config (JSON value)
-            double jsonMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
-                    configService.getCallMilestonePoints() : configService.getPutMilestonePoints();
+            // Get milestone configuration from strategy config (min/max values)
+            double minMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
+                    configService.getCallMinMilestonePoints() : configService.getPutMinMilestonePoints();
+            double maxMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
+                    configService.getCallMaxMilestonePoints() : configService.getPutMaxMilestonePoints();
             
             // Use the actual calculated target points from the order instead of JSON value
             double totalTargetPoints = order.getTargetPrice() - order.getEntryPrice();
 
-            // Calculate dynamic milestone points using ATR values
-            double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, jsonMilestonePoints);
+            // Calculate dynamic milestone points using ATR values with min/max constraints
+            double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, minMilestonePoints, maxMilestonePoints);
             
             // Use the dynamic milestone points for milestone creation
 
@@ -303,8 +305,8 @@ public class OrderManagementService {
             order.setMinIndexPrice(order.getEntryIndexPrice());
             order.setMaxIndexPrice(order.getEntryIndexPrice());
 
-            log.info("🎯 Dynamic milestone system initialized for {} order - Milestones: {}, Dynamic Step: {} (JSON: {}), Total Target: {} (Entry: {}, Target: {})",
-                    order.getOrderType(), targetMilestones.size(), dynamicMilestonePoints, jsonMilestonePoints, totalTargetPoints, order.getEntryPrice(), order.getTargetPrice());
+            log.info("🎯 Dynamic milestone system initialized for {} order - Milestones: {}, Dynamic Step: {} (Min: {}, Max: {}), Total Target: {} (Entry: {}, Target: {})",
+                    order.getOrderType(), targetMilestones.size(), dynamicMilestonePoints, minMilestonePoints, maxMilestonePoints, totalTargetPoints, order.getEntryPrice(), order.getTargetPrice());
 
         } catch (Exception e) {
             log.error("Error initializing milestone system for order: {}", order.getId(), e);
