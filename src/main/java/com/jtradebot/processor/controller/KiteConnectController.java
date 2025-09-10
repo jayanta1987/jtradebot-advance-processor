@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 import com.jtradebot.processor.repository.InstrumentRepository;
+import com.jtradebot.processor.service.scheduler.InstrumentFreshnessCheckerService;
 
 @RestController
 @RequestMapping("/connection")
@@ -31,6 +32,7 @@ public class KiteConnectController {
     private final AwsSecretHandler awsSecretHandler;
     private final TickSetupService tickSetupService;
     private final InstrumentRepository instrumentRepository;
+    private final InstrumentFreshnessCheckerService instrumentFreshnessCheckerService;
 
     @Value("${aws.kite.api-secret}")
     private String kiteApiSecret;
@@ -187,7 +189,7 @@ public class KiteConnectController {
             List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = instrumentRepository.findAll().stream()
                 .filter(instrument -> "NIFTY".equals(instrument.getName()) && 
                         ("CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
             
             // Find next available expiry (earliest date)
             String nextExpiry = niftyOptions.stream()
@@ -240,6 +242,28 @@ public class KiteConnectController {
             
         } catch (Exception e) {
             response.put("message", "Failed to check next available expiry: " + e.getMessage());
+            response.put("error", e.toString());
+        }
+        return response;
+    }
+
+    @GetMapping("/checkInstrumentFreshness")
+    public Map<String, Object> checkInstrumentFreshness() {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            InstrumentFreshnessCheckerService.InstrumentFreshnessResult result = 
+                instrumentFreshnessCheckerService.checkInstrumentFreshnessWithResults();
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("todayDate", result.getTodayDate());
+            response.put("currentInstrumentCount", result.getCurrentInstrumentCount());
+            response.put("isCurrent", result.isCurrent());
+            response.put("needsRefresh", result.isNeedsRefresh());
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to check instrument freshness: " + e.getMessage());
             response.put("error", e.toString());
         }
         return response;

@@ -23,4 +23,25 @@ public interface InstrumentRepository extends MongoRepository<Instrument, String
      * @return List of matching instruments
      */
     List<Instrument> findByNameAndInstrumentTypeAndSegmentOrderByExpiryAsc(String name, String instrumentType, String segment);
+    
+    /**
+     * Find instruments by creation date
+     * @param createdAt Creation date in IST format (e.g., "IST-2025-01-19")
+     * @return List of instruments created on the specified date
+     */
+    List<Instrument> findByCreatedAt(String createdAt);
+    
+    /**
+     * Count instruments by creation date (optimized for performance)
+     * @param createdAt Creation date in IST format (e.g., "IST-2025-01-19")
+     * @return Count of instruments created on the specified date
+     */
+    long countByCreatedAt(String createdAt);
+    
+    /**
+     * Check if any instrument exists for the given creation date (most optimized)
+     * @param createdAt Creation date in IST format (e.g., "IST-2025-01-19")
+     * @return true if at least one instrument exists for the date
+     */
+    boolean existsByCreatedAt(String createdAt);
 }
