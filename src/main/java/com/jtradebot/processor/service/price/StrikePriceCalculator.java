@@ -98,11 +98,11 @@ public class StrikePriceCalculator {
                 .toList();
             
             // Debug: Show first few instruments
-            log.info("📊 TOTAL VALID NIFTY OPTIONS FOUND (not expired): {}", niftyOptions.size());
+            log.debug("📊 TOTAL VALID NIFTY OPTIONS FOUND (not expired): {}", niftyOptions.size());
             if (!niftyOptions.isEmpty()) {
-                log.info("📋 SAMPLE VALID INSTRUMENTS (sorted by expiry):");
+                log.debug("📋 SAMPLE VALID INSTRUMENTS (sorted by expiry):");
                 niftyOptions.stream().limit(5).forEach(instrument -> 
-                    log.info("   - {} (Strike: {}, Type: {}, Expiry: {})", 
+                    log.debug("   - {} (Strike: {}, Type: {}, Expiry: {})",
                         instrument.getTradingSymbol(), instrument.getStrike(), instrument.getInstrumentType(), instrument.getExpiry()));
             }
             

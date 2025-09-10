@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service.price;
 
 import com.jtradebot.processor.common.ProfileUtil;
+import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.repository.document.Instrument;
 import com.zerodhatech.kiteconnect.KiteConnect;
@@ -22,6 +23,7 @@ public class LiveOptionPricingService {
     private final TickDataManager tickDataManager;
     private final Environment environment;
     private final KiteConnect kiteConnect;
+    private final KiteInstrumentHandler kiteInstrumentHandler;
 
     /**
      * Get live option pricing information for live profile
@@ -34,7 +36,7 @@ public class LiveOptionPricingService {
             }
 
             // Get current Nifty index price
-            Tick niftyTick = tickDataManager.getLastTick("256265"); // Nifty 50 index token
+            Tick niftyTick = tickDataManager.getLastTick(String.valueOf(kiteInstrumentHandler.getNifty50Token())); // Nifty 50 index token
             if (niftyTick == null) {
                 log.warn("No Nifty index data available for live option pricing");
                 return Optional.empty();
@@ -44,7 +46,7 @@ public class LiveOptionPricingService {
             String optionType = "CALL_BUY".equals(orderType) ? "CE" : "PE";
 
             // Find the ITM option instrument (next available expiry)
-            log.info("🔍 SEARCHING FOR OPTION INSTRUMENT - Index Price: {}, Option Type: {}", niftyIndexPrice, optionType);
+            log.debug("🔍 SEARCHING FOR OPTION INSTRUMENT - Index Price: {}, Option Type: {}", niftyIndexPrice, optionType);
             Optional<Instrument> optionInstrument = strikePriceCalculator.findOptionInstrument(niftyIndexPrice, optionType);
 
             if (optionInstrument.isEmpty()) {
@@ -56,13 +58,13 @@ public class LiveOptionPricingService {
             Instrument instrument = optionInstrument.get();
             
             // Get the actual option LTP using Kite Connect API
-            log.info("🔍 FETCHING OPTION LTP FROM KITE API - Token: {}, Symbol: {}", instrument.getInstrumentToken(), instrument.getTradingSymbol());
+            log.debug("🔍 FETCHING OPTION LTP FROM KITE API - Token: {}, Symbol: {}", instrument.getInstrumentToken(), instrument.getTradingSymbol());
             
             // Call Kite Connect API to get LTP for the option instrument
             String instrumentToken = String.valueOf(instrument.getInstrumentToken());
             double optionLTP = kiteConnect.getLTP(new String[]{instrumentToken}).get(instrumentToken).lastPrice;
             
-            log.info("✅ FOUND OPTION LTP FROM KITE API - Token: {}, Symbol: {}, LTP: {}", 
+            log.debug("✅ FOUND OPTION LTP FROM KITE API - Token: {}, Symbol: {}, LTP: {}",
                     instrument.getInstrumentToken(), instrument.getTradingSymbol(), optionLTP);
             int strikePrice = strikePriceCalculator.getATMStrikePrice(niftyIndexPrice, optionType);
 
