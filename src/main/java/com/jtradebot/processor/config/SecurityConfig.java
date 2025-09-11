@@ -38,9 +38,13 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/api/**").permitAll()  // Allow all API endpoints without authentication
+                        .requestMatchers("/connection/**").permitAll()  // Allow connection endpoints
+                        .requestMatchers("/tick-setup/**").permitAll()  // Allow tick setup endpoints
+                        .requestMatchers("/backTest/**").permitAll()  // Allow backtest endpoints
                         .anyRequest().authenticated()
                 )
-                .httpBasic();
+                .httpBasic(httpBasic -> httpBasic.realmName("JTradeBot API"));
         return http.build();
     }
 

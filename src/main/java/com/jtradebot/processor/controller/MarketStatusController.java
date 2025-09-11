@@ -5,9 +5,7 @@ import com.jtradebot.processor.service.MarketStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +14,7 @@ import java.util.Map;
  * Controller for market status API endpoints
  * Provides current market analysis without recalculating data
  */
+@CrossOrigin(origins = {"http://localhost:5173", "https://jtradebot.com", "https://www.jtradebot.com"})
 @RestController
 @RequestMapping("/api/market")
 @RequiredArgsConstructor

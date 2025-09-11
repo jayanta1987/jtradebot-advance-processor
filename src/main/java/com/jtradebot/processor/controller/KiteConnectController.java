@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import com.jtradebot.processor.repository.InstrumentRepository;
 import com.jtradebot.processor.service.scheduler.InstrumentFreshnessCheckerService;
 
+@CrossOrigin(origins = {"http://localhost:5173", "https://jtradebot.com", "https://www.jtradebot.com"})
 @RestController
 @RequestMapping("/connection")
 @RequiredArgsConstructor
