@@ -1,13 +1,10 @@
 package com.jtradebot.processor.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -30,25 +27,13 @@ public class DynamicStrategyConfigService {
 
     @PostConstruct
     public void loadConfiguration() {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-
-            ClassPathResource entryResource = new ClassPathResource("rules/scalping-entry-config.json");
-            JsonNode rootNode = mapper.readTree(entryResource.getInputStream());
-
-            // Load scalping entry config
-            scalpingEntryConfig = mapper.treeToValue(rootNode, ScalpingEntryConfig.class);
-
-            log.info("Dynamic strategy configuration loaded successfully");
-            log.info("Loaded {} scenarios: {}",
-                    scalpingEntryConfig.getScenarios().size(),
-                    scalpingEntryConfig.getScenarios().stream()
-                            .map(ScalpingEntryConfig.Scenario::getName)
-                            .toList());
-        } catch (Exception e) {
-            log.error("Failed to load dynamic strategy configuration", e);
-            throw new RuntimeException("Failed to load dynamic strategy configuration", e);
-        }
+        scalpingEntryConfig = tradingConfigurationService.getScalpingEntryConfig();
+        log.info("Dynamic strategy configuration loaded successfully using TradingConfigurationService");
+        log.info("Loaded {} scenarios: {}",
+                scalpingEntryConfig.getScenarios().size(),
+                scalpingEntryConfig.getScenarios().stream()
+                        .map(ScalpingEntryConfig.Scenario::getName)
+                        .toList());
     }
 
     // Dynamic Configuration Methods - Dynamic indicator config removed as it was not being used

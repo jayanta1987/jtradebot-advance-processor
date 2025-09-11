@@ -6,7 +6,7 @@ server:
 spring:
   timezone: Asia/Kolkata
   profiles:
-    active: live
+    active: local
   application:
     name: jtradebot-advance-processor
   kafka:

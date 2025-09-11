@@ -1,7 +1,6 @@
 package com.jtradebot.processor.service.scheduler;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.manager.TickDataManager;
@@ -10,12 +9,9 @@ import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
 import com.jtradebot.processor.service.order.OrderManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
 
@@ -27,8 +23,8 @@ public class MarketEndSchedulerService {
     private final ActiveOrderTrackingService activeOrderTrackingService;
     private final OrderManagementService orderManagementService;
     private final TradingHoursConfig tradingHoursConfig;
+    private final TradingConfigurationService tradingConfigurationService;
     private final TickDataManager tickDataManager;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Check trading hours every 5 minutes and close all active trades if market is closed
@@ -118,19 +114,6 @@ public class MarketEndSchedulerService {
      * Check if market end scheduler is enabled in configuration
      */
     private boolean isMarketEndSchedulerEnabled() {
-        try {
-            ClassPathResource resource = new ClassPathResource("rules/scalping-entry-config.json");
-            InputStream inputStream = resource.getInputStream();
-            JsonNode rootNode = objectMapper.readTree(inputStream);
-            
-            JsonNode marketEndScheduler = rootNode.get("marketEndScheduler");
-            if (marketEndScheduler != null && marketEndScheduler.has("enabled")) {
-                return marketEndScheduler.get("enabled").asBoolean();
-            }
-            return true; // Default to enabled if not specified
-        } catch (IOException e) {
-            log.error("❌ TRADING HOURS CHECK - Error checking if enabled: {}", e.getMessage(), e);
-            return true; // Default to enabled on error
-        }
+        return tradingConfigurationService.isMarketEndSchedulerEnabled();
     }
 }
