@@ -3,6 +3,7 @@ package com.jtradebot.processor.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
+import com.jtradebot.processor.service.config.MongoConfigurationService;
 import lombok.Data;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ import java.io.IOException;
 public class TradingConfigurationService implements InitializingBean {
 
     private final ObjectMapper objectMapper;
+    private final MongoConfigurationService mongoConfigurationService;
     @Getter
     private TradingConfig tradingConfig;
     @Getter
@@ -28,8 +30,9 @@ public class TradingConfigurationService implements InitializingBean {
     @Getter
     private ScalpingEntryConfig scalpingEntryConfig;
 
-    public TradingConfigurationService(ObjectMapper objectMapper) {
+    public TradingConfigurationService(ObjectMapper objectMapper, MongoConfigurationService mongoConfigurationService) {
         this.objectMapper = objectMapper;
+        this.mongoConfigurationService = mongoConfigurationService;
     }
 
     @Override
@@ -41,7 +44,7 @@ public class TradingConfigurationService implements InitializingBean {
 
     private void loadTradingConfiguration() {
         try {
-            ClassPathResource resource = new ClassPathResource("rules/scalping-entry-config.json");
+            ClassPathResource resource = new ClassPathResource("rules/trading-config.json");
             JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
             
             if (rootNode.has("tradingConfiguration")) {
@@ -93,21 +96,37 @@ public class TradingConfigurationService implements InitializingBean {
 
     private void loadScalpingEntryConfiguration() {
         try {
-            ClassPathResource entryResource = new ClassPathResource("rules/scalping-entry-config.json");
-            JsonNode rootNode = objectMapper.readTree(entryResource.getInputStream());
+            // Load configuration entirely from MongoDB
+            scalpingEntryConfig = ScalpingEntryConfig.builder()
+                    .strategy("SCALPING_ENTRY_LOGIC")
+                    .version("2.1")
+                    .description("Clean scalping entry logic with individual indicator weightage-based scoring system")
+                    .build();
 
-            // Load scalping entry config
-            scalpingEntryConfig = objectMapper.treeToValue(rootNode, ScalpingEntryConfig.class);
+            // Load configurable sections from MongoDB
+            scalpingEntryConfig.setScenarios(mongoConfigurationService.getScenariosFromMongoDB());
+            log.info("Loaded {} scenarios from MongoDB", scalpingEntryConfig.getScenarios().size());
+            
+            scalpingEntryConfig.setCategoryScoring(mongoConfigurationService.getCategoryScoringFromMongoDB());
+            log.info("Loaded category scoring from MongoDB");
+            
+            scalpingEntryConfig.setNoTradeZones(mongoConfigurationService.getNoTradeZonesFromMongoDB());
+            log.info("Loaded no-trade zones from MongoDB");
 
-            log.info("Scalping entry configuration loaded successfully");
+            // Set default values for non-configurable sections
+            scalpingEntryConfig.setFuturesignalsConfig(ScalpingEntryConfig.FuturesignalsConfig.builder()
+                    .enabledTimeframes(java.util.Arrays.asList("1min", "5min"))
+                    .build());
+
+            log.info("Scalping entry configuration loaded successfully from MongoDB");
             log.info("Loaded {} scenarios: {}",
                     scalpingEntryConfig.getScenarios().size(),
                     scalpingEntryConfig.getScenarios().stream()
                             .map(ScalpingEntryConfig.Scenario::getName)
                             .toList());
         } catch (Exception e) {
-            log.error("Failed to load scalping entry configuration", e);
-            throw new RuntimeException("Failed to load scalping entry configuration", e);
+            log.error("Failed to load scalping entry configuration from MongoDB", e);
+            throw new RuntimeException("Failed to load scalping entry configuration from MongoDB", e);
         }
     }
 
@@ -254,33 +273,23 @@ public class TradingConfigurationService implements InitializingBean {
 
     // Market end scheduler configuration
     public boolean isMarketEndSchedulerEnabled() {
-        try {
-            ClassPathResource resource = new ClassPathResource("rules/scalping-entry-config.json");
-            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-            
-            JsonNode marketEndScheduler = rootNode.get("marketEndScheduler");
-            if (marketEndScheduler != null && marketEndScheduler.has("enabled")) {
-                return marketEndScheduler.get("enabled").asBoolean();
-            }
-            return true; // Default to enabled if not specified
-        } catch (IOException e) {
-            log.error("Error checking if market end scheduler is enabled: {}", e.getMessage(), e);
-            return true; // Default to enabled on error
-        }
+        // Default to enabled - this can be made configurable in MongoDB if needed
+        return true;
     }
 
     // Trading hours configuration
     public int getMarketStartHour() {
         try {
-            ClassPathResource resource = new ClassPathResource("rules/scalping-entry-config.json");
-            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("startHour")) {
-                return tradingHours.get("startHour").asInt();
+            // Get trading hours from MongoDB no-trade zone filters
+            if (scalpingEntryConfig != null && scalpingEntryConfig.getNoTradeZones() != null) {
+                ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
+                        scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
+                if (tradingHoursFilter != null && tradingHoursFilter.getStartHour() != null) {
+                    return tradingHoursFilter.getStartHour();
+                }
             }
             return 9; // Default
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error getting market start hour: {}", e.getMessage(), e);
             return 9; // Default
         }
@@ -288,15 +297,16 @@ public class TradingConfigurationService implements InitializingBean {
 
     public int getMarketStartMinute() {
         try {
-            ClassPathResource resource = new ClassPathResource("rules/scalping-entry-config.json");
-            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("startMinute")) {
-                return tradingHours.get("startMinute").asInt();
+            // Get trading hours from MongoDB no-trade zone filters
+            if (scalpingEntryConfig != null && scalpingEntryConfig.getNoTradeZones() != null) {
+                ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
+                        scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
+                if (tradingHoursFilter != null && tradingHoursFilter.getStartMinute() != null) {
+                    return tradingHoursFilter.getStartMinute();
+                }
             }
             return 15; // Default
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error getting market start minute: {}", e.getMessage(), e);
             return 15; // Default
         }
@@ -304,15 +314,16 @@ public class TradingConfigurationService implements InitializingBean {
 
     public int getMarketEndHour() {
         try {
-            ClassPathResource resource = new ClassPathResource("rules/scalping-entry-config.json");
-            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("endHour")) {
-                return tradingHours.get("endHour").asInt();
+            // Get trading hours from MongoDB no-trade zone filters
+            if (scalpingEntryConfig != null && scalpingEntryConfig.getNoTradeZones() != null) {
+                ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
+                        scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
+                if (tradingHoursFilter != null && tradingHoursFilter.getEndHour() != null) {
+                    return tradingHoursFilter.getEndHour();
+                }
             }
             return 15; // Default
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error getting market end hour: {}", e.getMessage(), e);
             return 15; // Default
         }
@@ -320,17 +331,38 @@ public class TradingConfigurationService implements InitializingBean {
 
     public int getMarketEndMinute() {
         try {
-            ClassPathResource resource = new ClassPathResource("rules/scalping-entry-config.json");
-            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-            
-            JsonNode tradingHours = rootNode.get("noTradeZones").get("filters").get("tradingHours");
-            if (tradingHours != null && tradingHours.has("endMinute")) {
-                return tradingHours.get("endMinute").asInt();
+            // Get trading hours from MongoDB no-trade zone filters
+            if (scalpingEntryConfig != null && scalpingEntryConfig.getNoTradeZones() != null) {
+                ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
+                        scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
+                if (tradingHoursFilter != null && tradingHoursFilter.getEndMinute() != null) {
+                    return tradingHoursFilter.getEndMinute();
+                }
             }
             return 30; // Default
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error getting market end minute: {}", e.getMessage(), e);
             return 30; // Default
+        }
+    }
+
+    /**
+     * Refresh configuration from MongoDB
+     * This method can be called to reload the configurable sections from MongoDB
+     */
+    public void refreshConfigurationFromMongoDB() {
+        try {
+            log.info("Refreshing configuration from MongoDB...");
+            
+            // Reload configurable sections from MongoDB
+            scalpingEntryConfig.setScenarios(mongoConfigurationService.getScenariosFromMongoDB());
+            scalpingEntryConfig.setCategoryScoring(mongoConfigurationService.getCategoryScoringFromMongoDB());
+            scalpingEntryConfig.setNoTradeZones(mongoConfigurationService.getNoTradeZonesFromMongoDB());
+            
+            log.info("Configuration refreshed successfully from MongoDB");
+        } catch (Exception e) {
+            log.error("Failed to refresh configuration from MongoDB", e);
+            throw new RuntimeException("Failed to refresh configuration from MongoDB", e);
         }
     }
 

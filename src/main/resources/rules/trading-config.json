@@ -1,0 +1,51 @@
+{
+  "tradingConfiguration": {
+    "quantitySettings": {
+      "minLotSize": 75,
+      "maxQuantityPerTrade": 550
+    },
+    "investmentLimits": {
+      "maxInvestmentPercentage": 5.0
+    },
+    "riskManagement": {
+      "maxRiskPerDayPercentage": 2.0,
+      "maxProfitPerDayPercentage": 5.0,
+      "minMilestonePoints": 3.0,
+      "maxMilestonePoints": 5.0,
+      "rsiThresholds": {
+        "callRsiThreshold": 60.0,
+        "putRsiThreshold": 40.0,
+        "rsiMaPeriod": 14,
+        "enableRsiMaComparison": true
+      },
+      "volumeSurgeMultiplier": 1.5,
+      "signalStrength": 0.7,
+      "stopLossPercentage": 2.5,
+      "targetPercentage": 15
+    },
+    "tradeSettings": {
+      "maxTradeHoldingTimeInSec": 150
+    },
+    "exitSignalConfiguration": {
+      "enabled": true,
+      "description": "Exit signal configuration to match relaxed entry criteria",
+      "exitThresholds": {
+        "callExitThreshold": 0.5,
+        "putExitThreshold": 0.5,
+        "description": "Threshold for exit signals (0.5 = 50% of signals must be in opposite direction)"
+      },
+      "rsiDivergenceExit": {
+        "enabled": true,
+        "description": "Exit on RSI divergence signals"
+      },
+      "marketConditionExit": {
+        "enabled": true,
+        "description": "Exit on market condition reversal"
+      }
+    }
+  },
+  "marketEndScheduler": {
+    "enabled": true,
+    "description": "Close all active trades when market hours are crossed (runs every 5 minutes to check)"
+  }
+}
