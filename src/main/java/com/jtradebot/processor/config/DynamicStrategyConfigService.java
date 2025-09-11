@@ -152,8 +152,12 @@ public class DynamicStrategyConfigService {
     }
 
 
-    public double getCallMilestonePoints() {
-        return tradingConfigurationService.getMilestonePoints();
+    public double getCallMinMilestonePoints() {
+        return tradingConfigurationService.getMinMilestonePoints();
+    }
+
+    public double getCallMaxMilestonePoints() {
+        return tradingConfigurationService.getMaxMilestonePoints();
     }
 
 
@@ -211,8 +215,12 @@ public class DynamicStrategyConfigService {
     }
 
 
-    public double getPutMilestonePoints() {
-        return tradingConfigurationService.getMilestonePoints();
+    public double getPutMinMilestonePoints() {
+        return tradingConfigurationService.getMinMilestonePoints();
+    }
+
+    public double getPutMaxMilestonePoints() {
+        return tradingConfigurationService.getMaxMilestonePoints();
     }
 
     public double getPutMaxStopLossPoints() {

@@ -20,7 +20,7 @@
         "min_ema_per": 60.0,
         "min_future_signal_per": 35.0,
         "min_candlestick_per": 40.0,
-        "min_momentum_per": 35.0
+        "min_momentum_per": 25.0
       },
       "targetMode": "SR"
     },
@@ -285,7 +285,8 @@
     "riskManagement": {
       "maxRiskPerDayPercentage": 2.0,
       "maxProfitPerDayPercentage": 5.0,
-      "milestonePoints": 7.0,
+      "minMilestonePoints": 3.0,
+      "maxMilestonePoints": 5.0,
       "rsiThresholds": {
         "callRsiThreshold": 60.0,
         "putRsiThreshold": 40.0,
