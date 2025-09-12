@@ -2,7 +2,9 @@ package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.config.AwsSecretHandler;
 import com.jtradebot.processor.connector.KiteSetupHandler;
+import com.jtradebot.processor.repository.InstrumentRepository;
 import com.jtradebot.processor.service.TickSetupService;
+import com.jtradebot.processor.service.scheduler.InstrumentFreshnessCheckerService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.User;
@@ -14,12 +16,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
 import java.util.ArrayList;
-import com.jtradebot.processor.repository.InstrumentRepository;
-import com.jtradebot.processor.service.scheduler.InstrumentFreshnessCheckerService;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @CrossOrigin(origins = {"http://localhost:5173", "https://jtradebot.com", "https://www.jtradebot.com"})
 @RestController
@@ -57,12 +58,13 @@ public class KiteConnectController {
         return response;
     }
 
-    @GetMapping("/callback")
-    public ResponseEntity<Map<String, String>> callback(
-            @RequestParam(value = "action", required = false) String action,
-            @RequestParam(value = "type", required = false) String type,
-            @RequestParam(value = "status", required = false) String status,
-            @RequestParam(value = "request_token", required = false) String requestToken) {
+    @PostMapping(value = "/generateAccessToken")
+    public ResponseEntity<Map<String, String>> generateAccessToken(@RequestBody Map<String, String> request) {
+
+        String status = request.get("status");
+        String requestToken = request.get("request_token");
+        log.info("Received POST /generateAccessToken with status: {} and request_token: {} ", status, requestToken);
+
         Map<String, String> response = new HashMap<>();
         String errorMessage = "Failed to obtain access token";
         try {
@@ -71,18 +73,19 @@ public class KiteConnectController {
                 log.error(errorMessage + " : Missing request_token");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
-            
+
             if (!"success".equals(status)) {
                 response.put("message", errorMessage + " : Status is not success");
                 log.error(errorMessage + " : Status is not success");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
             }
-            
+
             User user = kiteConnect.generateSession(requestToken,
                     awsSecretHandler.getSecret(kiteConnectAwsSecretName, kiteApiSecret));
             tickSetupService.saveDefaultTradeConfig(user);
+
             response.put("message", "Access token successfully obtained.");
-            log.info("Access token successfully obtained for action: {}, type: {}", action, type);
+            log.info("Access token successfully obtained");
             return ResponseEntity.ok(response);
         } catch (KiteException e) {
             response.put("message", errorMessage + " : " + e.getMessage());
@@ -137,44 +140,44 @@ public class KiteConnectController {
         Map<String, Object> response = new HashMap<>();
         try {
             // Find Nifty option instruments (sorted by expiry ascending)
-            List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = 
-                instrumentRepository.findByNameAndInstrumentTypeAndSegmentOrderByExpiryAsc("NIFTY", "OPT", "NFO-OPT");
-            
+            List<com.jtradebot.processor.repository.document.Instrument> niftyOptions =
+                    instrumentRepository.findByNameAndInstrumentTypeAndSegmentOrderByExpiryAsc("NIFTY", "OPT", "NFO-OPT");
+
             // Get unique expiry dates sorted by actual date (not string)
             List<String> uniqueExpiries = niftyOptions.stream()
-                .map(com.jtradebot.processor.repository.document.Instrument::getExpiry)
-                .distinct()
-                .sorted((expiry1, expiry2) -> {
-                    try {
-                        java.time.LocalDate date1 = java.time.LocalDate.parse(expiry1, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
-                        java.time.LocalDate date2 = java.time.LocalDate.parse(expiry2, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
-                        return date1.compareTo(date2);
-                    } catch (Exception e) {
-                        return expiry1.compareTo(expiry2); // fallback to string comparison
-                    }
-                })
-                .collect(java.util.stream.Collectors.toList());
-            
+                    .map(com.jtradebot.processor.repository.document.Instrument::getExpiry)
+                    .distinct()
+                    .sorted((expiry1, expiry2) -> {
+                        try {
+                            java.time.LocalDate date1 = java.time.LocalDate.parse(expiry1, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                            java.time.LocalDate date2 = java.time.LocalDate.parse(expiry2, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                            return date1.compareTo(date2);
+                        } catch (Exception e) {
+                            return expiry1.compareTo(expiry2); // fallback to string comparison
+                        }
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+
             response.put("totalNiftyOptions", niftyOptions.size());
             response.put("uniqueExpiries", uniqueExpiries);
             response.put("nextAvailableExpiry", uniqueExpiries.isEmpty() ? "None" : uniqueExpiries.get(0));
-            
+
             // Show first 10 options from next available expiry
             List<Map<String, Object>> sampleOptions = niftyOptions.stream()
-                .limit(10)
-                .map(instrument -> {
-                    Map<String, Object> option = new HashMap<>();
-                    option.put("tradingSymbol", instrument.getTradingSymbol());
-                    option.put("instrumentToken", instrument.getInstrumentToken());
-                    option.put("strike", instrument.getStrike());
-                    option.put("expiry", instrument.getExpiry());
-                    return option;
-                })
-                .collect(java.util.stream.Collectors.toList());
-            
+                    .limit(10)
+                    .map(instrument -> {
+                        Map<String, Object> option = new HashMap<>();
+                        option.put("tradingSymbol", instrument.getTradingSymbol());
+                        option.put("instrumentToken", instrument.getInstrumentToken());
+                        option.put("strike", instrument.getStrike());
+                        option.put("expiry", instrument.getExpiry());
+                        return option;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+
             response.put("sampleOptions", sampleOptions);
             response.put("message", "Option instruments check completed");
-            
+
         } catch (Exception e) {
             response.put("message", "Failed to check option instruments: " + e.getMessage());
             response.put("error", e.toString());
@@ -188,59 +191,59 @@ public class KiteConnectController {
         try {
             // Get only Nifty option instruments with minimal processing
             List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = instrumentRepository.findAll().stream()
-                .filter(instrument -> "NIFTY".equals(instrument.getName()) && 
-                        ("CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
-                .toList();
-            
+                    .filter(instrument -> "NIFTY".equals(instrument.getName()) &&
+                            ("CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
+                    .toList();
+
             // Find next available expiry (earliest date)
             String nextExpiry = niftyOptions.stream()
-                .map(com.jtradebot.processor.repository.document.Instrument::getExpiry)
-                .distinct()
-                .min((expiry1, expiry2) -> {
-                    try {
-                        java.time.LocalDate date1 = java.time.LocalDate.parse(expiry1, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
-                        java.time.LocalDate date2 = java.time.LocalDate.parse(expiry2, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
-                        return date1.compareTo(date2);
-                    } catch (Exception e) {
-                        return expiry1.compareTo(expiry2);
-                    }
-                })
-                .orElse("None");
-            
+                    .map(com.jtradebot.processor.repository.document.Instrument::getExpiry)
+                    .distinct()
+                    .min((expiry1, expiry2) -> {
+                        try {
+                            java.time.LocalDate date1 = java.time.LocalDate.parse(expiry1, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                            java.time.LocalDate date2 = java.time.LocalDate.parse(expiry2, java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
+                            return date1.compareTo(date2);
+                        } catch (Exception e) {
+                            return expiry1.compareTo(expiry2);
+                        }
+                    })
+                    .orElse("None");
+
             response.put("nextAvailableExpiry", nextExpiry);
-            
+
             // Get only sample options for the next expiry (limit 5 for speed)
             List<Map<String, Object>> sampleOptions = new ArrayList<>();
             if (!"None".equals(nextExpiry)) {
                 sampleOptions = niftyOptions.stream()
-                    .filter(instrument -> nextExpiry.equals(instrument.getExpiry()))
-                    .limit(5) // Only process 5 options for speed
-                    .map(instrument -> {
-                        Map<String, Object> option = new HashMap<>();
-                        option.put("tradingSymbol", instrument.getTradingSymbol());
-                        option.put("instrumentToken", instrument.getInstrumentToken());
-                        option.put("strike", instrument.getStrike());
-                        option.put("expiry", instrument.getExpiry());
-                        option.put("instrumentType", instrument.getInstrumentType());
-                        
-                        // Get LTP for this option using Kite Connect API
-                        try {
-                            String instrumentToken = String.valueOf(instrument.getInstrumentToken());
-                            double ltp = kiteConnect.getLTP(new String[]{instrumentToken}).get(instrumentToken).lastPrice;
-                            option.put("ltp", ltp);
-                        } catch (KiteException | Exception e) {
-                            option.put("ltp", "Error: " + e.getMessage());
-                        }
-                        
-                        return option;
-                    })
-                    .collect(java.util.stream.Collectors.toList());
+                        .filter(instrument -> nextExpiry.equals(instrument.getExpiry()))
+                        .limit(5) // Only process 5 options for speed
+                        .map(instrument -> {
+                            Map<String, Object> option = new HashMap<>();
+                            option.put("tradingSymbol", instrument.getTradingSymbol());
+                            option.put("instrumentToken", instrument.getInstrumentToken());
+                            option.put("strike", instrument.getStrike());
+                            option.put("expiry", instrument.getExpiry());
+                            option.put("instrumentType", instrument.getInstrumentType());
+
+                            // Get LTP for this option using Kite Connect API
+                            try {
+                                String instrumentToken = String.valueOf(instrument.getInstrumentToken());
+                                double ltp = kiteConnect.getLTP(new String[]{instrumentToken}).get(instrumentToken).lastPrice;
+                                option.put("ltp", ltp);
+                            } catch (KiteException | Exception e) {
+                                option.put("ltp", "Error: " + e.getMessage());
+                            }
+
+                            return option;
+                        })
+                        .collect(java.util.stream.Collectors.toList());
             }
-            
+
             response.put("sampleOptions", sampleOptions);
             response.put("sampleOptionsCount", sampleOptions.size());
             response.put("message", "Next available expiry found: " + nextExpiry);
-            
+
         } catch (Exception e) {
             response.put("message", "Failed to check next available expiry: " + e.getMessage());
             response.put("error", e.toString());
@@ -252,16 +255,16 @@ public class KiteConnectController {
     public Map<String, Object> checkInstrumentFreshness() {
         Map<String, Object> response = new HashMap<>();
         try {
-            InstrumentFreshnessCheckerService.InstrumentFreshnessResult result = 
-                instrumentFreshnessCheckerService.checkInstrumentFreshnessWithResults();
-            
+            InstrumentFreshnessCheckerService.InstrumentFreshnessResult result =
+                    instrumentFreshnessCheckerService.checkInstrumentFreshnessWithResults();
+
             response.put("success", result.isSuccess());
             response.put("message", result.getMessage());
             response.put("todayDate", result.getTodayDate());
             response.put("currentInstrumentCount", result.getCurrentInstrumentCount());
             response.put("isCurrent", result.isCurrent());
             response.put("needsRefresh", result.isNeedsRefresh());
-            
+
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "Failed to check instrument freshness: " + e.getMessage());
