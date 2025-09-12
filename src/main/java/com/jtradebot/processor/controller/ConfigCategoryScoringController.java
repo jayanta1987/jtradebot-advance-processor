@@ -1,7 +1,7 @@
 package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.repository.document.CategoryScoring;
-import com.jtradebot.processor.service.config.CategoryScoringService;
+import com.jtradebot.processor.service.config.ConfigCategoryScoringService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -14,16 +14,17 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/config/category-scoring")
+@CrossOrigin(origins = {"http://localhost:5173", "https://jtradebot.com", "https://www.jtradebot.com"})
 @RequiredArgsConstructor
 @Slf4j
-public class CategoryScoringController {
+public class ConfigCategoryScoringController {
     
-    private final CategoryScoringService categoryScoringService;
+    private final ConfigCategoryScoringService configCategoryScoringService;
     
     @GetMapping
     public ResponseEntity<List<CategoryScoring>> getAllCategoryScorings() {
         try {
-            List<CategoryScoring> categoryScorings = categoryScoringService.getAllCategoryScorings();
+            List<CategoryScoring> categoryScorings = configCategoryScoringService.getAllCategoryScorings();
             return ResponseEntity.ok(categoryScorings);
         } catch (Exception e) {
             log.error("Error retrieving category scorings", e);
@@ -34,7 +35,7 @@ public class CategoryScoringController {
     @GetMapping("/type/{categoryType}")
     public ResponseEntity<List<CategoryScoring>> getCategoryScoringsByType(@PathVariable String categoryType) {
         try {
-            List<CategoryScoring> categoryScorings = categoryScoringService.getCategoryScoringsByType(categoryType);
+            List<CategoryScoring> categoryScorings = configCategoryScoringService.getCategoryScoringsByType(categoryType);
             return ResponseEntity.ok(categoryScorings);
         } catch (Exception e) {
             log.error("Error retrieving category scorings for type: {}", categoryType, e);
@@ -45,7 +46,7 @@ public class CategoryScoringController {
     @GetMapping("/{categoryType}/{categoryName}")
     public ResponseEntity<CategoryScoring> getCategoryScoring(@PathVariable String categoryType, @PathVariable String categoryName) {
         try {
-            Optional<CategoryScoring> categoryScoring = categoryScoringService.getCategoryScoring(categoryType, categoryName);
+            Optional<CategoryScoring> categoryScoring = configCategoryScoringService.getCategoryScoring(categoryType, categoryName);
             return categoryScoring.map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {
@@ -57,7 +58,7 @@ public class CategoryScoringController {
     @PostMapping
     public ResponseEntity<CategoryScoring> createCategoryScoring(@RequestBody CategoryScoring categoryScoring) {
         try {
-            CategoryScoring created = categoryScoringService.createCategoryScoring(categoryScoring);
+            CategoryScoring created = configCategoryScoringService.createCategoryScoring(categoryScoring);
             return ResponseEntity.status(HttpStatus.CREATED).body(created);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid category scoring creation request: {}", e.getMessage());
@@ -68,40 +69,22 @@ public class CategoryScoringController {
         }
     }
     
-    @PutMapping("/{categoryType}/{categoryName}")
-    public ResponseEntity<CategoryScoring> updateCategoryScoring(@PathVariable String categoryType, 
-                                                               @PathVariable String categoryName, 
-                                                               @RequestBody CategoryScoring categoryScoring) {
+    @PatchMapping("/{categoryType}/{categoryName}")
+    public ResponseEntity<CategoryScoring> updateMultipleIndicatorValues(@PathVariable String categoryType,
+                                                                        @PathVariable String categoryName,
+                                                                        @RequestBody Map<String, Double> indicatorUpdates) {
         try {
-            CategoryScoring updated = categoryScoringService.updateCategoryScoring(categoryType, categoryName, categoryScoring);
-            return ResponseEntity.ok(updated);
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid category scoring update request: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
-        } catch (Exception e) {
-            log.error("Error updating category scoring: {} - {}", categoryType, categoryName, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-    
-    @PatchMapping("/{categoryType}/{categoryName}/indicator/{indicatorName}")
-    public ResponseEntity<CategoryScoring> updateIndicatorValue(@PathVariable String categoryType,
-                                                              @PathVariable String categoryName,
-                                                              @PathVariable String indicatorName,
-                                                              @RequestBody Map<String, Double> request) {
-        try {
-            Double newValue = request.get("value");
-            if (newValue == null) {
+            if (indicatorUpdates == null || indicatorUpdates.isEmpty()) {
                 return ResponseEntity.badRequest().build();
             }
             
-            CategoryScoring updated = categoryScoringService.updateIndicatorValue(categoryType, categoryName, indicatorName, newValue);
+            CategoryScoring updated = configCategoryScoringService.updateMultipleIndicatorValues(categoryType, categoryName, indicatorUpdates);
             return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid indicator update request: {}", e.getMessage());
+            log.warn("Invalid multiple indicator update request: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            log.error("Error updating indicator: {} - {} - {}", categoryType, categoryName, indicatorName, e);
+            log.error("Error updating multiple indicators: {} - {}", categoryType, categoryName, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -109,7 +92,7 @@ public class CategoryScoringController {
     @DeleteMapping("/{categoryType}/{categoryName}")
     public ResponseEntity<Void> deleteCategoryScoring(@PathVariable String categoryType, @PathVariable String categoryName) {
         try {
-            categoryScoringService.deleteCategoryScoring(categoryType, categoryName);
+            configCategoryScoringService.deleteCategoryScoring(categoryType, categoryName);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
             log.warn("Invalid category scoring deletion request: {}", e.getMessage());
@@ -123,7 +106,7 @@ public class CategoryScoringController {
     @PatchMapping("/{categoryType}/{categoryName}/deactivate")
     public ResponseEntity<CategoryScoring> deactivateCategoryScoring(@PathVariable String categoryType, @PathVariable String categoryName) {
         try {
-            CategoryScoring deactivated = categoryScoringService.deactivateCategoryScoring(categoryType, categoryName);
+            CategoryScoring deactivated = configCategoryScoringService.deactivateCategoryScoring(categoryType, categoryName);
             return ResponseEntity.ok(deactivated);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid category scoring deactivation request: {}", e.getMessage());

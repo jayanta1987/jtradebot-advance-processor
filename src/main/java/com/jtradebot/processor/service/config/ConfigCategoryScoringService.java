@@ -14,7 +14,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class CategoryScoringService {
+public class ConfigCategoryScoringService {
     
     private final CategoryScoringRepository categoryScoringRepository;
     
@@ -47,24 +47,7 @@ public class CategoryScoringService {
         return saved;
     }
     
-    public CategoryScoring updateCategoryScoring(String categoryType, String categoryName, CategoryScoring updatedCategoryScoring) {
-        CategoryScoring existing = categoryScoringRepository.findByCategoryTypeAndCategoryName(categoryType, categoryName)
-                .orElseThrow(() -> new IllegalArgumentException("Category scoring with type '" + categoryType + 
-                        "' and name '" + categoryName + "' not found"));
-        
-        // Update fields
-        existing.setIndicators(updatedCategoryScoring.getIndicators());
-        existing.setUpdatedAt(LocalDateTime.now());
-        existing.setUpdatedBy(updatedCategoryScoring.getUpdatedBy());
-        existing.setVersion(existing.getVersion() + 1);
-        existing.setComments(updatedCategoryScoring.getComments());
-        
-        CategoryScoring saved = categoryScoringRepository.save(existing);
-        log.info("Updated category scoring: {} - {}", saved.getCategoryType(), saved.getCategoryName());
-        return saved;
-    }
-    
-    public CategoryScoring updateIndicatorValue(String categoryType, String categoryName, String indicatorName, Double newValue) {
+    public CategoryScoring updateMultipleIndicatorValues(String categoryType, String categoryName, Map<String, Double> indicatorUpdates) {
         CategoryScoring existing = categoryScoringRepository.findByCategoryTypeAndCategoryName(categoryType, categoryName)
                 .orElseThrow(() -> new IllegalArgumentException("Category scoring with type '" + categoryType + 
                         "' and name '" + categoryName + "' not found"));
@@ -74,18 +57,22 @@ public class CategoryScoringService {
             throw new IllegalArgumentException("No indicators found for category scoring");
         }
         
-        if (!indicators.containsKey(indicatorName)) {
-            throw new IllegalArgumentException("Indicator '" + indicatorName + "' not found in category scoring");
+        // Validate that all indicators exist before updating
+        for (String indicatorName : indicatorUpdates.keySet()) {
+            if (!indicators.containsKey(indicatorName)) {
+                throw new IllegalArgumentException("Indicator '" + indicatorName + "' not found in category scoring");
+            }
         }
         
-        indicators.put(indicatorName, newValue);
+        // Update all indicators
+        indicators.putAll(indicatorUpdates);
         existing.setIndicators(indicators);
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setVersion(existing.getVersion() + 1);
         
         CategoryScoring saved = categoryScoringRepository.save(existing);
-        log.info("Updated indicator '{}' value to {} in category scoring: {} - {}", 
-                indicatorName, newValue, saved.getCategoryType(), saved.getCategoryName());
+        log.info("Updated {} indicators in category scoring: {} - {}", 
+                indicatorUpdates.size(), saved.getCategoryType(), saved.getCategoryName());
         return saved;
     }
     

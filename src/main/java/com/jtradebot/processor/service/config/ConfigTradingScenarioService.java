@@ -8,12 +8,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TradingScenarioService {
+public class ConfigTradingScenarioService {
     
     private final TradingScenarioRepository tradingScenarioRepository;
     
@@ -40,26 +41,53 @@ public class TradingScenarioService {
         return saved;
     }
     
-    public TradingScenario updateScenario(String name, TradingScenario updatedScenario) {
+    public TradingScenario updateMultipleScenarioFields(String name, Map<String, Object> fieldUpdates) {
         TradingScenario existing = tradingScenarioRepository.findByName(name)
                 .orElseThrow(() -> new IllegalArgumentException("Scenario with name '" + name + "' not found"));
         
-        // Update fields
-        existing.setDescription(updatedScenario.getDescription());
-        existing.setTargetMode(updatedScenario.getTargetMode());
-        existing.setMinQualityScore(updatedScenario.getMinQualityScore());
-        existing.setFlatMarketFilter(updatedScenario.getFlatMarketFilter());
-        existing.setMinEmaPer(updatedScenario.getMinEmaPer());
-        existing.setMinFutureSignalPer(updatedScenario.getMinFutureSignalPer());
-        existing.setMinCandlestickPer(updatedScenario.getMinCandlestickPer());
-        existing.setMinMomentumPer(updatedScenario.getMinMomentumPer());
+        // Update multiple fields based on field names
+        for (Map.Entry<String, Object> entry : fieldUpdates.entrySet()) {
+            String fieldName = entry.getKey();
+            Object newValue = entry.getValue();
+            
+            switch (fieldName) {
+                case "description":
+                    existing.setDescription((String) newValue);
+                    break;
+                case "targetMode":
+                    existing.setTargetMode((String) newValue);
+                    break;
+                case "minQualityScore":
+                    existing.setMinQualityScore((Double) newValue);
+                    break;
+                case "flatMarketFilter":
+                    existing.setFlatMarketFilter((Boolean) newValue);
+                    break;
+                case "minEmaPer":
+                    existing.setMinEmaPer((Double) newValue);
+                    break;
+                case "minFutureSignalPer":
+                    existing.setMinFutureSignalPer((Double) newValue);
+                    break;
+                case "minCandlestickPer":
+                    existing.setMinCandlestickPer((Double) newValue);
+                    break;
+                case "minMomentumPer":
+                    existing.setMinMomentumPer((Double) newValue);
+                    break;
+                case "comments":
+                    existing.setComments((String) newValue);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown field name: " + fieldName);
+            }
+        }
+        
         existing.setUpdatedAt(LocalDateTime.now());
-        existing.setUpdatedBy(updatedScenario.getUpdatedBy());
         existing.setVersion(existing.getVersion() + 1);
-        existing.setComments(updatedScenario.getComments());
         
         TradingScenario saved = tradingScenarioRepository.save(existing);
-        log.info("Updated trading scenario: {}", saved.getName());
+        log.info("Updated {} fields in trading scenario: {}", fieldUpdates.size(), saved.getName());
         return saved;
     }
     

@@ -1,7 +1,7 @@
 package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.repository.document.NoTradeZoneFilter;
-import com.jtradebot.processor.service.config.NoTradeZoneFilterService;
+import com.jtradebot.processor.service.config.ConfigNoTradeZoneFilterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -14,16 +14,17 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/config/no-trade-zone-filters")
+@CrossOrigin(origins = {"http://localhost:5173", "https://jtradebot.com", "https://www.jtradebot.com"})
 @RequiredArgsConstructor
 @Slf4j
-public class NoTradeZoneFilterController {
+public class ConfigNoTradeZoneFilterController {
     
-    private final NoTradeZoneFilterService noTradeZoneFilterService;
+    private final ConfigNoTradeZoneFilterService configNoTradeZoneFilterService;
     
     @GetMapping
     public ResponseEntity<List<NoTradeZoneFilter>> getAllFilters() {
         try {
-            List<NoTradeZoneFilter> filters = noTradeZoneFilterService.getAllFilters();
+            List<NoTradeZoneFilter> filters = configNoTradeZoneFilterService.getAllFilters();
             return ResponseEntity.ok(filters);
         } catch (Exception e) {
             log.error("Error retrieving no-trade zone filters", e);
@@ -34,7 +35,7 @@ public class NoTradeZoneFilterController {
     @GetMapping("/enabled")
     public ResponseEntity<List<NoTradeZoneFilter>> getEnabledFilters() {
         try {
-            List<NoTradeZoneFilter> filters = noTradeZoneFilterService.getEnabledFilters();
+            List<NoTradeZoneFilter> filters = configNoTradeZoneFilterService.getEnabledFilters();
             return ResponseEntity.ok(filters);
         } catch (Exception e) {
             log.error("Error retrieving enabled no-trade zone filters", e);
@@ -45,7 +46,7 @@ public class NoTradeZoneFilterController {
     @GetMapping("/{filterName}")
     public ResponseEntity<NoTradeZoneFilter> getFilterByName(@PathVariable String filterName) {
         try {
-            Optional<NoTradeZoneFilter> filter = noTradeZoneFilterService.getFilterByName(filterName);
+            Optional<NoTradeZoneFilter> filter = configNoTradeZoneFilterService.getFilterByName(filterName);
             return filter.map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {
@@ -57,7 +58,7 @@ public class NoTradeZoneFilterController {
     @PostMapping
     public ResponseEntity<NoTradeZoneFilter> createFilter(@RequestBody NoTradeZoneFilter filter) {
         try {
-            NoTradeZoneFilter created = noTradeZoneFilterService.createFilter(filter);
+            NoTradeZoneFilter created = configNoTradeZoneFilterService.createFilter(filter);
             return ResponseEntity.status(HttpStatus.CREATED).body(created);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid filter creation request: {}", e.getMessage());
@@ -68,37 +69,21 @@ public class NoTradeZoneFilterController {
         }
     }
     
-    @PutMapping("/{filterName}")
-    public ResponseEntity<NoTradeZoneFilter> updateFilter(@PathVariable String filterName, @RequestBody NoTradeZoneFilter filter) {
+    @PatchMapping("/{filterName}")
+    public ResponseEntity<NoTradeZoneFilter> updateMultipleFilterValues(@PathVariable String filterName,
+                                                                       @RequestBody Map<String, Object> fieldUpdates) {
         try {
-            NoTradeZoneFilter updated = noTradeZoneFilterService.updateFilter(filterName, filter);
-            return ResponseEntity.ok(updated);
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid filter update request: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
-        } catch (Exception e) {
-            log.error("Error updating filter: {}", filterName, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-    
-    @PatchMapping("/{filterName}/field/{fieldName}")
-    public ResponseEntity<NoTradeZoneFilter> updateFilterValue(@PathVariable String filterName,
-                                                             @PathVariable String fieldName,
-                                                             @RequestBody Map<String, Object> request) {
-        try {
-            Object newValue = request.get("value");
-            if (newValue == null) {
+            if (fieldUpdates == null || fieldUpdates.isEmpty()) {
                 return ResponseEntity.badRequest().build();
             }
             
-            NoTradeZoneFilter updated = noTradeZoneFilterService.updateFilterValue(filterName, fieldName, newValue);
+            NoTradeZoneFilter updated = configNoTradeZoneFilterService.updateMultipleFilterValues(filterName, fieldUpdates);
             return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid filter field update request: {}", e.getMessage());
+            log.warn("Invalid multiple filter field update request: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            log.error("Error updating filter field: {} - {}", filterName, fieldName, e);
+            log.error("Error updating multiple filter fields: {}", filterName, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -106,7 +91,7 @@ public class NoTradeZoneFilterController {
     @DeleteMapping("/{filterName}")
     public ResponseEntity<Void> deleteFilter(@PathVariable String filterName) {
         try {
-            noTradeZoneFilterService.deleteFilter(filterName);
+            configNoTradeZoneFilterService.deleteFilter(filterName);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {
             log.warn("Invalid filter deletion request: {}", e.getMessage());
@@ -120,7 +105,7 @@ public class NoTradeZoneFilterController {
     @PatchMapping("/{filterName}/deactivate")
     public ResponseEntity<NoTradeZoneFilter> deactivateFilter(@PathVariable String filterName) {
         try {
-            NoTradeZoneFilter deactivated = noTradeZoneFilterService.deactivateFilter(filterName);
+            NoTradeZoneFilter deactivated = configNoTradeZoneFilterService.deactivateFilter(filterName);
             return ResponseEntity.ok(deactivated);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid filter deactivation request: {}", e.getMessage());
