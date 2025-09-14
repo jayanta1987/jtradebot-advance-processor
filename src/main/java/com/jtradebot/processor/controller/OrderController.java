@@ -2,7 +2,7 @@ package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
-import com.jtradebot.processor.service.manual.ManualOrderService;
+import com.jtradebot.processor.service.manual.OrderService;
 import com.jtradebot.processor.service.scheduler.BalanceTrackerSchedulerService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import lombok.RequiredArgsConstructor;
@@ -14,19 +14,19 @@ import java.util.Map;
 
 @CrossOrigin(origins = {"http://localhost:5173", "https://jtradebot.com", "https://www.jtradebot.com"})
 @RestController
-@RequestMapping("/api/manual")
+@RequestMapping("/api/orders")
 @RequiredArgsConstructor
 @Slf4j
-public class ManualOrderController {
+public class OrderController {
 
-    private final ManualOrderService manualOrderService;
+    private final OrderService orderService;
     private final BalanceTrackerSchedulerService balanceTrackerSchedulerService;
 
     /**
      * Place a manual order immediately, skipping all filters and checks
      * @param orderType The type of order to place (CALL_BUY or PUT_BUY)
      */
-    @PostMapping("/order")
+    @PostMapping({"", "/"})
     public ResponseEntity<Map<String, Object>> placeManualOrder(@RequestParam String orderType) {
         try {
             // Validate order type
@@ -47,7 +47,7 @@ public class ManualOrderController {
             }
 
             log.info("🚀 MANUAL {} ORDER REQUEST RECEIVED", orderTypeEnum);
-            JtradeOrder order = manualOrderService.placeManualOrder(orderTypeEnum);
+            JtradeOrder order = orderService.placeOrder(orderTypeEnum);
             
             if (order != null && order.getId() != null) {
                 log.info("✅ MANUAL {} ORDER PLACED SUCCESSFULLY - ID: {}", orderTypeEnum, order.getId());
@@ -88,16 +88,59 @@ public class ManualOrderController {
     /**
      * Get status of manual orders
      */
-    @GetMapping("/orders/status")
+    @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getManualOrdersStatus() {
         try {
-            Map<String, Object> status = manualOrderService.getManualOrdersStatus();
+            Map<String, Object> status = orderService.getOrderStatus();
             return ResponseEntity.ok(status);
         } catch (Exception e) {
             log.error("❌ ERROR GETTING MANUAL ORDERS STATUS: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of(
                 "success", false,
                 "message", "Error getting manual orders status: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Get detailed status of all orders with comprehensive information
+     * Includes active orders with current profit and closed orders total profit
+     */
+    @GetMapping("/detailed-status")
+    public ResponseEntity<Map<String, Object>> getDetailedOrdersStatus() {
+        try {
+            log.info("📊 DETAILED ORDER STATUS REQUEST RECEIVED");
+            Map<String, Object> status = orderService.getDetailedOrderStatus();
+            log.info("✅ DETAILED ORDER STATUS RETRIEVED SUCCESSFULLY");
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            log.error("❌ ERROR GETTING DETAILED ORDERS STATUS: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "Error getting detailed orders status: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Exit all active orders immediately
+     * This will find all ACTIVE orders and close them with FORCE_EXIT reason
+     */
+    @PostMapping("/exitAll")
+    public ResponseEntity<Map<String, Object>> exitAllActiveOrders() {
+        try {
+            log.info("🚪 EXIT ALL ORDERS REQUEST RECEIVED");
+            
+            Map<String, Object> result = orderService.exitAllActiveOrders();
+            
+            log.info("✅ EXIT ALL ORDERS COMPLETED");
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("❌ ERROR IN EXIT ALL ORDERS: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "Error during exit all orders: " + e.getMessage()
             ));
         }
     }

@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.time.Instant;
 
 @CrossOrigin(origins = {"http://localhost:5173", "https://jtradebot.com", "https://www.jtradebot.com"})
 @RestController
@@ -36,11 +37,38 @@ public class KiteConnectController {
     private final InstrumentRepository instrumentRepository;
     private final InstrumentFreshnessCheckerService instrumentFreshnessCheckerService;
 
+    // Cache to track processed request tokens with timestamps to prevent duplicate processing
+    private final Map<String, Instant> processedRequestTokens = new ConcurrentHashMap<>();
+    
+    // Cache expiration time in minutes (tokens expire after 5 minutes)
+    private static final int CACHE_EXPIRATION_MINUTES = 5;
+
     @Value("${aws.kite.api-secret}")
     private String kiteApiSecret;
 
     @Value("${aws.kite.secret-name}")
     private String kiteConnectAwsSecretName;
+    
+    /**
+     * Check if a request token is still valid (not expired)
+     */
+    private boolean isRequestTokenValid(String requestToken) {
+        Instant cachedTime = processedRequestTokens.get(requestToken);
+        if (cachedTime == null) {
+            return false; // Token not in cache
+        }
+        
+        Instant expirationTime = cachedTime.plusSeconds(CACHE_EXPIRATION_MINUTES * 60);
+        boolean isValid = Instant.now().isBefore(expirationTime);
+        
+        // Remove expired token from cache
+        if (!isValid) {
+            processedRequestTokens.remove(requestToken);
+            log.debug("Removed expired request token from cache: {}", requestToken);
+        }
+        
+        return isValid;
+    }
 
 
     @GetMapping("/check")
@@ -80,6 +108,16 @@ public class KiteConnectController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
             }
 
+            // Check if this request_token has already been processed recently
+            if (isRequestTokenValid(requestToken)) {
+                log.warn("Duplicate request detected for request_token: {}. Returning cached response.", requestToken);
+                response.put("message", "Access token already processed for this request.");
+                return ResponseEntity.ok(response);
+            }
+
+            // Mark this request_token as being processed with current timestamp
+            processedRequestTokens.put(requestToken, Instant.now());
+
             User user = kiteConnect.generateSession(requestToken,
                     awsSecretHandler.getSecret(kiteConnectAwsSecretName, kiteApiSecret));
             tickSetupService.saveDefaultTradeConfig(user);
@@ -87,11 +125,16 @@ public class KiteConnectController {
             response.put("message", "Access token successfully obtained.");
             log.info("Access token successfully obtained");
             return ResponseEntity.ok(response);
+            
         } catch (KiteException e) {
+            // Remove from cache on error so it can be retried
+            processedRequestTokens.remove(requestToken);
             response.put("message", errorMessage + " : " + e.getMessage());
             log.error(errorMessage, e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         } catch (IOException e) {
+            // Remove from cache on error so it can be retried
+            processedRequestTokens.remove(requestToken);
             response.put("message", errorMessage + " : " + e.getMessage());
             log.error(errorMessage, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
