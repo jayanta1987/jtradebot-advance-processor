@@ -117,6 +117,7 @@ public class ScalpingEntryConfig {
         private Double min_future_signal_per;
         private Double min_candlestick_per;
         private Double min_momentum_per;
+        private Integer maxNTP;
     }
     
     @Data

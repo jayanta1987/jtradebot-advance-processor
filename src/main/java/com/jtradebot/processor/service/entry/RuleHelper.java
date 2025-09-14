@@ -252,9 +252,8 @@ public class RuleHelper {
     /**
      * Flatten RSI indicators for all timeframes
      */
-    public void flattenRsiIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, double callRsiThreshold, double putRsiThreshold, int rsiMaPeriod, boolean enableRsiMaComparison) {
+    public void flattenRsiIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, int rsiMaPeriod, boolean enableRsiMaComparison) {
         try {
-            log.debug("RSI Thresholds - Call: {}, Put: {}, MA Period: {}, Enable MA: {}", callRsiThreshold, putRsiThreshold, rsiMaPeriod, enableRsiMaComparison);
 
             // 1-minute RSI calculation - Reduced minimum bars for backtesting
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 10) {
@@ -263,8 +262,8 @@ public class RuleHelper {
 
                 indicators.setRsi_1min_gt_80(rsi_1min > 80);
                 indicators.setRsi_1min_lt_20(rsi_1min < 20);
-                indicators.setRsi_1min_gt_60(rsi_1min > callRsiThreshold);
-                indicators.setRsi_1min_lt_40(rsi_1min < putRsiThreshold);
+                indicators.setRsi_1min_gt_60(rsi_1min > 60);
+                indicators.setRsi_1min_lt_40(rsi_1min < 40);
 
                 // RSI MA comparison
                 if (enableRsiMaComparison && oneMinSeries.getBarCount() >= rsiMaPeriod) {
@@ -306,8 +305,8 @@ public class RuleHelper {
 
                 indicators.setRsi_5min_gt_80(rsi_5min > 80);
                 indicators.setRsi_5min_lt_20(rsi_5min < 20);
-                indicators.setRsi_5min_gt_60(rsi_5min > callRsiThreshold);
-                indicators.setRsi_5min_lt_40(rsi_5min < putRsiThreshold);
+                indicators.setRsi_5min_gt_60(rsi_5min > 60);
+                indicators.setRsi_5min_lt_40(rsi_5min < 40);
 
                 // RSI MA comparison
                 if (enableRsiMaComparison && fiveMinSeries.getBarCount() >= rsiMaPeriod) {
@@ -351,8 +350,8 @@ public class RuleHelper {
 
                 indicators.setRsi_15min_gt_80(rsi_15min > 80);
                 indicators.setRsi_15min_lt_20(rsi_15min < 20);
-                indicators.setRsi_15min_gt_60(rsi_15min > callRsiThreshold);
-                indicators.setRsi_15min_lt_40(rsi_15min < putRsiThreshold);
+                indicators.setRsi_15min_gt_60(rsi_15min > 60);
+                indicators.setRsi_15min_lt_40(rsi_15min < 40);
 
                 // RSI MA comparison
                 if (enableRsiMaComparison && fifteenMinSeries.getBarCount() >= rsiMaPeriod) {
@@ -1081,7 +1080,7 @@ public class RuleHelper {
 
             double currentOI = futureTick.getOi();
 
-            log.info("Enhancing OI indicators - Token: {}, Current OI: {}",
+            log.debug("Enhancing OI indicators - Token: {}, Current OI: {}",
                     futureToken, currentOI);
 
             // Process OI signals per timeframe
@@ -1089,7 +1088,7 @@ public class RuleHelper {
             processOiSignalsForTimeframe(indicators, futureToken, currentOI, fiveMinSeries, "5min");
             processOiSignalsForTimeframe(indicators, futureToken, currentOI, fifteenMinSeries, "15min");
 
-            log.info("OI signals enhanced with future data successfully");
+            log.debug("OI signals enhanced with future data successfully");
 
         } catch (Exception e) {
             log.error("Error enhancing OI signals with future data", e);
