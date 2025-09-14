@@ -90,19 +90,14 @@ public class ScalpingEntryService {
         ScenarioEvaluation evaluation = new ScenarioEvaluation();
         evaluation.setScenarioName(scenario.getName());
         evaluation.setScenario(scenario);
+
+            int maxNTPForScenario = configService.getMaxNTPForScenario(scenario.getName());
         
-        if (!result.isConditionsMet()) {
+        if (result.getTotalNTP() > maxNTPForScenario) {
             evaluation.setPassed(false);
             evaluation.setScore(0.0);
-            
-            // Get detailed filtering result for logging
-            if (configService.isNoTradeZonesEnabled()) {
-                evaluation.setReason(result.getReason());
-                log.warn("Scenario '{}' failed flexible entry filtering: {}", scenario.getName(), result.getReason());
-            } else {
-                evaluation.setReason(result.getReason());
-                log.warn("Scenario '{}' failed entry filtering: {}", scenario.getName(), result.getReason());
-            }
+            evaluation.setReason(result.getReason());
+            log.warn("Scenario '{}' failed flexible entry filtering: {}", scenario.getName(), result.getReason());
             return evaluation;
         } else {
             log.info("✅ FLEXIBLE FILTERING PASSED - Scenario '{}' passed market condition filtering", scenario.getName());

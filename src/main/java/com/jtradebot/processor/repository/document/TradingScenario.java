@@ -35,6 +35,7 @@ public class TradingScenario {
     private Double minFutureSignalPer;
     private Double minCandlestickPer;
     private Double minMomentumPer;
+    private Integer maxNTP;
     
     // Metadata
     private LocalDateTime createdAt;

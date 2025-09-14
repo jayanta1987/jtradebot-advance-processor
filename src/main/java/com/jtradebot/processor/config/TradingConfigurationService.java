@@ -206,47 +206,6 @@ public class TradingConfigurationService implements InitializingBean {
         return tradingConfig.getRiskManagement().getTargetPoints();
     }
 
-    // Convenience methods for scoring configuration
-    public double getEmaQuality() { return scoringConfig.getQualityScoring().getEmaQuality(); }
-    public double getRsiQuality() { return scoringConfig.getQualityScoring().getRsiQuality(); }
-    public double getPriceActionQuality() { return scoringConfig.getQualityScoring().getPriceActionQuality(); }
-    public double getFuturesignalQuality() { return scoringConfig.getQualityScoring().getFuturesignalQuality(); }
-    public double getMinQualityThreshold() { return scoringConfig.getQualityScoring().getMinQualityThreshold(); }
-
-    // Convenience methods for volume thresholds
-    public double getSurgeMultiplier() { return thresholdConfig.getVolumeThresholds().getSurgeMultiplier(); }
-    public double getHighVolumeMultiplier() { return thresholdConfig.getVolumeThresholds().getHighVolumeMultiplier(); }
-
-    // Convenience methods for quality thresholds
-    public double getMinQualityScore() { return thresholdConfig.getQualityThresholds().getMinQualityScore(); }
-
-    // Convenience methods for timing configuration
-    public int getMinDataBars() { return timingConfig.getMinDataBars(); }
-
-    // Convenience methods for scalping entry configuration
-    public ScalpingEntryConfig.NoTradeZonesConfig getNoTradeZonesConfig() {
-        return scalpingEntryConfig.getNoTradeZones();
-    }
-
-    public boolean isNoTradeZonesEnabled() {
-        return scalpingEntryConfig.getNoTradeZones() != null &&
-                scalpingEntryConfig.getNoTradeZones().getEnabled();
-    }
-
-    public int getMaxOptionalFiltersToIgnore() {
-        return getMaxAllowedNTP();
-    }
-    
-    public int getMaxAllowedNTP() {
-        return scalpingEntryConfig.getNoTradeZones() != null ?
-                scalpingEntryConfig.getNoTradeZones().getMaxAllowedNTP() : 2;
-    }
-
-    public java.util.Map<String, ScalpingEntryConfig.NoTradeFilter> getNoTradeFilters() {
-        return scalpingEntryConfig.getNoTradeZones() != null ?
-                scalpingEntryConfig.getNoTradeZones().getFilters() : new java.util.HashMap<>();
-    }
-
     public java.util.List<ScalpingEntryConfig.Scenario> getScenarios() {
         return scalpingEntryConfig.getScenarios();
     }

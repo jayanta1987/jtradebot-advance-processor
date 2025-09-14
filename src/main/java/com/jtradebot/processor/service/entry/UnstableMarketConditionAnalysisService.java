@@ -44,7 +44,7 @@ public class UnstableMarketConditionAnalysisService {
                 FlexibleFilteringResult filteringResult = checkFlexibleFilteringConditions(tick, indicators);
                 return filteringResult.isConditionsMet();
             }
-            
+
             // If no-trade-zones is not enabled, return true (no filtering)
             return true;
         } catch (Exception e) {
@@ -60,61 +60,60 @@ public class UnstableMarketConditionAnalysisService {
         try {
             String instrumentToken = String.valueOf(tick.getInstrumentToken());
             List<FilterResult> filterResults = new ArrayList<>();
-            
+
             // Get configuration
-            ScalpingEntryConfig.NoTradeZonesConfig noTradeZonesConfig = configService.getNoTradeZonesConfig();
             Map<String, ScalpingEntryConfig.NoTradeFilter> filters = configService.getNoTradeFilters();
-            int maxAllowedNTP = configService.getMaxAllowedNTP();
-            
+            int maxAllowedNTP = configService.getMaxNTPFromAllScenarios();
+
             // Configuration info removed to reduce log noise
-            
+
             // Reuse existing candle analysis
             CandleAnalysisResult candleAnalysis = analyzeCandleCharacteristics(tick, indicators);
-            
+
             // Check each filter
             for (Map.Entry<String, ScalpingEntryConfig.NoTradeFilter> entry : filters.entrySet()) {
                 String filterKey = entry.getKey();
                 ScalpingEntryConfig.NoTradeFilter filter = entry.getValue();
-                
+
                 if (!filter.getEnabled()) {
                     continue; // Skip disabled filters
                 }
-                
+
                 FilterResult result = checkIndividualFilter(filterKey, filter, tick, indicators, candleAnalysis);
                 filterResults.add(result);
-                
+
                 log.debug("🔍 FILTER CHECK - {}: {} - {}", filterKey, result.isPassed() ? "PASS" : "FAIL", result.getDetails());
             }
-            
+
             // Sort by priority (lower number = higher priority)
             filterResults.sort((a, b) -> Integer.compare(a.getPriority(), b.getPriority()));
-            
+
             // Calculate total NTP from failed filters
             double totalNTP = filterResults.stream()
                     .filter(result -> !result.isPassed())
                     .mapToDouble(FilterResult::getNtp)
                     .sum();
-            
+
             // Check conditions: total NTP must not exceed maxAllowedNTP
             boolean conditionsMet = totalNTP <= maxAllowedNTP;
-            
+
             // Get failed filters for logging
             List<FilterResult> failedFilters = filterResults.stream()
                     .filter(result -> !result.isPassed())
                     .toList();
-            
+
             // Log the results
             if (!failedFilters.isEmpty()) {
                 String failedFilterNames = failedFilters.stream()
                         .map(FilterResult::getName)
                         .collect(Collectors.joining(", "));
-                
-                log.info("🔍 NTP FILTERING RESULT - Total NTP: {}, Max Allowed NTP: {}, Conditions met: {} | Failed filters: {}", 
+
+                log.info("🔍 NTP FILTERING RESULT - Total NTP: {}, Max Allowed NTP: {}, Conditions met: {} | Failed filters: {}",
                         totalNTP, maxAllowedNTP, conditionsMet, failedFilterNames);
             } else {
                 log.info("🔍 NTP FILTERING RESULT - All filters passed, Conditions met: {}", conditionsMet);
             }
-            
+
             // Build reason message
             StringBuilder reason = new StringBuilder();
             if (conditionsMet) {
@@ -134,157 +133,157 @@ public class UnstableMarketConditionAnalysisService {
                                 .map(FilterResult::getName)
                                 .collect(Collectors.joining(", "))));
             }
-            
-            return new FlexibleFilteringResult(conditionsMet, filterResults, reason.toString(), maxAllowedNTP);
-            
+
+            return new FlexibleFilteringResult(conditionsMet, filterResults, reason.toString(), maxAllowedNTP, (int) Math.round(totalNTP));
+
         } catch (Exception e) {
             log.error("Error checking flexible filtering conditions for tick: {}", tick.getInstrumentToken(), e);
-            return new FlexibleFilteringResult(false, new ArrayList<>(), "Error during flexible filtering check: " + e.getMessage(), 0);
+            return new FlexibleFilteringResult(false, new ArrayList<>(), "Error during flexible filtering check: " + e.getMessage(), 0, 0);
         }
     }
-    
-    private FilterResult checkIndividualFilter(String filterKey, ScalpingEntryConfig.NoTradeFilter filter, 
+
+    private FilterResult checkIndividualFilter(String filterKey, ScalpingEntryConfig.NoTradeFilter filter,
                                              Tick tick, FlattenedIndicators indicators, CandleAnalysisResult candleAnalysis) {
         boolean passed = false;
         String details = "";
-        
+
         switch (filterKey) {
             case "candleHeight":
                 passed = candleAnalysis.getCandleHeight() >= filter.getThreshold();
-                details = String.format("Candle height: %.2f (threshold: %.2f)", 
+                details = String.format("Candle height: %.2f (threshold: %.2f)",
                         candleAnalysis.getCandleHeight(), filter.getThreshold());
                 break;
-                
+
             case "volumeSurge":
                 Double volumeMultiplier = indicators.getVolume_surge_multiplier();
                 passed = volumeMultiplier != null && volumeMultiplier > filter.getThreshold();
-                details = String.format("Volume surge: %.2fx (threshold: %.2fx)", 
+                details = String.format("Volume surge: %.2fx (threshold: %.2fx)",
                         volumeMultiplier != null ? volumeMultiplier : 0.0, filter.getThreshold());
                 break;
-                
+
             case "bodyRatio":
                 passed = candleAnalysis.getBodyRatio() >= filter.getThreshold();
-                details = String.format("Body ratio: %.2f (threshold: %.2f)", 
+                details = String.format("Body ratio: %.2f (threshold: %.2f)",
                         candleAnalysis.getBodyRatio(), filter.getThreshold());
                 break;
-                
+
             case "ema200Distance":
                 Double ema200Distance5min = indicators.getEma200_distance_5min();
                 Double ema200_5min = indicators.getEma200_5min();
-                
+
                 if (ema200Distance5min == null || ema200_5min == null) {
                     passed = false;
                     details = "EMA 200 distance or EMA 200 value is null";
                     break;
                 }
-                
+
                 double absDistance = Math.abs(ema200Distance5min);
                 double minAllowedDistance = ema200_5min * (filter.getMinThreshold() != null ? filter.getMinThreshold() : 0.0);
                 double maxAllowedDistance = ema200_5min * (filter.getMaxThreshold() != null ? filter.getMaxThreshold() : filter.getThreshold());
-                
+
                 // Check both minimum and maximum distance
                 boolean minDistanceOk = absDistance >= minAllowedDistance;
                 boolean maxDistanceOk = absDistance <= maxAllowedDistance;
                 passed = minDistanceOk && maxDistanceOk;
-                
-                details = String.format("EMA 200 distance: %.2f (min: %.2f, max: %.2f)", 
+
+                details = String.format("EMA 200 distance: %.2f (min: %.2f, max: %.2f)",
                         absDistance, minAllowedDistance, maxAllowedDistance);
                 break;
-                
+
             case "priceBetweenEma34AndEma200":
                 Double ema34_5min_price = indicators.getEma34_5min();
                 Double ema200_5min_price = indicators.getEma200_5min();
                 double currentIndexPrice = tick.getLastTradedPrice();
-                
+
                 if (ema34_5min_price != null && ema200_5min_price != null) {
                     double minEma = Math.min(ema34_5min_price, ema200_5min_price);
                     double maxEma = Math.max(ema34_5min_price, ema200_5min_price);
                     boolean priceBetween = currentIndexPrice >= minEma && currentIndexPrice <= maxEma;
                     passed = !priceBetween; // Filter passes when price is NOT between EMAs
-                    details = String.format("Price: %.2f, EMA34: %.2f, EMA200: %.2f, Between: %s", 
+                    details = String.format("Price: %.2f, EMA34: %.2f, EMA200: %.2f, Between: %s",
                             currentIndexPrice, ema34_5min_price, ema200_5min_price, priceBetween);
                 } else {
                     passed = true; // Pass if EMAs not available
                     details = "EMA34 or EMA200 not available";
                 }
                 break;
-                
+
             case "overboughtOversold":
                 boolean overbought = Boolean.TRUE.equals(indicators.getRsi_1min_gt_80()) ||
                         Boolean.TRUE.equals(indicators.getRsi_5min_gt_80()) ||
                         Boolean.TRUE.equals(indicators.getRsi_15min_gt_80());
-                        
+
                 boolean oversold = Boolean.TRUE.equals(indicators.getRsi_1min_lt_20()) ||
                         Boolean.TRUE.equals(indicators.getRsi_5min_lt_20()) ||
                         Boolean.TRUE.equals(indicators.getRsi_15min_lt_20());
-                        
+
                 passed = !overbought && !oversold;
                 details = String.format("Overbought: %s, Oversold: %s", overbought, oversold);
                 break;
-                
+
             case "atr5Min":
                 // Calculate 5-minute ATR
                 String atrInstrumentToken = String.valueOf(tick.getInstrumentToken());
                 BarSeries barSeries5Min = tickDataManager.getBarSeriesForTimeFrame(atrInstrumentToken, FIVE_MIN);
                 double atr5min = 0.0;
-                
+
                 if (barSeries5Min != null && barSeries5Min.getBarCount() >= 14) {
                     ATRIndicator atrIndicator = new ATRIndicator(barSeries5Min, 14);
                     atr5min = atrIndicator.getValue(barSeries5Min.getBarCount() - 1).doubleValue();
                 }
-                
+
                 passed = atr5min >= filter.getThreshold();
                 details = String.format("ATR 5min: %.2f (threshold: %.2f)", atr5min, filter.getThreshold());
                 break;
-                
+
             case "consecutiveSameColorCandles":
                 String instrumentToken = String.valueOf(tick.getInstrumentToken());
-                
+
                 // Get timeframe from filter configuration, default to FIVE_MIN
                 String timeframeStr = filter.getTimeframe() != null ? filter.getTimeframe() : "FIVE_MIN";
                 com.jtradebot.processor.model.enums.CandleTimeFrameEnum timeframe = com.jtradebot.processor.model.enums.CandleTimeFrameEnum.valueOf(timeframeStr);
-                
+
                 // Get analysis window from filter configuration, default to 10
                 int analysisWindow = filter.getAnalysisWindow() != null ? filter.getAnalysisWindow() : 10;
-                
+
                 BarSeries barSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, timeframe);
                 // Count consecutive same color/neutral candles from the last candle backwards (neutral candles act as bridges)
                 int consecutiveSameColorCount = calculateConsecutiveSameColorCandles(barSeries, analysisWindow);
                 passed = consecutiveSameColorCount < filter.getMaxConsecutiveCount();
-                details = String.format("Consecutive same color/neutral candles from last: %d (max allowed: %d, timeframe: %s)", 
+                details = String.format("Consecutive same color/neutral candles from last: %d (max allowed: %d, timeframe: %s)",
                         consecutiveSameColorCount, filter.getMaxConsecutiveCount(), timeframeStr);
                 break;
-                
+
             case "nearToSupportResistance":
                 // Check if price is near support/resistance or round figures
                 boolean nearSupportResistance = Boolean.TRUE.equals(indicators.getNear_support_resistance_or_round_figure());
                 passed = !nearSupportResistance; // Filter passes when NOT near support/resistance
-                details = String.format("Near support/resistance check: %s (Price: %.2f)", 
+                details = String.format("Near support/resistance check: %s (Price: %.2f)",
                         nearSupportResistance ? "NEAR" : "CLEAR", tick.getLastTradedPrice());
                 break;
-                
+
             case "tradingHours":
                 // Check if current time is within trading hours
                 boolean withinTradingHours = DateTimeHandler.withinTradingHours(
-                    filter.getStartHour(), filter.getStartMinute(), 
-                    filter.getEndHour(), filter.getEndMinute(), 
+                    filter.getStartHour(), filter.getStartMinute(),
+                    filter.getEndHour(), filter.getEndMinute(),
                     tick.getTickTimestamp()
                 );
                 passed = withinTradingHours; // Filter passes when within trading hours
-                details = String.format("Trading hours check: %s (Time: %s, Start: %02d:%02d, End: %02d:%02d)", 
-                        withinTradingHours ? "WITHIN" : "OUTSIDE", 
+                details = String.format("Trading hours check: %s (Time: %s, Start: %02d:%02d, End: %02d:%02d)",
+                        withinTradingHours ? "WITHIN" : "OUTSIDE",
                         new java.text.SimpleDateFormat("HH:mm:ss").format(tick.getTickTimestamp()),
                         filter.getStartHour(), filter.getStartMinute(),
                         filter.getEndHour(), filter.getEndMinute());
                 break;
-                
+
             default:
                 passed = true; // Unknown filter, pass by default
                 details = "Unknown filter type";
                 break;
         }
-        
-        return new FilterResult(filter.getName(), filter.getDescription(), filter.getPriority(), 
+
+        return new FilterResult(filter.getName(), filter.getDescription(), filter.getPriority(),
                                passed, details, filterKey, filter.getNtp() != null ? filter.getNtp() : 1.0);
     }
 
@@ -381,7 +380,7 @@ public class UnstableMarketConditionAnalysisService {
     String determineCandleColor(Bar bar) {
         double openPrice = bar.getOpenPrice().doubleValue();
         double closePrice = bar.getClosePrice().doubleValue();
-        
+
         if (closePrice > openPrice) {
             return "GREEN";
         } else if (closePrice < openPrice) {
@@ -435,7 +434,7 @@ public class UnstableMarketConditionAnalysisService {
             Double ema200Distance5min = indicators.getEma200_distance_5min();
             double currentIndexPrice = tick.getLastTradedPrice();
             Double ema200_5min = indicators.getEma200_5min();
-            
+
             boolean ema200DistanceOk = false;
             if (ema200Distance5min != null && ema200_5min != null) {
                 double absDistance = Math.abs(ema200Distance5min);
@@ -682,26 +681,16 @@ public class UnstableMarketConditionAnalysisService {
         private List<FilterResult> filterResults;
         private String reason;
         private int maxAllowedNTP;
+        private int totalNTP;
 
-        public FlexibleFilteringResult(boolean conditionsMet, List<FilterResult> filterResults, String reason, int maxAllowedNTP) {
+        public FlexibleFilteringResult(boolean conditionsMet, List<FilterResult> filterResults, String reason, int maxAllowedNTP, int totalNTP) {
             this.conditionsMet = conditionsMet;
             this.filterResults = filterResults;
             this.reason = reason;
             this.maxAllowedNTP = maxAllowedNTP;
+            this.totalNTP = totalNTP;
         }
-        
-        // Getters and setters
-        public boolean isConditionsMet() { return conditionsMet; }
-        public void setConditionsMet(boolean conditionsMet) { this.conditionsMet = conditionsMet; }
-        
-        public List<FilterResult> getFilterResults() { return filterResults; }
-        public void setFilterResults(List<FilterResult> filterResults) { this.filterResults = filterResults; }
-        
-        public String getReason() { return reason; }
-        public void setReason(String reason) { this.reason = reason; }
-        
-        public int getMaxAllowedNTP() { return maxAllowedNTP; }
-        public void setMaxAllowedNTP(int maxAllowedNTP) { this.maxAllowedNTP = maxAllowedNTP; }
+
     }
 
     /**

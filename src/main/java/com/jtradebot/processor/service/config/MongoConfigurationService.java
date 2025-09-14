@@ -106,6 +106,7 @@ public class MongoConfigurationService {
                 .min_future_signal_per(mongoScenario.getMinFutureSignalPer())
                 .min_candlestick_per(mongoScenario.getMinCandlestickPer())
                 .min_momentum_per(mongoScenario.getMinMomentumPer())
+                .maxNTP(mongoScenario.getMaxNTP())
                 .build();
         
         return ScalpingEntryConfig.Scenario.builder()
