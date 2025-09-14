@@ -20,10 +20,26 @@ public class KafkaTickProducer {
 
     @Async
     public void sendTickDetails(Tick tick) {
-        CalculatedTick calculatedTick = toCalculatedTick(tick);
-        String partitionKey = String.valueOf(tick.getInstrumentToken());
-        String TOPIC = "jtradebot-kiteconnect-ticks";
-        kafkaTemplate.send(TOPIC, partitionKey, calculatedTick);
+        try {
+            CalculatedTick calculatedTick = toCalculatedTick(tick);
+            String partitionKey = String.valueOf(tick.getInstrumentToken());
+            String TOPIC = "jtrade_advance_ticks";
+            
+            log.debug("Sending tick to Kafka topic: {} with key: {}", TOPIC, partitionKey);
+            kafkaTemplate.send(TOPIC, partitionKey, calculatedTick)
+                .whenComplete((result, failure) -> {
+                    if (failure != null) {
+                        log.error("Failed to send tick to Kafka topic: {} for instrument: {}. Error: {}", 
+                            TOPIC, tick.getInstrumentToken(), failure.getMessage(), failure);
+                    } else {
+                        log.debug("Successfully sent tick to Kafka topic: {} partition: {} offset: {}", 
+                            TOPIC, result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
+                    }
+                });
+        } catch (Exception e) {
+            log.error("Exception occurred while sending tick to Kafka for instrument: {}. Error: {}", 
+                tick.getInstrumentToken(), e.getMessage(), e);
+        }
     }
 
 }

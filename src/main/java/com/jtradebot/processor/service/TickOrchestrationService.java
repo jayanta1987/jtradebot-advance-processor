@@ -4,6 +4,7 @@ import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
+import com.jtradebot.processor.kafka.KafkaTickProducer;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
@@ -48,6 +49,7 @@ public class TickOrchestrationService {
     private final OrderManagementService orderManagementService;
     private final ActiveOrderTrackingService activeOrderTrackingService;
     private final DynamicStrategyConfigService configService;
+    private final KafkaTickProducer kafkaTickProducer;
 
     public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) {
 
@@ -165,6 +167,7 @@ public class TickOrchestrationService {
                     log.error("Error processing tick for instrument {}: {}", tick.getInstrumentToken(), e.getMessage());
                 }
             }
+            kafkaTickProducer.sendTickDetails(tick);
         }
 
         long endTime = System.currentTimeMillis();
