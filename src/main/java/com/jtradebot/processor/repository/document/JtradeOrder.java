@@ -54,7 +54,7 @@ public class JtradeOrder {
     private String kiteOrderStatus; // "OPEN", "COMPLETE", "CANCELLED", etc.
     
     @Indexed
-    private String status; // "ACTIVE", "EXITED", "CANCELLED"
+    private String status; // "ACTIVE", "CLOSED", "CANCELLED"
     
     private ExitReasonEnum exitReason;
     
@@ -113,12 +113,12 @@ public class JtradeOrder {
         return "ACTIVE".equals(status);
     }
     
-    public boolean isExited() {
-        return "EXITED".equals(status);
+    public boolean isClosed() {
+        return "CLOSED".equals(status);
     }
     
-    public void markExited(ExitReasonEnum reason, Double exitPrice, Double exitIndexPrice, Date exitTime) {
-        this.status = "EXITED";
+    public void markClosed(ExitReasonEnum reason, Double exitPrice, Double exitIndexPrice, Date exitTime) {
+        this.status = "CLOSED";
         this.exitReason = reason;
         this.exitPrice = exitPrice;
         this.exitIndexPrice = exitIndexPrice;
@@ -127,8 +127,8 @@ public class JtradeOrder {
     }
     
     // Overloaded method for String exit time
-    public void markExited(ExitReasonEnum reason, Double exitPrice, Double exitIndexPrice, String exitTime) {
-        this.status = "EXITED";
+    public void markClosed(ExitReasonEnum reason, Double exitPrice, Double exitIndexPrice, String exitTime) {
+        this.status = "CLOSED";
         this.exitReason = reason;
         this.exitPrice = exitPrice;
         this.exitIndexPrice = exitIndexPrice;

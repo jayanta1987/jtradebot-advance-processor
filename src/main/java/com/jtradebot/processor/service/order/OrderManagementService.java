@@ -328,7 +328,7 @@ public class OrderManagementService {
             return;
         }
 
-        jtradeOrder.markExited(exitReason, exitPrice, exitIndexPrice, exitTime);
+        jtradeOrder.markClosed(exitReason, exitPrice, exitIndexPrice, exitTime);
 
         // Calculate profit/loss using option pricing service
         Double points = liveOptionPricingService.calculateProfitLoss(jtradeOrder.getEntryPrice(), exitPrice); //

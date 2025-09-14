@@ -11,6 +11,7 @@ import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
 import com.jtradebot.processor.service.order.KiteOrderService;
+import com.jtradebot.processor.service.order.OrderManagementService;
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
@@ -29,7 +30,7 @@ import static com.jtradebot.processor.handler.DateTimeHandler.getCurrentISTTime;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ManualOrderService {
+public class OrderService {
 
     private final LiveOptionPricingService liveOptionPricingService;
     private final MockOptionPricingService mockOptionPricingService;
@@ -41,11 +42,12 @@ public class ManualOrderService {
     private final OrderNotificationService orderNotificationService;
     private final JtradeOrderRepository jtradeOrderRepository;
     private final KiteOrderService kiteOrderService;
+    private final OrderManagementService orderManagementService;
 
     /**
      * Place a manual order immediately, skipping all filters, NTP checks, and category scores
      */
-    public JtradeOrder placeManualOrder(OrderTypeEnum orderType) throws KiteException {
+    public JtradeOrder placeOrder(OrderTypeEnum orderType) throws KiteException {
         log.info("🎯 PLACING MANUAL ORDER - Type: {}", orderType);
         
         // Check if there's already an active order
@@ -68,7 +70,7 @@ public class ManualOrderService {
             log.info("📊 Current Nifty Index Price: {}", currentIndexPrice);
 
             // Create order with manual entry decision
-            JtradeOrder order = createManualTradeOrder(niftyTick, orderType, currentIndexPrice);
+            JtradeOrder order = createTradeOrder(niftyTick, orderType, currentIndexPrice);
             
             if (order != null && order.getId() != null) {
                 // Place the order through Kite
@@ -103,7 +105,7 @@ public class ManualOrderService {
     /**
      * Create a manual trade order with simplified logic (no filters, no category scores)
      */
-    private JtradeOrder createManualTradeOrder(Tick tick, OrderTypeEnum orderType, double currentIndexPrice) throws KiteException {
+    private JtradeOrder createTradeOrder(Tick tick, OrderTypeEnum orderType, double currentIndexPrice) throws KiteException {
         JtradeOrder order = new JtradeOrder();
         
         try {
@@ -257,7 +259,7 @@ public class ManualOrderService {
     /**
      * Get status of manual orders
      */
-    public Map<String, Object> getManualOrdersStatus() {
+    public Map<String, Object> getOrderStatus() {
         Map<String, Object> status = new HashMap<>();
         
         try {
@@ -265,24 +267,20 @@ public class ManualOrderService {
             status.put("hasActiveOrder", hasActiveOrder);
             
             if (hasActiveOrder) {
-                JtradeOrder activeOrder = activeOrderTrackingService.getActiveOrders().stream()
+                activeOrderTrackingService.getActiveOrders().stream()
                         .filter(order -> "MANUAL_ORDER".equals(order.getEntryScenarioName()))
-                        .findFirst()
-                        .orElse(null);
-                
-                if (activeOrder != null) {
-                    status.put("activeOrder", Map.of(
-                        "id", activeOrder.getId(),
-                        "orderType", activeOrder.getOrderType(),
-                        "tradingSymbol", activeOrder.getTradingSymbol(),
-                        "entryPrice", activeOrder.getEntryPrice(),
-                        "stopLossPrice", activeOrder.getStopLossPrice(),
-                        "targetPrice", activeOrder.getTargetPrice(),
-                        "quantity", activeOrder.getQuantity(),
-                        "status", activeOrder.getStatus(),
-                        "entryTime", activeOrder.getEntryTime()
-                    ));
-                }
+                        .findFirst().ifPresent(activeOrder -> status.put("activeOrder", Map.of(
+                                "id", activeOrder.getId(),
+                                "orderType", activeOrder.getOrderType(),
+                                "tradingSymbol", activeOrder.getTradingSymbol(),
+                                "entryPrice", activeOrder.getEntryPrice(),
+                                "stopLossPrice", activeOrder.getStopLossPrice(),
+                                "targetPrice", activeOrder.getTargetPrice(),
+                                "quantity", activeOrder.getQuantity(),
+                                "status", activeOrder.getStatus(),
+                                "entryTime", activeOrder.getEntryTime()
+                        )));
+
             }
             
             status.put("success", true);
@@ -296,4 +294,229 @@ public class ManualOrderService {
         
         return status;
     }
+
+    /**
+     * Get comprehensive order status with detailed information
+     * Includes active orders with current profit and closed orders total profit
+     */
+    public Map<String, Object> getDetailedOrderStatus() {
+        Map<String, Object> status = new HashMap<>();
+        
+        try {
+            // Get active orders from memory map
+            List<JtradeOrder> activeOrders = activeOrderTrackingService.getActiveOrders();
+            List<Map<String, Object>> activeOrderDetails = new ArrayList<>();
+            
+            double totalActiveProfit = 0.0;
+            
+            for (JtradeOrder order : activeOrders) {
+                Map<String, Object> orderDetail = new HashMap<>();
+                orderDetail.put("id", order.getId());
+                orderDetail.put("orderType", order.getOrderType());
+                orderDetail.put("tradingSymbol", order.getTradingSymbol());
+                orderDetail.put("entryPrice", order.getEntryPrice());
+                orderDetail.put("stopLossPrice", order.getStopLossPrice());
+                orderDetail.put("targetPrice", order.getTargetPrice());
+                orderDetail.put("quantity", order.getQuantity());
+                orderDetail.put("status", order.getStatus());
+                orderDetail.put("entryTime", order.getEntryTime());
+                orderDetail.put("entryIndexPrice", order.getEntryIndexPrice());
+                
+                // Calculate current profit
+                double currentProfit = calculateCurrentProfit(order);
+                orderDetail.put("currentProfit", currentProfit);
+                orderDetail.put("currentProfitPoints", currentProfit / order.getQuantity());
+                
+                // Get current price
+                double currentPrice = getCurrentPrice(order);
+                orderDetail.put("currentPrice", currentPrice);
+                
+                totalActiveProfit += currentProfit;
+                activeOrderDetails.add(orderDetail);
+            }
+            
+            // Get closed orders total profit from database
+            double totalClosedProfit = getTotalClosedOrdersProfit();
+            
+            status.put("activeOrdersCount", activeOrders.size());
+            status.put("activeOrders", activeOrderDetails);
+            status.put("totalActiveProfit", totalActiveProfit);
+            status.put("totalClosedOrdersProfit", totalClosedProfit);
+            status.put("overallProfit", totalActiveProfit + totalClosedProfit);
+            status.put("success", true);
+            status.put("message", "Detailed order status retrieved successfully");
+            
+        } catch (Exception e) {
+            log.error("Error getting detailed order status: {}", e.getMessage(), e);
+            status.put("success", false);
+            status.put("message", "Error getting detailed order status: " + e.getMessage());
+        }
+        
+        return status;
+    }
+
+    /**
+     * Calculate current profit for an active order
+     */
+    private double calculateCurrentProfit(JtradeOrder order) {
+        try {
+            double currentPrice = getCurrentPrice(order);
+            double entryPrice = order.getEntryPrice();
+            double quantity = order.getQuantity();
+            
+            // Calculate points difference
+            double points = currentPrice - entryPrice;
+            
+            // Calculate total profit (points * quantity)
+            return points * quantity;
+            
+        } catch (Exception e) {
+            log.error("Error calculating current profit for order: {}", order.getId(), e);
+            return 0.0;
+        }
+    }
+
+    /**
+     * Get current price for an order
+     */
+    private double getCurrentPrice(JtradeOrder order) {
+        try {
+            // Get current Nifty tick for pricing
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            Tick niftyTick = tickDataManager.getLastTick(niftyToken);
+            
+            if (niftyTick == null) {
+                log.warn("No Nifty index data available for current price calculation");
+                return order.getEntryPrice(); // Fallback to entry price
+            }
+            
+            double currentIndexPrice = niftyTick.getLastTradedPrice();
+            
+            // Use the same logic as ActiveOrderTrackingService
+            return activeOrderTrackingService.getCurrentPrice(order, currentIndexPrice);
+            
+        } catch (Exception e) {
+            log.error("Error getting current price for order: {}", order.getId(), e);
+            return order.getEntryPrice(); // Fallback to entry price
+        }
+    }
+
+    /**
+     * Get total profit from all closed orders
+     */
+    private double getTotalClosedOrdersProfit() {
+        try {
+            // Get all closed orders from database
+            List<JtradeOrder> closedOrders = jtradeOrderRepository.findAll().stream()
+                    .filter(order -> "CLOSED".equals(order.getStatus()))
+                    .toList();
+            
+            double totalProfit = 0.0;
+            for (JtradeOrder order : closedOrders) {
+                if (order.getTotalProfit() != null) {
+                    totalProfit += order.getTotalProfit();
+                }
+            }
+            
+            log.info("Retrieved {} closed orders with total profit: {}", closedOrders.size(), totalProfit);
+            return totalProfit;
+            
+        } catch (Exception e) {
+            log.error("Error getting total closed orders profit: {}", e.getMessage(), e);
+            return 0.0;
+        }
+    }
+
+    /**
+     * Exit all active orders immediately
+     * This will find all ACTIVE orders and close them with FORCE_EXIT reason
+     * Uses OrderManagementService.exitOrder method for consistency
+     */
+    public Map<String, Object> exitAllActiveOrders() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // Get all active orders from memory map
+            List<JtradeOrder> activeOrders = activeOrderTrackingService.getActiveOrders();
+            
+            if (activeOrders.isEmpty()) {
+                log.info("🚪 EXIT ALL REQUEST - No active orders found");
+                result.put("success", true);
+                result.put("message", "No active orders found to exit");
+                result.put("exitedOrdersCount", 0);
+                result.put("exitedOrders", new ArrayList<>());
+                return result;
+            }
+            
+            log.info("🚪 EXIT ALL REQUEST - Found {} active orders to exit", activeOrders.size());
+            
+            // Get current Nifty tick for exit processing
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            Tick currentTick = tickDataManager.getLastTick(niftyToken);
+            
+            if (currentTick == null) {
+                log.error("❌ EXIT ALL FAILED - No current tick data available");
+                result.put("success", false);
+                result.put("message", "No current tick data available for exit processing");
+                result.put("exitedOrdersCount", 0);
+                result.put("exitedOrders", new ArrayList<>());
+                return result;
+            }
+            
+            List<Map<String, Object>> exitedOrdersDetails = new ArrayList<>();
+            int successCount = 0;
+            int failureCount = 0;
+            
+            for (JtradeOrder order : activeOrders) {
+                try {
+                    // Store order details before exit for response
+                    Map<String, Object> orderDetail = new HashMap<>();
+                    orderDetail.put("id", order.getId());
+                    orderDetail.put("orderType", order.getOrderType());
+                    orderDetail.put("tradingSymbol", order.getTradingSymbol());
+                    orderDetail.put("entryPrice", order.getEntryPrice());
+                    orderDetail.put("quantity", order.getQuantity());
+                    orderDetail.put("exitReason", "FORCE_EXIT");
+                    
+                    // Use OrderManagementService.exitOrder for consistent exit processing
+                    orderManagementService.exitOrder(currentTick, order, currentTick.getLastTradedPrice());
+                    
+                    // Get exit details after processing
+                    orderDetail.put("exitPrice", order.getExitPrice());
+                    orderDetail.put("points", order.getTotalPoints());
+                    orderDetail.put("profit", order.getTotalProfit());
+                    orderDetail.put("exitTime", order.getExitTime());
+                    
+                    exitedOrdersDetails.add(orderDetail);
+                    successCount++;
+                    
+                    log.info("✅ ORDER EXITED - ID: {}, Type: {}, Symbol: {}, Entry: {}, Exit: {}, Points: {}, Profit: {}",
+                            order.getId(), order.getOrderType(), order.getTradingSymbol(), 
+                            order.getEntryPrice(), order.getExitPrice(), order.getTotalPoints(), order.getTotalProfit());
+                    
+                } catch (Exception e) {
+                    log.error("❌ ERROR EXITING ORDER - ID: {}, Error: {}", order.getId(), e.getMessage(), e);
+                    failureCount++;
+                }
+            }
+            
+            result.put("success", true);
+            result.put("message", String.format("Exit all completed. Success: %d, Failures: %d", successCount, failureCount));
+            result.put("exitedOrdersCount", successCount);
+            result.put("failedOrdersCount", failureCount);
+            result.put("exitedOrders", exitedOrdersDetails);
+            
+            log.info("🏁 EXIT ALL COMPLETED - Success: {}, Failures: {}", successCount, failureCount);
+            
+        } catch (Exception e) {
+            log.error("❌ ERROR IN EXIT ALL OPERATION: {}", e.getMessage(), e);
+            result.put("success", false);
+            result.put("message", "Error during exit all operation: " + e.getMessage());
+            result.put("exitedOrdersCount", 0);
+            result.put("exitedOrders", new ArrayList<>());
+        }
+        
+        return result;
+    }
+
 }
