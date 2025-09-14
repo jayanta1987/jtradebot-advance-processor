@@ -1,6 +1,5 @@
 package com.jtradebot.processor.kafka;
 
-import com.jtradebot.processor.model.event.OrderEntryEvent;
 import com.jtradebot.tickstore.repository.CalculatedTick;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.config.SaslConfigs;
@@ -41,19 +40,6 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public ProducerFactory<String, OrderEntryEvent> orderEntryProducerFactory() {
-        Map<String, Object> configProps = new HashMap<>(commonConfigs());
-        configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        return new DefaultKafkaProducerFactory<>(configProps);
-    }
-
-    @Bean
-    public KafkaTemplate<String, OrderEntryEvent> orderEntryKafkaTemplate() {
-        return new KafkaTemplate<>(orderEntryProducerFactory());
-    }
-
-    @Bean
     public ProducerFactory<String, CalculatedTick> tickProducerFactory() {
         Map<String, Object> configProps = new HashMap<>(commonConfigs());
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -62,7 +48,7 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, CalculatedTick> tickKafkaTemplate() {
+    public KafkaTemplate<String, CalculatedTick> kafkaTemplate() {
         return new KafkaTemplate<>(tickProducerFactory());
     }
 }

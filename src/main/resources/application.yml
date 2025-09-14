@@ -14,7 +14,7 @@ spring:
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='QVHT6GTXZNDX2H4R' password='mkg7xHLzmOZy3hOhBSCUU+q2Bxx7JleWeHS35qwxZlk2rVhkWbcxik+AhZzkxkU3';
+      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username='QVHT6GTXZNDX2H4R' password='mkg7xHLzmOZy3hOhBSCUU+q2Bxx7JleWeHS35qwxZ3l2rVhkWbcxik+AhZzkxkU3';
       session.timeout.ms: 45000
   data:
     mongodb:
