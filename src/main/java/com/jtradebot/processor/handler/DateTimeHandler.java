@@ -1,6 +1,7 @@
 package com.jtradebot.processor.handler;
 
 import com.zerodhatech.models.Tick;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,6 +16,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
+@Slf4j
 public class DateTimeHandler {
 
     private static final Set<Date> marketHolidays = new HashSet<>();
@@ -115,6 +117,7 @@ public class DateTimeHandler {
 
     public static boolean withinTradingHours(int startHour, int startMinute, int endHour, int endMinute, Date tickTimestamp) {
         LocalTime tickTime = tickTimestamp.toInstant().atZone(ZoneId.of("Asia/Kolkata")).toLocalTime();
+        log.info("<<<<<<<<<<<<Tick time: {}>>>>>>>>>>>>", tickTime);
         LocalTime start = LocalTime.of(startHour, startMinute);
         LocalTime end = LocalTime.of(endHour, endMinute);
         return !tickTime.isBefore(start) && !tickTime.isAfter(end);
