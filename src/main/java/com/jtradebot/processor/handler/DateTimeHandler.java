@@ -117,7 +117,6 @@ public class DateTimeHandler {
 
     public static boolean withinTradingHours(int startHour, int startMinute, int endHour, int endMinute, Date tickTimestamp) {
         LocalTime tickTime = tickTimestamp.toInstant().atZone(ZoneId.of("Asia/Kolkata")).toLocalTime();
-        log.info("<<<<<<<<<<<<Tick time: {}>>>>>>>>>>>>", tickTime);
         LocalTime start = LocalTime.of(startHour, startMinute);
         LocalTime end = LocalTime.of(endHour, endMinute);
         return !tickTime.isBefore(start) && !tickTime.isAfter(end);
@@ -151,8 +150,11 @@ public class DateTimeHandler {
 
     public static boolean isMarketOpen(Date timestamp, int marketOpenHour, int marketOpenMinute, 
                                      int marketCloseHour, int marketCloseMinute) {
+        // Convert timestamp to IST timezone for consistent handling
+        ZonedDateTime istTime = timestamp.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
+        log.debug("current IST tick time: {}", istTime);
         Calendar calendar = Calendar.getInstance();
-        calendar.setTime(timestamp);
+        calendar.setTime(Date.from(istTime.toInstant()));
         
         // Check if it's a weekend
         if (calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || 
@@ -167,9 +169,9 @@ public class DateTimeHandler {
             return false;
         }
         
-        // Check if current time is within trading hours
-        int currentHour = calendar.get(Calendar.HOUR_OF_DAY);
-        int currentMinute = calendar.get(Calendar.MINUTE);
+        // Check if current time is within trading hours using IST time
+        int currentHour = istTime.getHour();
+        int currentMinute = istTime.getMinute();
         
         boolean afterOpen = (currentHour > marketOpenHour) || 
                            (currentHour == marketOpenHour && currentMinute >= marketOpenMinute);
