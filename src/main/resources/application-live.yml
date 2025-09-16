@@ -14,3 +14,8 @@ logging:
     org:
       mongodb:
         driver: INFO
+
+# Balance Check Configuration
+balance-check:
+  scheduler:
+    enabled: false  # Enable/disable automatic balance checking via scheduler

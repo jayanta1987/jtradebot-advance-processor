@@ -67,3 +67,8 @@ logging:
     session-prefix: "auto_session"  # Prefix for automatic session IDs
     max-file-size-mb: 50  # Maximum file size before creating new file
     ticks-per-file: 1000  # Number of ticks to store in each JSON file
+
+# Balance Check Configuration
+balance-check:
+  scheduler:
+    enabled: false  # Enable/disable automatic balance checking via scheduler
