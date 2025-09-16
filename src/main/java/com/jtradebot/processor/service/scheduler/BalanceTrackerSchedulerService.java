@@ -3,6 +3,7 @@ package com.jtradebot.processor.service.scheduler;
 import com.jtradebot.processor.common.ProfileUtil;
 import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.service.notification.SnsEmailService;
+import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
@@ -31,10 +32,13 @@ public class BalanceTrackerSchedulerService {
     private final Environment environment;
     private final SnsEmailService snsEmailService;
     private final TradingConfigurationService tradingConfigurationService;
+    private final ActiveOrderTrackingService activeOrderTrackingService;
     
     /**
      * Balance tracker scheduler that runs every minute at the start of each minute
      * Checks option pricing for CALL and PUT, calculates required balance, and validates available balance
+     * 
+     * Filter: Only runs when there are no active orders to avoid unnecessary balance checks during trading
      */
     @Scheduled(cron = "0 * * * * *") // Run every minute at 0 seconds (e.g., 12:11:00, 12:12:00, 12:13:00)
     public void trackBalance() {
@@ -42,6 +46,12 @@ public class BalanceTrackerSchedulerService {
             // Only run in live profile
             if (!ProfileUtil.isProfileActive(environment, "live")) {
                 log.debug("Balance tracker skipped - not in live profile");
+                return;
+            }
+            
+            // Skip balance check if there are active orders
+            if (activeOrderTrackingService.hasActiveOrder()) {
+                log.debug("🔄 BALANCE TRACKER - Skipping balance check due to active orders");
                 return;
             }
             
@@ -129,6 +139,8 @@ public class BalanceTrackerSchedulerService {
     /**
      * Manually check balance and return detailed results
      * This method is called by the API endpoint to return results instead of just logging
+     * 
+     * Filter: Only runs when there are no active orders to avoid unnecessary balance checks during trading
      */
     public Map<String, Object> checkBalanceWithResults() {
         Map<String, Object> result = new HashMap<>();
@@ -140,6 +152,17 @@ public class BalanceTrackerSchedulerService {
             if (!ProfileUtil.isProfileActive(environment, "live")) {
                 result.put("success", false);
                 result.put("message", "Balance check skipped - not in live profile");
+                return result;
+            }
+            
+            // Skip balance check if there are active orders
+            if (activeOrderTrackingService.hasActiveOrder()) {
+                result.put("success", true);
+                result.put("message", "Balance check skipped - active orders present");
+                result.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss")));
+                result.put("hasInsufficientBalance", false);
+                result.put("balanceChecks", balanceChecks);
+                result.put("skippedDueToActiveOrders", true);
                 return result;
             }
             
@@ -160,6 +183,7 @@ public class BalanceTrackerSchedulerService {
             result.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss")));
             result.put("hasInsufficientBalance", hasInsufficientBalance);
             result.put("balanceChecks", balanceChecks);
+            result.put("skippedDueToActiveOrders", false);
             
             // Get overall current balance
             try {
