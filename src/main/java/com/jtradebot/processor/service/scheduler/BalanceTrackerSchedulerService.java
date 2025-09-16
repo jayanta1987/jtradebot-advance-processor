@@ -10,6 +10,7 @@ import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Margin;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,9 @@ public class BalanceTrackerSchedulerService {
     private final TradingConfigurationService tradingConfigurationService;
     private final ActiveOrderTrackingService activeOrderTrackingService;
     
+    @Value("${balance-check.scheduler.enabled:false}")
+    private boolean balanceCheckSchedulerEnabled;
+    
     /**
      * Balance tracker scheduler that runs every minute at the start of each minute
      * Checks option pricing for CALL and PUT, calculates required balance, and validates available balance
@@ -43,6 +47,12 @@ public class BalanceTrackerSchedulerService {
     @Scheduled(cron = "0 * * * * *") // Run every minute at 0 seconds (e.g., 12:11:00, 12:12:00, 12:13:00)
     public void trackBalance() {
         try {
+            // Check if balance check scheduler is enabled
+            if (!balanceCheckSchedulerEnabled) {
+                log.debug("Balance tracker skipped - scheduler disabled via configuration");
+                return;
+            }
+            
             // Only run in live profile
             if (!ProfileUtil.isProfileActive(environment, "live")) {
                 log.debug("Balance tracker skipped - not in live profile");
