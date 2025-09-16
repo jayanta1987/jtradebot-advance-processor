@@ -4,6 +4,8 @@ import com.jtradebot.processor.common.ProfileUtil;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.service.price.EnhancedStrikeSelectionService;
+import com.zerodhatech.kiteconnect.KiteConnect;
+import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,7 @@ public class EnhancedStrikeSelectionController {
     private final TickDataManager tickDataManager;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final Environment environment;
+    private final KiteConnect kiteConnect;
 
     /**
      * Get best strike for both CALL and PUT options within ±100 range
@@ -64,9 +67,29 @@ public class EnhancedStrikeSelectionController {
                 callResult.put("strikePrice", instrument.getStrike());
                 callResult.put("expiry", instrument.getExpiry());
                 callResult.put("instrumentToken", instrument.getInstrumentToken());
+                
+                // Get LTP for the CALL option
+                try {
+                    String callToken = String.valueOf(instrument.getInstrumentToken());
+                    double callLTP = kiteConnect.getLTP(new String[]{callToken}).get(callToken).lastPrice;
+                    callResult.put("ltp", callLTP);
+                    log.info("✅ BEST CALL STRIKE FOUND - Symbol: {}, Strike: {}, LTP: {}", 
+                            instrument.getTradingSymbol(), instrument.getStrike(), callLTP);
+                } catch (KiteException e) {
+                    log.warn("Could not get LTP for CALL option: {}", instrument.getTradingSymbol(), e);
+                    callResult.put("ltp", null);
+                    callResult.put("ltpError", "Could not fetch LTP: " + e.getMessage());
+                    log.info("✅ BEST CALL STRIKE FOUND - Symbol: {}, Strike: {} (LTP unavailable)", 
+                            instrument.getTradingSymbol(), instrument.getStrike());
+                } catch (Exception e) {
+                    log.warn("Unexpected error getting LTP for CALL option: {}", instrument.getTradingSymbol(), e);
+                    callResult.put("ltp", null);
+                    callResult.put("ltpError", "Unexpected error: " + e.getMessage());
+                    log.info("✅ BEST CALL STRIKE FOUND - Symbol: {}, Strike: {} (LTP unavailable)", 
+                            instrument.getTradingSymbol(), instrument.getStrike());
+                }
+                
                 callResult.put("found", true);
-                log.info("✅ BEST CALL STRIKE FOUND - Symbol: {}, Strike: {}", 
-                        instrument.getTradingSymbol(), instrument.getStrike());
             } else {
                 callResult.put("found", false);
                 callResult.put("message", "No suitable CALL option found in ±100 range");
@@ -85,9 +108,29 @@ public class EnhancedStrikeSelectionController {
                 putResult.put("strikePrice", instrument.getStrike());
                 putResult.put("expiry", instrument.getExpiry());
                 putResult.put("instrumentToken", instrument.getInstrumentToken());
+                
+                // Get LTP for the PUT option
+                try {
+                    String putToken = String.valueOf(instrument.getInstrumentToken());
+                    double putLTP = kiteConnect.getLTP(new String[]{putToken}).get(putToken).lastPrice;
+                    putResult.put("ltp", putLTP);
+                    log.info("✅ BEST PUT STRIKE FOUND - Symbol: {}, Strike: {}, LTP: {}", 
+                            instrument.getTradingSymbol(), instrument.getStrike(), putLTP);
+                } catch (KiteException e) {
+                    log.warn("Could not get LTP for PUT option: {}", instrument.getTradingSymbol(), e);
+                    putResult.put("ltp", null);
+                    putResult.put("ltpError", "Could not fetch LTP: " + e.getMessage());
+                    log.info("✅ BEST PUT STRIKE FOUND - Symbol: {}, Strike: {} (LTP unavailable)", 
+                            instrument.getTradingSymbol(), instrument.getStrike());
+                } catch (Exception e) {
+                    log.warn("Unexpected error getting LTP for PUT option: {}", instrument.getTradingSymbol(), e);
+                    putResult.put("ltp", null);
+                    putResult.put("ltpError", "Unexpected error: " + e.getMessage());
+                    log.info("✅ BEST PUT STRIKE FOUND - Symbol: {}, Strike: {} (LTP unavailable)", 
+                            instrument.getTradingSymbol(), instrument.getStrike());
+                }
+                
                 putResult.put("found", true);
-                log.info("✅ BEST PUT STRIKE FOUND - Symbol: {}, Strike: {}", 
-                        instrument.getTradingSymbol(), instrument.getStrike());
             } else {
                 putResult.put("found", false);
                 putResult.put("message", "No suitable PUT option found in ±100 range");
@@ -109,106 +152,6 @@ public class EnhancedStrikeSelectionController {
         }
     }
 
-    /**
-     * Get detailed analysis for CALL options within ±100 range
-     */
-    @GetMapping("/call-analysis")
-    public ResponseEntity<Map<String, Object>> getCallAnalysis() {
-        return getDetailedAnalysis("CE", "CALL");
-    }
-
-    /**
-     * Get detailed analysis for PUT options within ±100 range
-     */
-    @GetMapping("/put-analysis")
-    public ResponseEntity<Map<String, Object>> getPutAnalysis() {
-        return getDetailedAnalysis("PE", "PUT");
-    }
-
-    /**
-     * Get detailed analysis for a specific option type
-     */
-    private ResponseEntity<Map<String, Object>> getDetailedAnalysis(String optionType, String optionName) {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check if we're in live profile
-            if (!ProfileUtil.isProfileActive(environment, "live")) {
-                response.put("error", "This API only works in live profile");
-                response.put("message", "Please switch to live profile to use enhanced strike selection");
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            // Get current Nifty index price
-            Tick niftyTick = tickDataManager.getLastTick(String.valueOf(kiteInstrumentHandler.getNifty50Token()));
-            if (niftyTick == null) {
-                response.put("error", "No Nifty index data available");
-                response.put("message", "Unable to get current Nifty index price");
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            double niftyIndexPrice = niftyTick.getLastTradedPrice();
-            response.put("niftyIndexPrice", niftyIndexPrice);
-            response.put("optionType", optionName);
-            response.put("timestamp", System.currentTimeMillis());
-
-            // Get detailed analysis
-            log.info("📊 GETTING DETAILED {} ANALYSIS - Index Price: {}", optionName, niftyIndexPrice);
-            Map<String, Object> analysis = enhancedStrikeSelectionService.getDetailedStrikeAnalysis(niftyIndexPrice, optionType);
-            
-            response.putAll(analysis);
-            response.put("success", true);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("Error in getDetailedAnalysis API for {}", optionName, e);
-            response.put("error", e.getMessage());
-            response.put("message", "Error occurred while analyzing " + optionName + " options");
-            response.put("success", false);
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-
-    /**
-     * Get current market status and available options count
-     */
-    @GetMapping("/market-status")
-    public ResponseEntity<Map<String, Object>> getMarketStatus() {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check if we're in live profile
-            if (!ProfileUtil.isProfileActive(environment, "live")) {
-                response.put("error", "This API only works in live profile");
-                response.put("message", "Please switch to live profile to use enhanced strike selection");
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            // Get current Nifty index price
-            Tick niftyTick = tickDataManager.getLastTick(String.valueOf(kiteInstrumentHandler.getNifty50Token()));
-            if (niftyTick == null) {
-                response.put("error", "No Nifty index data available");
-                response.put("message", "Unable to get current Nifty index price");
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            double niftyIndexPrice = niftyTick.getLastTradedPrice();
-            response.put("niftyIndexPrice", niftyIndexPrice);
-            response.put("timestamp", System.currentTimeMillis());
-            response.put("range", (niftyIndexPrice - 100) + " to " + (niftyIndexPrice + 100));
-            response.put("profile", "live");
-            response.put("message", "Market status retrieved successfully");
-            response.put("success", true);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("Error in getMarketStatus API", e);
-            response.put("error", e.getMessage());
-            response.put("message", "Error occurred while getting market status");
-            response.put("success", false);
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
 }
+
+
