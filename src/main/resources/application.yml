@@ -18,8 +18,8 @@ spring:
       session.timeout.ms: 45000
   data:
     mongodb:
-      uri: mongodb+srv://jtradebotuser:ByQMNv50k6wWZDXj@jtradebot-prod.joexsjf.mongodb.net/jtradebot?retryWrites=true&w=majority&appName=jtradebot-prod
-      database: jtradebot
+      uri: mongodb+srv://${MONGODB_USERNAME:jtradebotuser}:${MONGODB_PASSWORD:ByQMNv50k6wWZDXj}@${MONGODB_CLUSTER:jtradebot-prod}.joexsjf.mongodb.net/${MONGODB_DATABASE:jtradebot}?retryWrites=true&w=majority&appName=jtradebot-prod
+      database: ${MONGODB_DATABASE:jtradebot}
       auto-index-creation: true
 
 aws:
