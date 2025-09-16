@@ -1,5 +1,6 @@
 package com.jtradebot.processor.service;
 
+import com.jtradebot.processor.common.ProfileUtil;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.handler.DateTimeHandler;
@@ -23,6 +24,7 @@ import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -50,6 +52,7 @@ public class TickOrchestrationService {
     private final ActiveOrderTrackingService activeOrderTrackingService;
     private final DynamicStrategyConfigService configService;
     private final KafkaTickProducer kafkaTickProducer;
+    private final Environment environment;
 
     public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) {
 
@@ -167,7 +170,11 @@ public class TickOrchestrationService {
                     log.error("Error processing tick for instrument {}: {}", tick.getInstrumentToken(), e.getMessage());
                 }
             }
-            kafkaTickProducer.sendTickDetails(tick);
+            
+            // Only send ticks to Kafka for live profile
+            if (ProfileUtil.isProfileActive(environment, "live")) {
+                kafkaTickProducer.sendTickDetails(tick);
+            }
         }
 
         long endTime = System.currentTimeMillis();
