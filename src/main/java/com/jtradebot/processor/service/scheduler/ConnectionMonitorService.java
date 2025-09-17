@@ -47,7 +47,7 @@ public class ConnectionMonitorService {
         int endHour = tradingHoursConfig.getMarketEndHour();
         int endMinute = tradingHoursConfig.getMarketEndMinute();
 
-        log.debug("🕒 CONNECTION MONITOR - Trading hours: {}:{} to {}:{}", 
+        log.info("🕒 CONNECTION MONITOR - Trading hours: {}:{} to {}:{}",
                  startHour, String.format("%02d", startMinute), 
                  endHour, String.format("%02d", endMinute));
 

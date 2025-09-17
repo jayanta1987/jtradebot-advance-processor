@@ -149,14 +149,14 @@ public class DateTimeHandler {
                                      int marketCloseHour, int marketCloseMinute) {
         // Convert timestamp to IST timezone for consistent handling
         ZonedDateTime istTime = timestamp.toInstant().atZone(ZoneId.of("Asia/Kolkata"));
-        log.debug("🕒 MARKET HOURS CHECK - Current IST tick time: {}", istTime);
+        log.info("🕒 MARKET HOURS CHECK - Current IST tick time: {}", istTime);
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(Date.from(istTime.toInstant()));
         
         // Check if it's a weekend
         if (calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || 
             calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
-            log.debug("🕒 MARKET HOURS CHECK - Weekend detected, market closed");
+            log.info("🕒 MARKET HOURS CHECK - Weekend detected, market closed");
             return false;
         }
         
@@ -164,7 +164,7 @@ public class DateTimeHandler {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         if (marketHolidays.stream().anyMatch(holiday -> 
             sdf.format(holiday).equals(sdf.format(calendar.getTime())))) {
-            log.debug("🕒 MARKET HOURS CHECK - Holiday detected, market closed");
+            log.info("🕒 MARKET HOURS CHECK - Holiday detected, market closed");
             return false;
         }
         
@@ -179,7 +179,7 @@ public class DateTimeHandler {
         
         boolean isOpen = afterOpen && beforeClose;
         
-        log.debug("🕒 MARKET HOURS CHECK - Current time: {}:{}, Market hours: {}:{} to {}:{}, After open: {}, Before close: {}, Market open: {}", 
+        log.info("🕒 MARKET HOURS CHECK - Current time: {}:{}, Market hours: {}:{} to {}:{}, After open: {}, Before close: {}, Market open: {}",
                  currentHour, String.format("%02d", currentMinute),
                  marketOpenHour, String.format("%02d", marketOpenMinute),
                  marketCloseHour, String.format("%02d", marketCloseMinute),
