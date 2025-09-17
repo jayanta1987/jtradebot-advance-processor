@@ -141,7 +141,7 @@ public class KiteConnectController {
         }
     }
 
-    @PostMapping("/init")
+    /*@PostMapping("/init")
     public Map<String, String> init() {
         Map<String, String> response = new HashMap<>();
         try {
@@ -151,7 +151,7 @@ public class KiteConnectController {
             response.put("message", "Failed to initialize KiteMarketDataHandler: " + e.getMessage());
         }
         return response;
-    }
+    }*/
 
     @PostMapping("/generateInstruments")
     public Map<String, String> generateInstruments() {
