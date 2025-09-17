@@ -47,7 +47,7 @@ public class ConnectionMonitorService {
         int endHour = tradingHoursConfig.getMarketEndHour();
         int endMinute = tradingHoursConfig.getMarketEndMinute();
 
-        log.info("🕒 CONNECTION MONITOR - Trading hours: {}:{} to {}:{}",
+        log.debug("🕒 CONNECTION MONITOR - Trading hours: {}:{} to {}:{}",
                  startHour, String.format("%02d", startMinute), 
                  endHour, String.format("%02d", endMinute));
 
@@ -63,13 +63,13 @@ public class ConnectionMonitorService {
         // Check if connection is open and recent ticks are being received
         if (ProfileUtil.isProfileActive(environment, "live")
                 && kiteTickerHandler.isConnectionOpen() && tickSetupService.isAccessTokensPresent()) {
-            log.info("Connection is open. Checking for recent tick data...");
+            log.debug("Connection is open. Checking for recent tick data...");
             long timeSinceLastTick = System.currentTimeMillis() - kiteTickerHandler.getLastTickReceivedTime();
             if (timeSinceLastTick > 30000) { // 30 seconds without ticks
                 log.warn("No ticks received in the last 30 seconds. Re-subscribing tokens.");
                 kiteTickerHandler.reSubscribeTokens(); // Attempt to re-subscribe
             } else {
-                log.info("Ticks are being received normally.");
+                log.debug("Ticks are being received normally.");
             }
         } else {
             log.warn("Connection lost. Reinitializing...");
