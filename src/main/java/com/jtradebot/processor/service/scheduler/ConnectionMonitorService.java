@@ -5,11 +5,9 @@ import com.jtradebot.processor.config.TradingHoursConfig;
 import com.jtradebot.processor.connector.KiteSetupHandler;
 import com.jtradebot.processor.connector.KiteTickerHandler;
 import com.jtradebot.processor.handler.DateTimeHandler;
-import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.service.TickSetupService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
-import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
@@ -49,10 +47,16 @@ public class ConnectionMonitorService {
         int endHour = tradingHoursConfig.getMarketEndHour();
         int endMinute = tradingHoursConfig.getMarketEndMinute();
 
+        log.debug("🕒 CONNECTION MONITOR - Trading hours: {}:{} to {}:{}", 
+                 startHour, String.format("%02d", startMinute), 
+                 endHour, String.format("%02d", endMinute));
 
         if (tickDataManager.getLastTickTime() != null
                 && !DateTimeHandler.isMarketOpen(tickDataManager.getLastTickTime(), startHour, startMinute, endHour, endMinute)) {
-            log.warn("Market is not open. Skipping connection check.");
+            log.warn("🕒 CONNECTION MONITOR - Market is not open. Skipping connection check. Current time: {}, Trading hours: {}:{} to {}:{}", 
+                    DateTimeHandler.formatDateToIST(tickDataManager.getLastTickTime()),
+                    startHour, String.format("%02d", startMinute), 
+                    endHour, String.format("%02d", endMinute));
             return;
         }
 

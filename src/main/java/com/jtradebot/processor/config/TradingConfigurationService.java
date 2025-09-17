@@ -244,8 +244,13 @@ public class TradingConfigurationService implements InitializingBean {
                 ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
                         scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
                 if (tradingHoursFilter != null && tradingHoursFilter.getStartHour() != null) {
+                    log.debug("🕒 TRADING HOURS - Market start hour from DB: {}", tradingHoursFilter.getStartHour());
                     return tradingHoursFilter.getStartHour();
+                } else {
+                    log.warn("🕒 TRADING HOURS - tradingHours filter not found or startHour is null, using default: 9");
                 }
+            } else {
+                log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default: 9");
             }
             return 9; // Default
         } catch (Exception e) {
@@ -261,8 +266,13 @@ public class TradingConfigurationService implements InitializingBean {
                 ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
                         scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
                 if (tradingHoursFilter != null && tradingHoursFilter.getStartMinute() != null) {
+                    log.debug("🕒 TRADING HOURS - Market start minute from DB: {}", tradingHoursFilter.getStartMinute());
                     return tradingHoursFilter.getStartMinute();
+                } else {
+                    log.warn("🕒 TRADING HOURS - tradingHours filter not found or startMinute is null, using default: 15");
                 }
+            } else {
+                log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default: 15");
             }
             return 15; // Default
         } catch (Exception e) {
@@ -278,8 +288,13 @@ public class TradingConfigurationService implements InitializingBean {
                 ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
                         scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
                 if (tradingHoursFilter != null && tradingHoursFilter.getEndHour() != null) {
+                    log.debug("🕒 TRADING HOURS - Market end hour from DB: {}", tradingHoursFilter.getEndHour());
                     return tradingHoursFilter.getEndHour();
+                } else {
+                    log.warn("🕒 TRADING HOURS - tradingHours filter not found or endHour is null, using default: 15");
                 }
+            } else {
+                log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default: 15");
             }
             return 15; // Default
         } catch (Exception e) {
@@ -295,13 +310,18 @@ public class TradingConfigurationService implements InitializingBean {
                 ScalpingEntryConfig.NoTradeFilter tradingHoursFilter = 
                         scalpingEntryConfig.getNoTradeZones().getFilters().get("tradingHours");
                 if (tradingHoursFilter != null && tradingHoursFilter.getEndMinute() != null) {
+                    log.debug("🕒 TRADING HOURS - Market end minute from DB: {}", tradingHoursFilter.getEndMinute());
                     return tradingHoursFilter.getEndMinute();
+                } else {
+                    log.warn("🕒 TRADING HOURS - tradingHours filter not found or endMinute is null, using default: 30");
                 }
+            } else {
+                log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default: 20");
             }
-            return 30; // Default
+            return 20; // Default - matching your database config
         } catch (Exception e) {
             log.error("Error getting market end minute: {}", e.getMessage(), e);
-            return 30; // Default
+            return 20; // Default - matching your database config
         }
     }
 
