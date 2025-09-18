@@ -14,7 +14,10 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.jtradebot.processor.handler.DateTimeHandler.getTodaysDateString;
 import static com.jtradebot.processor.mapper.TradePreferenceMapper.getDefaultTradePreference;
@@ -27,6 +30,17 @@ public class TickSetupService {
     private final KiteConnect kiteConnect;
     private final TradeConfigRepository tradeConfigRepository;
     private final TickRepository tickRepository;
+    
+    // Cache for TradeConfig to avoid repeated database calls
+    private final Map<String, TradeConfig> tradeConfigCache = new ConcurrentHashMap<>();
+    private volatile String currentCachedDate = null;
+    
+    /**
+     * Get current IST timestamp as string
+     */
+    private String getCurrentISTTimestamp() {
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
 
     public void connect() {
         TradeConfig tradeConfig = getTradeConfig();
@@ -43,42 +57,80 @@ public class TickSetupService {
         // Use upsert logic to prevent race conditions
         TradeConfig existingConfig = tradeConfigRepository.findByDate(formattedDate).orElse(null);
         
+        String currentTimestamp = getCurrentISTTimestamp();
+        
         if (existingConfig != null) {
             // Update existing record
             existingConfig.setAccessToken(user.accessToken);
             existingConfig.setTradePreference(getDefaultTradePreference());
+            existingConfig.setUpdatedAt(currentTimestamp);
             tradeConfigRepository.save(existingConfig);
-            log.info("Updated existing TradeConfig for date: {}", formattedDate);
+            // Invalidate cache for this date
+            tradeConfigCache.remove(formattedDate);
+            log.info("Updated existing TradeConfig for date: {} and invalidated cache", formattedDate);
         } else {
             // Create new record
             TradeConfig newConfig = new TradeConfig();
             newConfig.setDate(formattedDate);
             newConfig.setAccessToken(user.accessToken);
             newConfig.setTradePreference(getDefaultTradePreference());
+            newConfig.setCreatedAt(currentTimestamp);
+            newConfig.setUpdatedAt(currentTimestamp);
             try {
                 tradeConfigRepository.save(newConfig);
-                log.info("Created new TradeConfig for date: {}", formattedDate);
+                // Invalidate cache for this date
+                tradeConfigCache.remove(formattedDate);
+                log.info("Created new TradeConfig for date: {} and invalidated cache", formattedDate);
             } catch (DuplicateKeyException e) {
                 log.warn("Duplicate TradeConfig detected for date: {}. Removing existing and creating new one.", formattedDate);
                 // Remove existing record and create new one
                 tradeConfigRepository.deleteByDate(formattedDate);
                 tradeConfigRepository.save(newConfig);
-                log.info("Successfully replaced TradeConfig for date: {}", formattedDate);
+                // Invalidate cache for this date
+                tradeConfigCache.remove(formattedDate);
+                log.info("Successfully replaced TradeConfig for date: {} and invalidated cache", formattedDate);
             }
         }
     }
 
     public @NotNull TradeConfig getTradeConfig() {
         String formattedDate = getTodaysDateString("Asia/Kolkata", "'IST-'yyyy-MM-dd");
+        
+        // Check if we need to invalidate cache (new day)
+        if (!formattedDate.equals(currentCachedDate)) {
+            tradeConfigCache.clear();
+            currentCachedDate = formattedDate;
+            log.info("Cache invalidated for new date: {}", formattedDate);
+        }
+        
+        // Return cached value if available
+        TradeConfig cachedConfig = tradeConfigCache.get(formattedDate);
+        if (cachedConfig != null) {
+            log.info("TradeConfig returned from cache for date {}", formattedDate);
+            return cachedConfig;
+        }
+        
+        // Fetch from database and cache
         TradeConfig tradeConfig = tradeConfigRepository.findByDate(formattedDate).orElse(new TradeConfig());
         tradeConfig.setDate(formattedDate);
-        log.info("TradeConfig fetched for date {}", formattedDate);
+        tradeConfigCache.put(formattedDate, tradeConfig);
+        log.info("TradeConfig fetched from database and cached for date {}", formattedDate);
         return tradeConfig;
     }
 
     public boolean isAccessTokensPresent() {
         TradeConfig tradeConfig = getTradeConfig();
         return tradeConfig.getAccessToken() != null;
+    }
+    
+    /**
+     * Manually invalidate the TradeConfig cache
+     * Useful when TradeConfig is updated from external sources
+     */
+    public void invalidateTradeConfigCache() {
+        tradeConfigCache.clear();
+        currentCachedDate = null;
+        log.info("TradeConfig cache manually invalidated");
     }
 
     public List<String> getUniqueDates() {

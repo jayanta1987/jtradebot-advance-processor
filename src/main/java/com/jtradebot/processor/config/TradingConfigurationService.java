@@ -3,6 +3,8 @@ package com.jtradebot.processor.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
+import com.jtradebot.processor.repository.document.TradeConfig;
+import com.jtradebot.processor.service.TickSetupService;
 import com.jtradebot.processor.service.config.MongoConfigurationService;
 import lombok.Data;
 import lombok.Getter;
@@ -19,6 +21,7 @@ public class TradingConfigurationService implements InitializingBean {
 
     private final ObjectMapper objectMapper;
     private final MongoConfigurationService mongoConfigurationService;
+    private final TickSetupService tickSetupService;
     @Getter
     private TradingConfig tradingConfig;
     @Getter
@@ -30,9 +33,10 @@ public class TradingConfigurationService implements InitializingBean {
     @Getter
     private ScalpingEntryConfig scalpingEntryConfig;
 
-    public TradingConfigurationService(ObjectMapper objectMapper, MongoConfigurationService mongoConfigurationService) {
+    public TradingConfigurationService(ObjectMapper objectMapper, MongoConfigurationService mongoConfigurationService, TickSetupService tickSetupService) {
         this.objectMapper = objectMapper;
         this.mongoConfigurationService = mongoConfigurationService;
+        this.tickSetupService = tickSetupService;
     }
 
     @Override
@@ -130,28 +134,16 @@ public class TradingConfigurationService implements InitializingBean {
         }
     }
 
-    public int getMinLotSize() {
-        return tradingConfig.getQuantitySettings().getMinLotSize();
-    }
-
-    public int getMaxQuantityPerTrade() {
-        return tradingConfig.getQuantitySettings().getMaxQuantityPerTrade();
-    }
-
-    public double getMaxInvestmentPercentage() {
-        return tradingConfig.getInvestmentLimits().getMaxInvestmentPercentage();
-    }
-
-    public double getMaxRiskPerDayPercentage() {
-        return tradingConfig.getRiskManagement().getMaxRiskPerDayPercentage();
-    }
-
-    public double getMaxProfitPerDayPercentage() {
-        return tradingConfig.getRiskManagement().getMaxProfitPerDayPercentage();
-    }
-
     public long getMaxTradeHoldingTimeInSec() {
-        return tradingConfig.getTradeSettings().getMaxTradeHoldingTimeInSec();
+        try {
+            TradeConfig tradeConfig = tickSetupService.getTradeConfig();
+            if (tradeConfig.getTradePreference() != null) {
+                return tradeConfig.getTradePreference().getMaxTradeHoldingTimeInSec();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get maxTradeHoldingTimeInSec from database, using default: {}", e.getMessage());
+        }
+        return 150; // Default fallback value
     }
 
     // Risk Management Methods
@@ -161,15 +153,6 @@ public class TradingConfigurationService implements InitializingBean {
 
     public double getMaxMilestonePoints() {
         return tradingConfig.getRiskManagement().getMaxMilestonePoints();
-    }
-
-    // RSI Thresholds
-    public double getCallRsiThreshold() {
-        return tradingConfig.getRiskManagement().getRsiThresholds().getCallRsiThreshold();
-    }
-
-    public double getPutRsiThreshold() {
-        return tradingConfig.getRiskManagement().getRsiThresholds().getPutRsiThreshold();
     }
 
     public int getRsiMaPeriod() {
@@ -185,10 +168,6 @@ public class TradingConfigurationService implements InitializingBean {
         return tradingConfig.getRiskManagement().getVolumeSurgeMultiplier();
     }
 
-    public double getSignalStrength() {
-        return tradingConfig.getRiskManagement().getSignalStrength();
-    }
-
     // Legacy Risk Management (for backward compatibility)
     public double getStopLossPercentage() {
         return tradingConfig.getRiskManagement().getStopLossPercentage();
@@ -196,14 +175,6 @@ public class TradingConfigurationService implements InitializingBean {
 
     public double getTargetPercentage() {
         return tradingConfig.getRiskManagement().getTargetPercentage();
-    }
-
-    public double getStopLossPoints() {
-        return tradingConfig.getRiskManagement().getStopLossPoints();
-    }
-
-    public double getTargetPoints() {
-        return tradingConfig.getRiskManagement().getTargetPoints();
     }
 
     public java.util.List<ScalpingEntryConfig.Scenario> getScenarios() {
@@ -215,11 +186,6 @@ public class TradingConfigurationService implements InitializingBean {
                 .filter(scenario -> scenario.getName().equals(scenarioName))
                 .findFirst()
                 .orElse(null);
-    }
-
-    public String getTargetModeForScenario(String scenarioName) {
-        ScalpingEntryConfig.Scenario scenario = getScenarioByName(scenarioName);
-        return scenario != null ? scenario.getTargetMode() : "PER"; // Default to PER if not found
     }
 
     public java.util.Map<String, java.util.List<String>> getCallCategories() {
@@ -341,18 +307,11 @@ public class TradingConfigurationService implements InitializingBean {
 
     @Data
     public static class TradingConfig {
-        private QuantitySettings quantitySettings;
         private InvestmentLimits investmentLimits;
         private RiskManagement riskManagement;
-        private TradeSettings tradeSettings;
         private ExitSignalConfiguration exitSignalConfiguration;
     }
 
-    @Data
-    public static class QuantitySettings {
-        private int minLotSize;
-        private int maxQuantityPerTrade;
-    }
 
     @Data
     public static class InvestmentLimits {
@@ -383,10 +342,6 @@ public class TradingConfigurationService implements InitializingBean {
     }
 
 
-    @Data
-    public static class TradeSettings {
-        private long maxTradeHoldingTimeInSec;
-    }
 
     @Data
     public static class ExitSignalConfiguration {

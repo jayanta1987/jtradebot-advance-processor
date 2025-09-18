@@ -15,6 +15,7 @@ import com.jtradebot.processor.service.order.OrderManagementService;
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
+import com.jtradebot.processor.service.quantity.DynamicQuantityService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Tick;
@@ -43,6 +44,7 @@ public class OrderService {
     private final JtradeOrderRepository jtradeOrderRepository;
     private final KiteOrderService kiteOrderService;
     private final OrderManagementService orderManagementService;
+    private final DynamicQuantityService dynamicQuantityService;
 
     /**
      * Place a manual order immediately, skipping all filters, NTP checks, and category scores
@@ -109,6 +111,13 @@ public class OrderService {
         JtradeOrder order = new JtradeOrder();
         
         try {
+            // Calculate dynamic quantity based on balance and option price
+            int dynamicQuantity = dynamicQuantityService.calculateDynamicQuantity(orderType.name());
+            
+            // Validate quantity using centralized service with email notification
+            if (!dynamicQuantityService.validateQuantity(dynamicQuantity, orderType.name(), "Manual Order")) {
+                return order;
+            }
             // Get option pricing
             Optional<LiveOptionPricingService.LiveOptionPricingInfo> liveOptionPricing = 
                     liveOptionPricingService.getLiveOptionPricing(orderType.name());
@@ -152,7 +161,8 @@ public class OrderService {
             order.setEntryIndexPrice(currentIndexPrice);
             order.setStopLossPrice(stopLossPrice);
             order.setTargetPrice(targetPrice);
-            order.setQuantity(tradingConfigService.getMinLotSize());
+
+            order.setQuantity(dynamicQuantity);
             order.setStatus("ACTIVE");
             order.setEntryTime(formatDateToIST(tick.getTickTimestamp()));
             order.setCreatedAt(getCurrentISTTime());

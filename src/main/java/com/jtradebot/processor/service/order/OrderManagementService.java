@@ -17,6 +17,7 @@ import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisServ
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
+import com.jtradebot.processor.service.quantity.DynamicQuantityService;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.model.indicator.Support;
@@ -59,6 +60,7 @@ public class OrderManagementService {
     private final UnstableMarketConditionAnalysisService unstableMarketConditionAnalysisService;
     private final SupportResistanceIndicator supportResistanceIndicator;
     private final BarSeriesManager barSeriesManager;
+    private final DynamicQuantityService dynamicQuantityService;
 
     public JtradeOrder createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable,
                                         double qualityScore, String dominantTrend,
@@ -68,6 +70,14 @@ public class OrderManagementService {
         try {
             String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
             Tick niftyTick = tickDataManager.getLastTick(niftyToken);
+
+            // Calculate dynamic quantity based on balance and option price
+            int dynamicQuantity = dynamicQuantityService.calculateDynamicQuantity(orderType);
+            
+            // Validate quantity using centralized service with email notification
+            if (!dynamicQuantityService.validateQuantity(dynamicQuantity, orderType, "Auto Order")) {
+                return order;
+            }
 
             if (niftyTick == null) {
                 log.error("No Nifty index data available for order creation");
@@ -157,7 +167,8 @@ public class OrderManagementService {
                 order.setEntryIndexPrice(currentIndexPrice);
                 order.setStopLossPrice(stopLossPrice);
                 order.setTargetPrice(targetPrice);
-                order.setQuantity(tradingConfigService.getMinLotSize());
+
+                order.setQuantity(dynamicQuantity);
                 order.setStatus("ACTIVE");
                 order.setEntryTime(formatDateToIST(tick.getTickTimestamp()));
                 order.setCreatedAt(getCurrentISTTime());

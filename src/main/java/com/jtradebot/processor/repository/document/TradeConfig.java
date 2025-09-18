@@ -16,18 +16,19 @@ public class TradeConfig {
     @Indexed(unique = true)
     private String date;
     private String accessToken;
+    private String createdAt;
+    private String updatedAt;
     private TradePreference tradePreference;
 
     @Data
     @ToString
     public static class TradePreference {
 
-        private double maxTradePrice;
-        private int maxInvestmentPercentage;
-        private int minLotSize;
+        private double maxInvestmentPercentage;
+        private int minQuantity;
+        private int maxQuantity;
         private double maxLossPercentagePerDay;
         private double maxProfitPercentagePerDay;
-        private int maxQuantityPerTradeSafe;
         private long maxTradeHoldingTimeInSec;
     }
 }

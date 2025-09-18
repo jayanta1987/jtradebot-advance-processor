@@ -1,10 +1,10 @@
 package com.jtradebot.processor.service.scheduler;
 
-import com.jtradebot.processor.common.ProfileUtil;
-import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.service.notification.SnsEmailService;
 import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
+import com.jtradebot.processor.service.quantity.DynamicQuantityService;
+import com.jtradebot.processor.common.ProfileUtil;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Margin;
@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -32,10 +33,10 @@ public class BalanceTrackerSchedulerService {
     private final KiteConnect kiteConnect;
     private final Environment environment;
     private final SnsEmailService snsEmailService;
-    private final TradingConfigurationService tradingConfigurationService;
     private final ActiveOrderTrackingService activeOrderTrackingService;
+    private final DynamicQuantityService dynamicQuantityService;
     
-    @Value("${balance-check.scheduler.enabled:false}")
+    @Value("${balance-check.scheduler.enabled}")
     private boolean balanceCheckSchedulerEnabled;
     
     /**
@@ -44,7 +45,7 @@ public class BalanceTrackerSchedulerService {
      * 
      * Filter: Only runs when there are no active orders to avoid unnecessary balance checks during trading
      */
-    @Scheduled(cron = "0 * * * * *") // Run every minute at 0 seconds (e.g., 12:11:00, 12:12:00, 12:13:00)
+    @Scheduled(cron = "0 */5 * * * *") // Run every 5 minutes at 0 seconds (e.g., 12:10:00, 12:15:00, 12:20:00)
     public void trackBalance() {
         try {
             // Check if balance check scheduler is enabled
@@ -52,7 +53,7 @@ public class BalanceTrackerSchedulerService {
                 log.debug("Balance tracker skipped - scheduler disabled via configuration");
                 return;
             }
-            
+
             // Only run in live profile
             if (!ProfileUtil.isProfileActive(environment, "live")) {
                 log.debug("Balance tracker skipped - not in live profile");
@@ -61,7 +62,7 @@ public class BalanceTrackerSchedulerService {
             
             // Skip balance check if there are active orders
             if (activeOrderTrackingService.hasActiveOrder()) {
-                log.debug("🔄 BALANCE TRACKER - Skipping balance check due to active orders");
+                log.info("🔄 BALANCE TRACKER - Skipping balance check due to active orders");
                 return;
             }
             
@@ -71,7 +72,7 @@ public class BalanceTrackerSchedulerService {
             checkBalanceForOrderType("CALL_BUY");
             checkBalanceForOrderType("PUT_BUY");
             
-            log.debug("✅ BALANCE TRACKER - Completed balance check");
+            log.info("✅ BALANCE TRACKER - Completed balance check");
             
         } catch (Exception e) {
             log.error("❌ BALANCE TRACKER - Error in balance tracking: {}", e.getMessage(), e);
@@ -97,25 +98,27 @@ public class BalanceTrackerSchedulerService {
             LiveOptionPricingService.LiveOptionPricingInfo info = pricingInfo.get();
             double optionLTP = info.getOptionLTP();
             
-            // Calculate required amount for minimum quantity
-            double requiredAmount = optionLTP * tradingConfigurationService.getMinLotSize();
-            
-            log.info("💰 PRICING INFO - Order Type: {}, Option LTP: {}, Min Qty: {}, Required Amount: {}", 
-                    orderType, optionLTP, tradingConfigurationService.getMinLotSize(), requiredAmount);
-            
+            // Calculate required amount using dynamic quantity calculation
+            int dynamicQuantity = dynamicQuantityService.calculateDynamicQuantity(orderType);
+            int minQuantity = dynamicQuantityService.getMinQuantity();
+
+            double minRequiredAmount = optionLTP * minQuantity;
+            log.info("💰 PRICING INFO - Order Type: {}, Option LTP: {}, Dynamic Qty: {}, Required Amount: {}",
+                    orderType, optionLTP, dynamicQuantity, minRequiredAmount);
+
             // Get current balance from KiteConnect
             double currentBalance = getCurrentBalance();
-            
-            if (currentBalance < requiredAmount) {
-                double shortfall = requiredAmount - currentBalance;
+            double shortfall = minRequiredAmount - currentBalance;
+
+            if (dynamicQuantity == 0) {
                 log.warn("❌ INSUFFICIENT BALANCE - Order Type: {}, Required: {}, Available: {}, Shortfall: {}", 
-                        orderType, requiredAmount, currentBalance, shortfall);
+                        orderType, minRequiredAmount, currentBalance, shortfall);
                 
                 // Send email notification for insufficient balance
-                sendInsufficientBalanceNotification(orderType, requiredAmount, currentBalance, shortfall, info);
+                sendInsufficientBalanceNotification(orderType, minRequiredAmount, currentBalance, shortfall, info, dynamicQuantity);
             } else {
                 log.info("✅ SUFFICIENT BALANCE - Order Type: {}, Required: {}, Available: {}, Excess: {}", 
-                        orderType, requiredAmount, currentBalance, (currentBalance - requiredAmount));
+                        orderType, minRequiredAmount, currentBalance, (currentBalance - minRequiredAmount));
             }
             
         } catch (KiteException e) {
@@ -158,12 +161,7 @@ public class BalanceTrackerSchedulerService {
         boolean hasInsufficientBalance = false;
         
         try {
-            // Only run in live profile
-            if (!ProfileUtil.isProfileActive(environment, "live")) {
-                result.put("success", false);
-                result.put("message", "Balance check skipped - not in live profile");
-                return result;
-            }
+            // Note: Balance check now works in all profiles (live, local, etc.)
             
             // Skip balance check if there are active orders
             if (activeOrderTrackingService.hasActiveOrder()) {
@@ -228,7 +226,7 @@ public class BalanceTrackerSchedulerService {
             
             if (pricingInfo.isEmpty()) {
                 result.put("success", false);
-                result.put("message", "No pricing information available");
+                result.put("message", "No Live pricing information available");
                 result.put("insufficientBalance", false);
                 return result;
             }
@@ -236,16 +234,22 @@ public class BalanceTrackerSchedulerService {
             LiveOptionPricingService.LiveOptionPricingInfo info = pricingInfo.get();
             double optionLTP = info.getOptionLTP();
             
-            // Calculate required amount for minimum quantity
-            double requiredAmount = optionLTP * tradingConfigurationService.getMinLotSize();
+            // Calculate required amount using dynamic quantity calculation
+            int dynamicQuantity = dynamicQuantityService.calculateDynamicQuantity(orderType);
+            int minQuantity = dynamicQuantityService.getMinQuantity();
+            double minRequiredAmount = optionLTP * minQuantity;
             
             // Get current balance from KiteConnect
             double currentBalance = getCurrentBalance();
             
-            boolean insufficientBalance = currentBalance < requiredAmount;
-            double shortfall = insufficientBalance ? (requiredAmount - currentBalance) : 0;
-            double excess = !insufficientBalance ? (currentBalance - requiredAmount) : 0;
+            boolean insufficientBalance = currentBalance < minRequiredAmount;
+            double shortfall = insufficientBalance ? (minRequiredAmount - currentBalance) : 0;
+            double excess = !insufficientBalance ? (currentBalance - minRequiredAmount) : 0;
             
+            // Calculate eligible quantity (maximum quantity that can be purchased with available balance)
+            int eligibleQuantity = (int) Math.floor(currentBalance / optionLTP);
+            int eligibleValidQuantity = eligibleQuantity - (eligibleQuantity % minQuantity);
+
             result.put("success", true);
             result.put("insufficientBalance", insufficientBalance);
             result.put("optionDetails", Map.of(
@@ -256,22 +260,24 @@ public class BalanceTrackerSchedulerService {
                 "optionType", info.getOptionType()
             ));
             result.put("balanceDetails", Map.of(
-                "requiredAmount", requiredAmount,
+                "requiredAmount", minRequiredAmount,
                 "currentBalance", currentBalance,
                 "shortfall", shortfall,
                 "excess", excess,
-                "minQuantity", tradingConfigurationService.getMinLotSize()
+                "dynamicQuantity", dynamicQuantity,
+                "eligibleQuantity", eligibleQuantity,
+                "eligibleValidQuantity", eligibleValidQuantity
             ));
             
             if (insufficientBalance) {
-                result.put("message", String.format("Insufficient balance: Required ₹%.2f, Available ₹%.2f, Shortfall ₹%.2f", 
-                    requiredAmount, currentBalance, shortfall));
+                result.put("message", String.format("Insufficient balance: Min Required ₹%.2f, Available ₹%.2f, Shortfall ₹%.2f, Eligible Qty: %d",
+                    minRequiredAmount, currentBalance, shortfall, eligibleQuantity));
                 
                 // Send email notification for insufficient balance
-                sendInsufficientBalanceNotification(orderType, requiredAmount, currentBalance, shortfall, info);
+                sendInsufficientBalanceNotification(orderType, minRequiredAmount, currentBalance, shortfall, info, dynamicQuantity);
             } else {
-                result.put("message", String.format("Sufficient balance: Required ₹%.2f, Available ₹%.2f, Excess ₹%.2f", 
-                    requiredAmount, currentBalance, excess));
+                result.put("message", String.format("Sufficient balance: Min Required ₹%.2f, Available ₹%.2f, Excess ₹%.2f, Eligible Qty: %d",
+                    minRequiredAmount, currentBalance, excess, eligibleQuantity));
             }
             
         } catch (KiteException e) {
@@ -294,7 +300,7 @@ public class BalanceTrackerSchedulerService {
      */
     private void sendInsufficientBalanceNotification(String orderType, double requiredAmount, 
                                                     double currentBalance, double shortfall, 
-                                                    LiveOptionPricingService.LiveOptionPricingInfo pricingInfo) {
+                                                    LiveOptionPricingService.LiveOptionPricingInfo pricingInfo, int dynamicQuantity) {
         try {
             String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss"));
             
@@ -317,7 +323,7 @@ public class BalanceTrackerSchedulerService {
                 • Strike Price: %d
                 • Nifty Index Price: ₹%.2f
                 • Option Type: %s
-                • Min Quantity: %d lots
+                • Dynamic Quantity: %d lots
                 
                 ⚠️ ACTION REQUIRED:
                 Please add ₹%.2f to your trading account to continue trading %s options.
@@ -334,7 +340,7 @@ public class BalanceTrackerSchedulerService {
                 pricingInfo.getStrikePrice(),
                 pricingInfo.getNiftyIndexPrice(),
                 pricingInfo.getOptionType(),
-                tradingConfigurationService.getMinLotSize(),
+                dynamicQuantity,
                 shortfall,
                 orderType
             );
