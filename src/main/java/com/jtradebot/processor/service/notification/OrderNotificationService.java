@@ -1,7 +1,6 @@
 package com.jtradebot.processor.service.notification;
 
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
-import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +45,18 @@ public class OrderNotificationService {
             log.info("📧 Order exit notification sent for order: {}", order.getId());
         } catch (Exception e) {
             log.error("Failed to send order exit notification for order: {}", order.getId(), e);
+        }
+    }
+
+    /**
+     * Send a custom notification with subject and message
+     */
+    public void sendCustomNotification(String subject, String message) {
+        try {
+            snsEmailService.sendEmail(subject, message);
+            log.info("📧 Custom notification sent with subject: {}", subject);
+        } catch (Exception e) {
+            log.error("Failed to send custom notification with subject: {}", subject, e);
         }
     }
 

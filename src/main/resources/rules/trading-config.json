@@ -1,11 +1,7 @@
 {
   "tradingConfiguration": {
-    "quantitySettings": {
-      "minLotSize": 225,
-      "maxQuantityPerTrade": 550
-    },
     "investmentLimits": {
-      "maxInvestmentPercentage": 5.0
+      "maxInvestmentPercentage": 95.0
     },
     "riskManagement": {
       "maxRiskPerDayPercentage": 2.0,
@@ -22,9 +18,6 @@
       "signalStrength": 0.7,
       "stopLossPercentage": 2.5,
       "targetPercentage": 15
-    },
-    "tradeSettings": {
-      "maxTradeHoldingTimeInSec": 150
     },
     "exitSignalConfiguration": {
       "enabled": true,
