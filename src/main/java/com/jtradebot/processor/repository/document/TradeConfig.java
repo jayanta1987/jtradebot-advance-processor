@@ -24,7 +24,7 @@ public class TradeConfig {
     @ToString
     public static class TradePreference {
 
-        private double maxInvestmentPercentage;
+        private double maxInvestment;
         private int minQuantity;
         private int maxQuantity;
         private double maxLossPercentagePerDay;

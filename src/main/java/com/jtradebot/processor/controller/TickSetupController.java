@@ -44,7 +44,7 @@ public class TickSetupController {
             if (tradeConfig.getTradePreference() != null) {
                 TradeConfig.TradePreference prefs = tradeConfig.getTradePreference();
                 Map<String, Object> preferences = new HashMap<>();
-                preferences.put("maxInvestmentPercentage", prefs.getMaxInvestmentPercentage());
+                preferences.put("maxInvestment", prefs.getMaxInvestment());
                 preferences.put("minQuantity", prefs.getMinQuantity());
                 preferences.put("maxQuantity", prefs.getMaxQuantity());
                 preferences.put("maxLossPercentagePerDay", prefs.getMaxLossPercentagePerDay());

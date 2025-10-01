@@ -4,11 +4,13 @@ import com.jtradebot.processor.repository.document.TradeConfig;
 import com.jtradebot.processor.service.TickSetupService;
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
+import com.jtradebot.processor.common.ProfileUtil;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Margin;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -24,6 +26,7 @@ public class DynamicQuantityService {
     private final LiveOptionPricingService liveOptionPricingService;
     private final TickSetupService tickSetupService;
     private final OrderNotificationService orderNotificationService;
+    private final Environment environment;
     
     // Constants
     public static final int ZERO_QUANTITY = 0;
@@ -41,7 +44,7 @@ public class DynamicQuantityService {
         
         // Return default values if database access fails
         TradeConfig.TradePreference defaultPrefs = new TradeConfig.TradePreference();
-        defaultPrefs.setMaxInvestmentPercentage(95.0);
+        defaultPrefs.setMaxInvestment(50000.0);
         defaultPrefs.setMinQuantity(75);
         defaultPrefs.setMaxQuantity(150);
         return defaultPrefs;
@@ -57,7 +60,15 @@ public class DynamicQuantityService {
             TradeConfig.TradePreference preferences = getTradingPreferences();
             int minQuantity = preferences.getMinQuantity();
             int maxQuantity = preferences.getMaxQuantity();
-            double maxInvestmentPercentage = preferences.getMaxInvestmentPercentage() / 100.0;
+            
+            // For local profile, simply use max quantity without balance checks
+            if (ProfileUtil.isProfileActive(environment, "local")) {
+                log.info("🏠 LOCAL PROFILE - Using max quantity directly: {} (Order Type: {})", maxQuantity, orderType);
+                return maxQuantity;
+            }
+            
+            // For live profile, perform full balance-based calculation
+            double maxInvestment = preferences.getMaxInvestment();
             
             // Step 1: Get current balance from KiteConnect
             double availableBalance = getCurrentBalance();
@@ -90,17 +101,18 @@ public class DynamicQuantityService {
                 return ZERO_QUANTITY;
             }
             
-            // Step 4: Calculate how many lots we can afford
-            double maxInvestmentAmount = availableBalance * maxInvestmentPercentage;
+            // Step 4: Calculate how many lots we can afford using Math.min(maxInvestment, currentBalance)
+            double maxInvestmentAmount = Math.min(maxInvestment, availableBalance);
             int maxAffordableLots = (int) Math.floor(maxInvestmentAmount / costPerLot);
             
             // Step 5: Apply safety limits from database
             int calculatedQuantity = Math.max(minQuantity, Math.min(maxAffordableLots * minQuantity, maxQuantity));
             
-            log.info("DYNAMIC QTY CALCULATION - Order Type: {}, Balance: ₹{}, Option Price: ₹{}, " +
+            log.info("🔴 LIVE PROFILE - DYNAMIC QTY CALCULATION - Order Type: {}, Balance: ₹{}, Max Investment: ₹{}, Option Price: ₹{}, " +
                     "Cost/Lot: ₹{}, Max Lots: {}, Min Qty: {}, Max Qty: {}, Calculated Qty: {}",
                     orderType,
                     String.format("%.2f", availableBalance),
+                    String.format("%.2f", maxInvestment),
                     String.format("%.2f", optionPrice),
                     String.format("%.2f", costPerLot),
                     maxAffordableLots,

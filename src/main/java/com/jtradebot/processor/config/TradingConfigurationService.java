@@ -307,15 +307,8 @@ public class TradingConfigurationService implements InitializingBean {
 
     @Data
     public static class TradingConfig {
-        private InvestmentLimits investmentLimits;
         private RiskManagement riskManagement;
         private ExitSignalConfiguration exitSignalConfiguration;
-    }
-
-
-    @Data
-    public static class InvestmentLimits {
-        private double maxInvestmentPercentage;
     }
 
     @Data

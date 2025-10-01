@@ -38,7 +38,6 @@ public class ScalpingEntryConfig {
     public static class TradingConfiguration {
         private Double accountBalance;
         private QuantitySettings quantitySettings;
-        private InvestmentLimits investmentLimits;
         private RiskManagement riskManagement;
         private TradeSettings tradeSettings;
     }
@@ -53,14 +52,6 @@ public class ScalpingEntryConfig {
         private Integer maxQuantityPerTrade;
     }
     
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class InvestmentLimits {
-        private Double maxInvestmentPercentage;
-    }
     
     @Data
     @Builder

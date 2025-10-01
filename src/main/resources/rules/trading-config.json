@@ -1,8 +1,5 @@
 {
   "tradingConfiguration": {
-    "investmentLimits": {
-      "maxInvestmentPercentage": 95.0
-    },
     "riskManagement": {
       "maxRiskPerDayPercentage": 2.0,
       "maxProfitPerDayPercentage": 5.0,
