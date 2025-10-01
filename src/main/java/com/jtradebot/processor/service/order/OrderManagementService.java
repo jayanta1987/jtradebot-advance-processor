@@ -23,6 +23,7 @@ import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.model.indicator.Support;
 import com.jtradebot.processor.model.indicator.Resistance;
 import com.jtradebot.processor.model.indicator.EmaIndicatorInfo;
+import com.jtradebot.processor.model.NtpDetails;
 import com.jtradebot.processor.manager.BarSeriesManager;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import org.ta4j.core.BarSeries;
@@ -64,7 +65,8 @@ public class OrderManagementService {
 
     public JtradeOrder createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable,
                                         double qualityScore, String dominantTrend,
-                                        Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) throws KiteException {
+                                        Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores,
+                                        UnstableMarketConditionAnalysisService.FlexibleFilteringResult ntpFilterResult) throws KiteException {
         JtradeOrder order = new JtradeOrder();
         double stopLossPoints = 0.0, targetPoints = 0.0;
         try {
@@ -193,6 +195,37 @@ public class OrderManagementService {
                 order.setEntryQualityScore(qualityScore);
                 order.setEntryDominantTrend(dominantTrend);
 
+                // 🔥 NEW: Store NTP filter results at entry time
+                if (ntpFilterResult != null) {
+                    List<UnstableMarketConditionAnalysisService.FilterResult> allFilters = ntpFilterResult.getFilterResults();
+                    long passedFilters = allFilters.stream().filter(UnstableMarketConditionAnalysisService.FilterResult::isPassed).count();
+                    long failedFilters = allFilters.stream().filter(f -> !f.isPassed()).count();
+                    
+                    // Build list of failed filter names with NTP values
+                    List<String> failedFilterDetails = allFilters.stream()
+                            .filter(f -> !f.isPassed())
+                            .map(f -> String.format("%s (NTP: %.1f)", f.getName(), f.getNtp()))
+                            .toList();
+                    
+                    // Create comprehensive NTP details
+                    NtpDetails ntpDetails = NtpDetails.builder()
+                            .filtersPassed((int) passedFilters)
+                            .filtersFailed((int) failedFilters)
+                            .totalFiltersChecked(allFilters.size())
+                            .totalNtpValue((double) ntpFilterResult.getTotalNTP())
+                            .maxAllowedNtpValue((double) ntpFilterResult.getMaxAllowedNTP())
+                            .failedFilterNames(failedFilterDetails)
+                            .ntpReason(ntpFilterResult.getReason())
+                            .conditionsMet(ntpFilterResult.isConditionsMet())
+                            .build();
+                    
+                    order.setEntryNtpDetails(ntpDetails);
+                    
+                    log.info("📊 NTP ENTRY TRACKING - Passed: {}, Failed: {}, Total: {}, NTP Value: {}/{}", 
+                            passedFilters, failedFilters, allFilters.size(), 
+                            ntpFilterResult.getTotalNTP(), ntpFilterResult.getMaxAllowedNTP());
+                }
+
                 // Store market condition details at entry time
                 order.setEntryMarketConditionSuitable(entryMarketConditionSuitable);
 
@@ -245,13 +278,14 @@ public class OrderManagementService {
 
 
     public void entryOrder(Tick tick, ScalpingEntryDecision entryDecision, boolean inTradingZone, String dominantTrend,
-                           double qualityScore, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores) {
+                           double qualityScore, Map<String, DetailedCategoryScore> detailedCallScores, Map<String, DetailedCategoryScore> detailedPutScores,
+                           UnstableMarketConditionAnalysisService.FlexibleFilteringResult ntpFilterResult) {
         try {
             boolean hasActiveOrder = activeOrderTrackingService.hasActiveOrder();
             if (!hasActiveOrder) {
                 // Determine order type based on entry decision
                 String orderType = determineOrderType(dominantTrend);
-                JtradeOrder jtradeOrder = createTradeOrder(tick, orderType, entryDecision, inTradingZone, qualityScore, dominantTrend, detailedCallScores, detailedPutScores);
+                JtradeOrder jtradeOrder = createTradeOrder(tick, orderType, entryDecision, inTradingZone, qualityScore, dominantTrend, detailedCallScores, detailedPutScores, ntpFilterResult);
                 if (jtradeOrder.getId() == null) {
                     log.warn("Order creation failed - Order ID is null.");
                     return;
