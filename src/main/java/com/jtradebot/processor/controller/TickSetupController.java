@@ -1,5 +1,6 @@
 package com.jtradebot.processor.controller;
 
+import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.repository.document.TradeConfig;
 import com.jtradebot.processor.service.TickSetupService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import java.util.Map;
 @Slf4j
 public class TickSetupController {
     private final TickSetupService tickSetupService;
+    private final TradingConfigurationService tradingConfigurationService;
 
     @GetMapping("/tick-dates")
     public List<String> getTickDates() {
@@ -64,6 +66,65 @@ public class TickSetupController {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Failed to retrieve trade configuration");
             errorResponse.put("message", e.getMessage());
+            return errorResponse;
+        }
+    }
+
+    @PostMapping("/refresh-config")
+    public Map<String, Object> refreshConfiguration() {
+        try {
+            log.info("🔄 Configuration refresh requested via API");
+            
+            // Step 1: Invalidate TradeConfig cache
+            tickSetupService.invalidateTradeConfigCache();
+            log.info("✅ TradeConfig cache invalidated");
+            
+            // Step 2: Refresh ScalpingEntryConfig from MongoDB
+            tradingConfigurationService.refreshConfigurationFromMongoDB();
+            log.info("✅ ScalpingEntryConfig refreshed from MongoDB");
+            
+            // Step 3: Get the fresh configuration to return
+            TradeConfig tradeConfig = tickSetupService.getTradeConfig();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Configuration refreshed successfully");
+            response.put("timestamp", java.time.LocalDateTime.now().toString());
+            
+            // Include the refreshed trade configuration
+            Map<String, Object> configData = new HashMap<>();
+            configData.put("date", tradeConfig.getDate());
+            configData.put("hasAccessToken", tradeConfig.getAccessToken() != null);
+            configData.put("createdAt", tradeConfig.getCreatedAt());
+            configData.put("updatedAt", tradeConfig.getUpdatedAt());
+            
+            if (tradeConfig.getTradePreference() != null) {
+                TradeConfig.TradePreference prefs = tradeConfig.getTradePreference();
+                Map<String, Object> preferences = new HashMap<>();
+                preferences.put("maxInvestment", prefs.getMaxInvestment());
+                preferences.put("minQuantity", prefs.getMinQuantity());
+                preferences.put("maxQuantity", prefs.getMaxQuantity());
+                preferences.put("maxLossPercentagePerDay", prefs.getMaxLossPercentagePerDay());
+                preferences.put("maxProfitPercentagePerDay", prefs.getMaxProfitPercentagePerDay());
+                preferences.put("maxTradeHoldingTimeInSec", prefs.getMaxTradeHoldingTimeInSec());
+                
+                configData.put("tradePreference", preferences);
+            } else {
+                configData.put("tradePreference", null);
+            }
+            
+            response.put("refreshedConfig", configData);
+            
+            log.info("🎉 Configuration refresh completed successfully");
+            return response;
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to refresh configuration: {}", e.getMessage(), e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to refresh configuration");
+            errorResponse.put("message", e.getMessage());
+            errorResponse.put("timestamp", java.time.LocalDateTime.now().toString());
             return errorResponse;
         }
     }
