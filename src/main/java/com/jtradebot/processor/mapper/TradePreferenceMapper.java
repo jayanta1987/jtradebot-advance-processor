@@ -10,7 +10,7 @@ public class TradePreferenceMapper {
         TradeConfig.TradePreference tradePreference = new TradeConfig.TradePreference();
         
         // Set default values for the new database-driven configuration
-        tradePreference.setMaxInvestmentPercentage(99.0); // 99% of available balance
+        tradePreference.setMaxInvestment(50000.0); // Fixed max investment amount
         tradePreference.setMinQuantity(75); // Minimum 1 lot
         tradePreference.setMaxQuantity(600); // Maximum 40 lots (safety limit)
         tradePreference.setMaxLossPercentagePerDay(5.0);
