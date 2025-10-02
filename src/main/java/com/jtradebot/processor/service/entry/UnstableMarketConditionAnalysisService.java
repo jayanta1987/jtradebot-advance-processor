@@ -190,6 +190,26 @@ public class UnstableMarketConditionAnalysisService {
                         absDistance, minAllowedDistance, maxAllowedDistance);
                 break;
 
+            case "ema5Distance":
+                Double ema5Distance5min = indicators.getEma5_distance_5min();
+                Double ema5_5min = indicators.getEma5_5min();
+
+                if (ema5Distance5min == null || ema5_5min == null) {
+                    passed = false;
+                    details = "EMA 5 distance or EMA 5 value is null";
+                    break;
+                }
+
+                double absEma5Distance = Math.abs(ema5Distance5min);
+                double threshold = ema5_5min * filter.getThreshold();
+
+                // Check if distance is within the threshold (within ±0.15% of EMA 5)
+                passed = absEma5Distance <= threshold;
+
+                details = String.format("EMA 5 distance: %.2f (threshold: %.2f)",
+                        absEma5Distance, threshold);
+                break;
+
             case "priceBetweenEma34AndEma200":
                 Double ema34_5min_price = indicators.getEma34_5min();
                 Double ema200_5min_price = indicators.getEma200_5min();

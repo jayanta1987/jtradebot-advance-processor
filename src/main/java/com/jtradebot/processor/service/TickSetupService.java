@@ -5,6 +5,7 @@ import com.jtradebot.processor.repository.TradeConfigRepository;
 import com.jtradebot.tickstore.repository.CalculatedTick;
 import com.jtradebot.tickstore.repository.TickModel;
 import com.jtradebot.processor.repository.document.TradeConfig;
+import com.jtradebot.processor.model.ExitSettings;
 import com.mongodb.DuplicateKeyException;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.models.User;
@@ -74,6 +75,7 @@ public class TickSetupService {
             newConfig.setDate(formattedDate);
             newConfig.setAccessToken(user.accessToken);
             newConfig.setTradePreference(getDefaultTradePreference());
+            newConfig.setExitSettings(getDefaultExitSettings());
             newConfig.setCreatedAt(currentTimestamp);
             newConfig.setUpdatedAt(currentTimestamp);
             try {
@@ -106,7 +108,7 @@ public class TickSetupService {
         // Return cached value if available
         TradeConfig cachedConfig = tradeConfigCache.get(formattedDate);
         if (cachedConfig != null) {
-            log.info("TradeConfig returned from cache for date {}", formattedDate);
+            log.debug("TradeConfig returned from cache for date {}", formattedDate);
             return cachedConfig;
         }
         
@@ -147,6 +149,23 @@ public class TickSetupService {
             }
         }
         return new ArrayList<>(uniqueDates);
+    }
+
+    /**
+     * Get default exit settings with all exit types enabled
+     */
+    private ExitSettings getDefaultExitSettings() {
+        ExitSettings defaultExitSettings = new ExitSettings();
+        defaultExitSettings.setMilestoneBasedExitEnabled(true);
+        defaultExitSettings.setPriceMovementExitEnabled(true);
+        defaultExitSettings.setTimeBasedExitEnabled(true);
+        defaultExitSettings.setStrategyBasedExitEnabled(true);
+        defaultExitSettings.setStopLossTargetExitEnabled(true);
+        defaultExitSettings.setLastModifiedBy("SYSTEM");
+        defaultExitSettings.updateLastModified();
+        
+        log.info("📝 Created default exit settings - All exit types enabled");
+        return defaultExitSettings;
     }
 
 }

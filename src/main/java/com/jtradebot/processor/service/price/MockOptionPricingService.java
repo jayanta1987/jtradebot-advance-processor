@@ -44,7 +44,7 @@ public class MockOptionPricingService {
     }
 
     public double calculateEntryLTP(Double currentIndexPrice) {
-        return currentIndexPrice * 0.01;
+        return currentIndexPrice * 0.005; // Changed from 0.01 (1%) to 0.005 (0.5%)
     }
 
 }

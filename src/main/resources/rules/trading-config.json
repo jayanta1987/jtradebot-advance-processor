@@ -4,7 +4,7 @@
       "maxRiskPerDayPercentage": 2.0,
       "maxProfitPerDayPercentage": 5.0,
       "minMilestonePoints": 3.0,
-      "maxMilestonePoints": 5.0,
+      "maxMilestonePoints": 4.0,
       "rsiThresholds": {
         "callRsiThreshold": 60.0,
         "putRsiThreshold": 40.0,

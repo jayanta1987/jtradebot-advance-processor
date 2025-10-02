@@ -18,6 +18,7 @@ import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
 import com.jtradebot.processor.service.quantity.DynamicQuantityService;
+import com.jtradebot.processor.service.tracking.OptionLTPTrackingService;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.indicator.SupportResistanceIndicator;
 import com.jtradebot.processor.model.indicator.Support;
@@ -62,6 +63,7 @@ public class OrderManagementService {
     private final SupportResistanceIndicator supportResistanceIndicator;
     private final BarSeriesManager barSeriesManager;
     private final DynamicQuantityService dynamicQuantityService;
+    private final OptionLTPTrackingService optionLTPTrackingService;
 
     public JtradeOrder createTradeOrder(Tick tick, String orderType, ScalpingEntryDecision entryDecision, Boolean entryMarketConditionSuitable,
                                         double qualityScore, String dominantTrend,
@@ -393,6 +395,9 @@ public class OrderManagementService {
         }
 
         activeOrderTrackingService.removeActiveOrderMap(orderId);
+
+        // Clear LTP tracking history for this order
+        optionLTPTrackingService.clearLTPHistory(orderId);
 
         // Enhanced exit logging with clear visual indicator
         log.info("<<<<<<<<<EXIT>>>>>>>>> - Order: {} - {} @ {} (Reason: {}, Points: {}, Profit: {})",
