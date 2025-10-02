@@ -2,8 +2,10 @@ package com.jtradebot.processor.service.notification;
 
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
+import com.jtradebot.processor.common.ProfileUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -17,12 +19,19 @@ import java.time.format.DateTimeFormatter;
 public class OrderNotificationService {
 
     private final SnsEmailService snsEmailService;
+    private final Environment environment;
 
     /**
      * Send notification when a new order is created
      */
     public void sendOrderCreationNotification(JtradeOrder order) {
         try {
+            // Skip notifications for local profile
+            if (ProfileUtil.isProfileActive(environment, "local")) {
+                log.info("📧 Order creation notification skipped for local profile - Order: {}", order.getId());
+                return;
+            }
+            
             String subject = "🚀 NEW TRADE ORDER CREATED";
             String message = buildOrderCreationMessage(order);
             
@@ -38,6 +47,12 @@ public class OrderNotificationService {
      */
     public void sendOrderExitNotification(JtradeOrder order, ExitReasonEnum exitReason, Double exitPrice, Double exitIndexPrice) {
         try {
+            // Skip notifications for local profile
+            if (ProfileUtil.isProfileActive(environment, "local")) {
+                log.info("📧 Order exit notification skipped for local profile - Order: {}", order.getId());
+                return;
+            }
+            
             String subject = "🏁 TRADE ORDER EXITED";
             String message = buildOrderExitMessage(order, exitReason, exitPrice, exitIndexPrice);
             
@@ -53,6 +68,12 @@ public class OrderNotificationService {
      */
     public void sendCustomNotification(String subject, String message) {
         try {
+            // Skip notifications for local profile
+            if (ProfileUtil.isProfileActive(environment, "local")) {
+                log.info("📧 Custom notification skipped for local profile - Subject: {}", subject);
+                return;
+            }
+            
             snsEmailService.sendEmail(subject, message);
             log.info("📧 Custom notification sent with subject: {}", subject);
         } catch (Exception e) {

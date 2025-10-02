@@ -1,6 +1,6 @@
 package com.jtradebot.processor.repository.document;
 
-
+import com.jtradebot.processor.model.ExitSettings;
 import lombok.Data;
 import lombok.ToString;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -19,6 +19,7 @@ public class TradeConfig {
     private String createdAt;
     private String updatedAt;
     private TradePreference tradePreference;
+    private ExitSettings exitSettings;
 
     @Data
     @ToString

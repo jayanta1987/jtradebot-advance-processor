@@ -146,7 +146,7 @@ public class TickOrchestrationService {
                         }
 
                         if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
-                            orderManagementService.entryOrder(tick, scenarioDecision, result.isConditionsMet(), dominantTrend, qualityScore, detailedCallScores, detailedPutScores);
+                            orderManagementService.entryOrder(tick, scenarioDecision, result.isConditionsMet(), dominantTrend, qualityScore, detailedCallScores, detailedPutScores, result);
                         }
                     }
 

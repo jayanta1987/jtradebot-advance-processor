@@ -33,7 +33,13 @@ public class FlattenedIndicators {
     private Double ema200_distance_5min; // Distance from EMA 200 in 5min timeframe
     private Double ema200_distance_15min; // Distance from EMA 200 in 15min timeframe
     
+    // EMA 5 distance indicators (distance from EMA 5)
+    private Double ema5_distance_1min; // Distance from EMA 5 in 1min timeframe
+    private Double ema5_distance_5min; // Distance from EMA 5 in 5min timeframe
+    private Double ema5_distance_15min; // Distance from EMA 5 in 15min timeframe
+    
     // EMA values for additional filtering
+    private Double ema5_5min; // EMA 5 value in 5min timeframe
     private Double ema34_5min; // EMA 34 value in 5min timeframe
     private Double ema200_5min; // EMA 200 value in 5min timeframe
     

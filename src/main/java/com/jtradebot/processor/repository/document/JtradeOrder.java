@@ -7,6 +7,7 @@ import com.jtradebot.processor.model.MilestoneSystem.Milestone;
 import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
 import com.jtradebot.processor.model.indicator.Support;
 import com.jtradebot.processor.model.indicator.Resistance;
+import com.jtradebot.processor.model.NtpDetails;
 
 import lombok.Data;
 import lombok.ToString;
@@ -101,6 +102,9 @@ public class JtradeOrder {
     private Integer optionalFiltersFailed;
     private Integer totalFiltersChecked;
     private List<String> filterFailureReason; // List of failed filter names with NTP values
+    
+    // 🔥 NEW: NTP Details at Entry Time (comprehensive NTP tracking)
+    private NtpDetails entryNtpDetails;         // Complete NTP filter results and details at entry time
     
     // Support and Resistance Data at Entry Time
     private Set<Support> entrySupports; // All support levels found at entry time

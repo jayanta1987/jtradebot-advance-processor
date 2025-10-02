@@ -54,6 +54,10 @@ public class RuleHelper {
                     double ema200Distance1min = currentPrice - ema200_1min;
                     indicators.setEma200_distance_1min(ema200Distance1min);
                     
+                    // Calculate EMA 5 distance for 1min timeframe
+                    double ema5Distance1min = currentPrice - ema5_1min;
+                    indicators.setEma5_distance_1min(ema5Distance1min);
+                    
                     // Calculate new EMA price position indicators for 1min
                     indicators.setPrice_above_ema5_1min(currentPrice > ema5_1min);
                     indicators.setPrice_above_ema34_1min(currentPrice > ema34_1min);
@@ -137,6 +141,12 @@ public class RuleHelper {
                     double currentPrice = fiveMinSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance5min = currentPrice - ema200_5min;
                     indicators.setEma200_distance_5min(ema200Distance5min);
+                    
+                    // Calculate EMA 5 distance for 5min timeframe
+                    double ema5Distance5min = currentPrice - ema5_5min;
+                    indicators.setEma5_distance_5min(ema5Distance5min);
+                    
+                    indicators.setEma5_5min(ema5_5min);
                     indicators.setEma34_5min(ema34_5min);
                     indicators.setEma200_5min(ema200_5min);
                     
@@ -217,6 +227,10 @@ public class RuleHelper {
                     double currentPrice = fifteenMinSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance15min = currentPrice - ema200_15min;
                     indicators.setEma200_distance_15min(ema200Distance15min);
+                    
+                    // Calculate EMA 5 distance for 15min timeframe
+                    double ema5Distance15min = currentPrice - ema5_15min;
+                    indicators.setEma5_distance_15min(ema5Distance15min);
                     
                     // Calculate MACD indicators for 15min
                     MACDIndicator.MACDResult macdResult15min = macdIndicator.calculateMACD(fifteenMinSeries);
