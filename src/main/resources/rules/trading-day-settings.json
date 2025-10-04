@@ -1,7 +1,7 @@
 {
-  "strategy": "EXIT_SETTINGS_CONFIGURATION",
+  "strategy": "TRADING_DAY_SETTINGS_CONFIGURATION",
   "version": "1.0",
-  "description": "Exit settings configuration with default values",
+  "description": "Trading day settings configuration with exit settings and trade preferences",
   
   "exitSettings": {
     "milestoneBasedExit": {
@@ -29,9 +29,9 @@
   "tradePreferences": {
     "maxInvestment": 50000.0,
     "minQuantity": 75,
-    "maxQuantity": 600,
-    "maxLossPercentagePerDay": 5.0,
-    "maxProfitPercentagePerDay": 10.0,
+    "maxQuantity": 525,
+    "maxLossPerDay": 5000.0,
+    "maxProfitPerDay": 15000.0,
     "maxTradeHoldingTimeInSec": 150
   },
   
@@ -41,11 +41,5 @@
     "endHour": 15,
     "endMinute": 30,
     "description": "Default market trading hours"
-  },
-  
-  "quantitySettings": {
-    "minLotSize": 75,
-    "maxQuantityPerTrade": 600,
-    "description": "Default quantity settings for trades"
   }
 }

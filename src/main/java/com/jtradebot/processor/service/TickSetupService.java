@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service;
 
-import com.jtradebot.processor.config.ExitSettingsService;
+import com.jtradebot.processor.config.TradingConfigService;
+import com.jtradebot.processor.model.ExitSettings;
 import com.jtradebot.processor.repository.TickRepository;
 import com.jtradebot.processor.repository.TradeConfigRepository;
 import com.jtradebot.tickstore.repository.CalculatedTick;
@@ -21,7 +22,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.jtradebot.processor.handler.DateTimeHandler.getTodaysDateString;
-import static com.jtradebot.processor.mapper.TradePreferenceMapper.getDefaultTradePreference;
 
 @Service
 @RequiredArgsConstructor
@@ -31,7 +31,7 @@ public class TickSetupService {
     private final KiteConnect kiteConnect;
     private final TradeConfigRepository tradeConfigRepository;
     private final TickRepository tickRepository;
-    private final ExitSettingsService exitSettingsService;
+    private final TradingConfigService tradingConfigService;
     
     // Cache for TradeConfig to avoid repeated database calls
     private final Map<String, TradeConfig> tradeConfigCache = new ConcurrentHashMap<>();
@@ -61,29 +61,45 @@ public class TickSetupService {
         
         String currentTimestamp = getCurrentISTTimestamp();
         
+        // Get trade preferences from TradingConfigService
+        TradeConfig.TradePreference tradePreference = tradingConfigService.getDefaultTradePreference();
+        ExitSettings exitSettings = tradingConfigService.getExitSettings();
+        
+        log.info("🔧 SAVING TRADE CONFIG - Date: {}, TradePreference: {}, ExitSettings: {}", 
+                formattedDate, tradePreference != null ? "LOADED" : "NULL", exitSettings != null ? "LOADED" : "NULL");
+        
+        // Fail fast if configuration is not available
+        if (tradePreference == null) {
+            throw new RuntimeException("TradePreference is NULL from TradingConfigService. Configuration not properly loaded at startup.");
+        }
+        
+        if (exitSettings == null) {
+            throw new RuntimeException("ExitSettings is NULL from TradingConfigService. Configuration not properly loaded at startup.");
+        }
+        
         if (existingConfig != null) {
             // Update existing record
             existingConfig.setAccessToken(user.accessToken);
-            existingConfig.setTradePreference(getDefaultTradePreference());
+            existingConfig.setTradePreference(tradePreference);
             existingConfig.setUpdatedAt(currentTimestamp);
             tradeConfigRepository.save(existingConfig);
             // Invalidate cache for this date
             tradeConfigCache.remove(formattedDate);
-            log.info("Updated existing TradeConfig for date: {} and invalidated cache", formattedDate);
+            log.info("✅ Updated existing TradeConfig for date: {} with tradePreference and invalidated cache", formattedDate);
         } else {
             // Create new record
             TradeConfig newConfig = new TradeConfig();
             newConfig.setDate(formattedDate);
             newConfig.setAccessToken(user.accessToken);
-            newConfig.setTradePreference(getDefaultTradePreference());
-            newConfig.setExitSettings(exitSettingsService.getExitSettings());
+            newConfig.setTradePreference(tradePreference);
+            newConfig.setExitSettings(exitSettings);
             newConfig.setCreatedAt(currentTimestamp);
             newConfig.setUpdatedAt(currentTimestamp);
             try {
                 tradeConfigRepository.save(newConfig);
                 // Invalidate cache for this date
                 tradeConfigCache.remove(formattedDate);
-                log.info("Created new TradeConfig for date: {} and invalidated cache", formattedDate);
+                log.info("✅ Created new TradeConfig for date: {} with tradePreference and exitSettings, invalidated cache", formattedDate);
             } catch (DuplicateKeyException e) {
                 log.warn("Duplicate TradeConfig detected for date: {}. Removing existing and creating new one.", formattedDate);
                 // Remove existing record and create new one
@@ -91,7 +107,7 @@ public class TickSetupService {
                 tradeConfigRepository.save(newConfig);
                 // Invalidate cache for this date
                 tradeConfigCache.remove(formattedDate);
-                log.info("Successfully replaced TradeConfig for date: {} and invalidated cache", formattedDate);
+                log.info("✅ Successfully replaced TradeConfig for date: {} with tradePreference and exitSettings, invalidated cache", formattedDate);
             }
         }
     }
@@ -151,6 +167,263 @@ public class TickSetupService {
         }
         return new ArrayList<>(uniqueDates);
     }
+
+    /**
+     * Update a specific field in the trade preference or exit settings
+     * @param field The field name to update (e.g., "tradePreference.maxInvestment" or "exitSettings.priceMovementExitEnabled")
+     * @param value The new value for the field
+     * @return true if update was successful, false otherwise
+     */
+    public boolean updateTradePreference(String field, Object value) {
+        try {
+            String formattedDate = getTodaysDateString("Asia/Kolkata", "'IST-'yyyy-MM-dd");
+            TradeConfig tradeConfig = tradeConfigRepository.findByDate(formattedDate).orElse(null);
+            
+            if (tradeConfig == null) {
+                log.error("No TradeConfig found for date: {}", formattedDate);
+                return false;
+            }
+            
+            // Parse the field path (e.g., "tradePreference.maxInvestment" or "exitSettings.priceMovementExitEnabled")
+            String[] fieldParts = field.split("\\.");
+            if (fieldParts.length != 2) {
+                log.error("Invalid field format: {}. Expected format: tradePreference.fieldName or exitSettings.fieldName", field);
+                return false;
+            }
+            
+            String section = fieldParts[0];
+            String fieldName = fieldParts[1];
+            String currentTimestamp = getCurrentISTTimestamp();
+            
+            if ("tradePreference".equals(section)) {
+                return updateTradePreferenceField(tradeConfig, fieldName, value, currentTimestamp);
+            } else if ("exitSettings".equals(section)) {
+                return updateExitSettingsField(tradeConfig, fieldName, value, currentTimestamp);
+            } else {
+                log.error("Invalid section: {}. Expected: tradePreference or exitSettings", section);
+                return false;
+            }
+            
+        } catch (IllegalArgumentException e) {
+            log.error("Validation error updating trade preference: {}", e.getMessage());
+            throw e; // Re-throw to be handled by controller
+        } catch (Exception e) {
+            log.error("Failed to update trade preference for field {}: {}", field, e.getMessage(), e);
+            return false;
+        }
+    }
+    
+    /**
+     * Update a specific field in the trade preference section
+     */
+    private boolean updateTradePreferenceField(TradeConfig tradeConfig, String fieldName, Object value, String currentTimestamp) {
+            // Ensure tradePreference exists
+            if (tradeConfig.getTradePreference() == null) {
+                tradeConfig.setTradePreference(tradingConfigService.getDefaultTradePreference());
+            }
+        
+        TradeConfig.TradePreference preferences = tradeConfig.getTradePreference();
+        
+        // Update the specific field based on field name
+        switch (fieldName) {
+            case "maxInvestment":
+                if (value instanceof Number) {
+                    double maxInvestment = ((Number) value).doubleValue();
+                    if (maxInvestment <= 0) {
+                        throw new IllegalArgumentException("Max investment must be greater than 0");
+                    }
+                    preferences.setMaxInvestment(maxInvestment);
+                    log.info("Updated maxInvestment to: {}", maxInvestment);
+                } else {
+                    throw new IllegalArgumentException("Max investment must be a number");
+                }
+                break;
+                
+            case "minQuantity":
+                if (value instanceof Number) {
+                    int minQuantity = ((Number) value).intValue();
+                    if (minQuantity <= 0) {
+                        throw new IllegalArgumentException("Min quantity must be greater than 0");
+                    }
+                    preferences.setMinQuantity(minQuantity);
+                    log.info("Updated minQuantity to: {}", minQuantity);
+                } else {
+                    throw new IllegalArgumentException("Min quantity must be a number");
+                }
+                break;
+                
+            case "maxQuantity":
+                if (value instanceof Number) {
+                    int maxQuantity = ((Number) value).intValue();
+                    if (maxQuantity <= 0) {
+                        throw new IllegalArgumentException("Max quantity must be greater than 0");
+                    }
+                    preferences.setMaxQuantity(maxQuantity);
+                    log.info("Updated maxQuantity to: {}", maxQuantity);
+                } else {
+                    throw new IllegalArgumentException("Max quantity must be a number");
+                }
+                break;
+                
+            case "maxLossPerDay":
+                if (value instanceof Number) {
+                    double maxLossPerDay = ((Number) value).doubleValue();
+                    if (maxLossPerDay < 0) {
+                        throw new IllegalArgumentException("Max loss per day must be greater than or equal to 0");
+                    }
+                    preferences.setMaxLossPerDay(maxLossPerDay);
+                    log.info("Updated maxLossPerDay to: {}", maxLossPerDay);
+                } else {
+                    throw new IllegalArgumentException("Max loss per day must be a number");
+                }
+                break;
+                
+            case "maxProfitPerDay":
+                if (value instanceof Number) {
+                    double maxProfitPerDay = ((Number) value).doubleValue();
+                    if (maxProfitPerDay < 0) {
+                        throw new IllegalArgumentException("Max profit per day must be greater than or equal to 0");
+                    }
+                    preferences.setMaxProfitPerDay(maxProfitPerDay);
+                    log.info("Updated maxProfitPerDay to: {}", maxProfitPerDay);
+                } else {
+                    throw new IllegalArgumentException("Max profit per day must be a number");
+                }
+                break;
+                
+            case "maxTradeHoldingTimeInSec":
+                if (value instanceof Number) {
+                    long maxHoldingTime = ((Number) value).longValue();
+                    if (maxHoldingTime <= 0) {
+                        throw new IllegalArgumentException("Max trade holding time must be greater than 0");
+                    }
+                    preferences.setMaxTradeHoldingTimeInSec(maxHoldingTime);
+                    log.info("Updated maxTradeHoldingTimeInSec to: {}", maxHoldingTime);
+                } else {
+                    throw new IllegalArgumentException("Max trade holding time must be a number");
+                }
+                break;
+                
+            default:
+                log.error("Unknown tradePreference field: {}", fieldName);
+                return false;
+        }
+        
+        // Update the timestamp and save
+        tradeConfig.setUpdatedAt(currentTimestamp);
+        tradeConfigRepository.save(tradeConfig);
+        
+        // Invalidate cache for this date
+        String formattedDate = getTodaysDateString("Asia/Kolkata", "'IST-'yyyy-MM-dd");
+        tradeConfigCache.remove(formattedDate);
+        log.info("Successfully updated tradePreference.{} to {} and invalidated cache", fieldName, value);
+        
+        return true;
+    }
+    
+    /**
+     * Update a specific field in the exit settings section
+     */
+    private boolean updateExitSettingsField(TradeConfig tradeConfig, String fieldName, Object value, String currentTimestamp) {
+        // Ensure exitSettings exists
+        if (tradeConfig.getExitSettings() == null) {
+            tradeConfig.setExitSettings(new com.jtradebot.processor.model.ExitSettings());
+        }
+        
+        com.jtradebot.processor.model.ExitSettings exitSettings = tradeConfig.getExitSettings();
+        
+        // Update the specific field based on field name
+        switch (fieldName) {
+            case "milestoneBasedExitEnabled":
+                boolean milestoneEnabled = parseBooleanValue(value);
+                exitSettings.setMilestoneBasedExitEnabled(milestoneEnabled);
+                log.info("Updated milestoneBasedExitEnabled to: {}", milestoneEnabled);
+                break;
+                
+            case "priceMovementExitEnabled":
+                boolean priceMovementEnabled = parseBooleanValue(value);
+                exitSettings.setPriceMovementExitEnabled(priceMovementEnabled);
+                log.info("Updated priceMovementExitEnabled to: {}", priceMovementEnabled);
+                break;
+                
+            case "timeBasedExitEnabled":
+                boolean timeBasedEnabled = parseBooleanValue(value);
+                exitSettings.setTimeBasedExitEnabled(timeBasedEnabled);
+                log.info("Updated timeBasedExitEnabled to: {}", timeBasedEnabled);
+                break;
+                
+            case "strategyBasedExitEnabled":
+                boolean strategyBasedEnabled = parseBooleanValue(value);
+                exitSettings.setStrategyBasedExitEnabled(strategyBasedEnabled);
+                log.info("Updated strategyBasedExitEnabled to: {}", strategyBasedEnabled);
+                break;
+                
+            case "stopLossTargetExitEnabled":
+                boolean stopLossTargetEnabled = parseBooleanValue(value);
+                exitSettings.setStopLossTargetExitEnabled(stopLossTargetEnabled);
+                log.info("Updated stopLossTargetExitEnabled to: {}", stopLossTargetEnabled);
+                break;
+                
+            case "milestoneBasedExitDescription":
+                if (value instanceof String) {
+                    exitSettings.setMilestoneBasedExitDescription((String) value);
+                    log.info("Updated milestoneBasedExitDescription to: {}", value);
+                } else {
+                    throw new IllegalArgumentException("Milestone based exit description must be a string");
+                }
+                break;
+                
+            case "priceMovementExitDescription":
+                if (value instanceof String) {
+                    exitSettings.setPriceMovementExitDescription((String) value);
+                    log.info("Updated priceMovementExitDescription to: {}", value);
+                } else {
+                    throw new IllegalArgumentException("Price movement exit description must be a string");
+                }
+                break;
+                
+            default:
+                log.error("Unknown exitSettings field: {}", fieldName);
+                return false;
+        }
+        
+        // Update the last modified timestamp
+        exitSettings.updateLastModified();
+        
+        // Update the timestamp and save
+        tradeConfig.setUpdatedAt(currentTimestamp);
+        tradeConfigRepository.save(tradeConfig);
+        
+        // Invalidate cache for this date
+        String formattedDate = getTodaysDateString("Asia/Kolkata", "'IST-'yyyy-MM-dd");
+        tradeConfigCache.remove(formattedDate);
+        log.info("Successfully updated exitSettings.{} to {} and invalidated cache", fieldName, value);
+        
+        return true;
+    }
+    
+    /**
+     * Parse a boolean value from various input types
+     */
+    private boolean parseBooleanValue(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        } else if (value instanceof String) {
+            String stringValue = ((String) value).toLowerCase().trim();
+            if ("true".equals(stringValue) || "1".equals(stringValue)) {
+                return true;
+            } else if ("false".equals(stringValue) || "0".equals(stringValue)) {
+                return false;
+            } else {
+                throw new IllegalArgumentException("Invalid boolean value: " + value + ". Expected: true, false, 1, or 0");
+            }
+        } else if (value instanceof Number) {
+            return ((Number) value).intValue() != 0;
+        } else {
+            throw new IllegalArgumentException("Invalid boolean value: " + value + ". Expected: boolean, string, or number");
+        }
+    }
+    
 
 
 }
