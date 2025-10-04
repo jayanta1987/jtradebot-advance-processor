@@ -1,12 +1,17 @@
 package com.jtradebot.processor.config;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jtradebot.processor.model.ExitSettings;
 import com.jtradebot.processor.repository.TradeConfigRepository;
 import com.jtradebot.processor.repository.document.TradeConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
 
 import static com.jtradebot.processor.handler.DateTimeHandler.getTodaysDateString;
 
@@ -16,6 +21,7 @@ import static com.jtradebot.processor.handler.DateTimeHandler.getTodaysDateStrin
 public class ExitSettingsService implements InitializingBean {
 
     private final TradeConfigRepository tradeConfigRepository;
+    private final ObjectMapper objectMapper;
     private ExitSettings exitSettings;
 
     @Override
@@ -24,10 +30,11 @@ public class ExitSettingsService implements InitializingBean {
     }
 
     /**
-     * Load exit settings from database
+     * Load exit settings from JSON configuration
      */
     private void loadExitSettings() {
         try {
+            // First try to load from database
             String today = getTodaysDateString("Asia/Kolkata", "'IST-'yyyy-MM-dd");
             TradeConfig tradeConfig = tradeConfigRepository.findByDate(today).orElse(null);
             
@@ -37,13 +44,54 @@ public class ExitSettingsService implements InitializingBean {
                     exitSettings.isMilestoneBasedExitEnabled(), exitSettings.isPriceMovementExitEnabled(),
                     exitSettings.isTimeBasedExitEnabled(), exitSettings.isStrategyBasedExitEnabled(), exitSettings.isStopLossTargetExitEnabled());
             } else {
-                // Create default exit settings
-                this.exitSettings = new ExitSettings();
-                log.info("📝 Created default exit settings - All exit types enabled");
+                // Load default settings from JSON configuration
+                loadDefaultExitSettingsFromJson();
             }
         } catch (Exception e) {
-            log.error("❌ Error loading exit settings, using defaults", e);
+            log.error("❌ Error loading exit settings from database, falling back to JSON", e);
+            loadDefaultExitSettingsFromJson();
+        }
+    }
+
+    /**
+     * Load default exit settings from JSON configuration file
+     */
+    private void loadDefaultExitSettingsFromJson() {
+        try {
+            ClassPathResource resource = new ClassPathResource("rules/exit-settings.json");
+            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
+            
+            if (!rootNode.has("exitSettings")) {
+                throw new RuntimeException("exitSettings section not found in exit-settings.json");
+            }
+            
+            JsonNode exitSettingsNode = rootNode.get("exitSettings");
+            
+            // Create ExitSettings object from JSON
             this.exitSettings = new ExitSettings();
+            this.exitSettings.setMilestoneBasedExitEnabled(exitSettingsNode.get("milestoneBasedExit").get("enabled").asBoolean());
+            this.exitSettings.setPriceMovementExitEnabled(exitSettingsNode.get("priceMovementExit").get("enabled").asBoolean());
+            this.exitSettings.setTimeBasedExitEnabled(exitSettingsNode.get("timeBasedExit").get("enabled").asBoolean());
+            this.exitSettings.setStrategyBasedExitEnabled(exitSettingsNode.get("strategyBasedExit").get("enabled").asBoolean());
+            this.exitSettings.setStopLossTargetExitEnabled(exitSettingsNode.get("stopLossTargetExit").get("enabled").asBoolean());
+            
+            // Set descriptions from JSON
+            this.exitSettings.setMilestoneBasedExitDescription(exitSettingsNode.get("milestoneBasedExit").get("description").asText());
+            this.exitSettings.setPriceMovementExitDescription(exitSettingsNode.get("priceMovementExit").get("description").asText());
+            
+            this.exitSettings.setLastModifiedBy("JSON_CONFIG");
+            this.exitSettings.updateLastModified();
+            
+            log.info("✅ Exit settings loaded from JSON configuration - Milestone: {}, PriceMovement: {}, Time: {}, Strategy: {}, StopLoss: {}", 
+                exitSettings.isMilestoneBasedExitEnabled(), exitSettings.isPriceMovementExitEnabled(),
+                exitSettings.isTimeBasedExitEnabled(), exitSettings.isStrategyBasedExitEnabled(), exitSettings.isStopLossTargetExitEnabled());
+                
+        } catch (IOException e) {
+            log.error("❌ Failed to read exit-settings.json configuration file", e);
+            throw new RuntimeException("Failed to load exit settings from JSON configuration", e);
+        } catch (Exception e) {
+            log.error("❌ Failed to parse exit-settings.json configuration", e);
+            throw new RuntimeException("Failed to parse exit settings from JSON configuration", e);
         }
     }
 
