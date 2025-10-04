@@ -1,7 +1,7 @@
 package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.config.TradingConfigurationService;
-import com.jtradebot.processor.config.TradingConfigService;
+import com.jtradebot.processor.config.DayTradingSettingService;
 import com.jtradebot.processor.model.ExitSettings;
 import com.jtradebot.processor.repository.document.TradeConfig;
 import com.jtradebot.processor.service.TickSetupService;
@@ -42,7 +42,7 @@ public class TickSetupController {
     }
     private final TickSetupService tickSetupService;
     private final TradingConfigurationService tradingConfigurationService;
-    private final TradingConfigService tradingConfigService;
+    private final DayTradingSettingService dayTradingSettingService;
 
     @GetMapping("/tick-dates")
     public List<String> getTickDates() {
@@ -58,7 +58,7 @@ public class TickSetupController {
     public Map<String, Object> getCurrentTradeConfig() {
         try {
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            ExitSettings exitSettings = tradingConfigService.getExitSettings();
+            ExitSettings exitSettings = dayTradingSettingService.getExitSettings();
             
             Map<String, Object> response = new HashMap<>();
             
@@ -127,12 +127,12 @@ public class TickSetupController {
             log.info("✅ ScalpingEntryConfig refreshed from MongoDB");
             
             // Step 3: Refresh ExitSettings from database
-            tradingConfigService.refreshExitSettings();
+            dayTradingSettingService.refreshExitSettings();
             log.info("✅ ExitSettings refreshed from database");
             
             // Step 4: Get the fresh configuration to return
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            ExitSettings exitSettings = tradingConfigService.getExitSettings();
+            ExitSettings exitSettings = dayTradingSettingService.getExitSettings();
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -223,7 +223,7 @@ public class TickSetupController {
             log.info("🔄 Refreshing configuration after successful update");
             tickSetupService.invalidateTradeConfigCache();
             tradingConfigurationService.refreshConfigurationFromMongoDB();
-            tradingConfigService.refreshExitSettings();
+            dayTradingSettingService.refreshExitSettings();
             log.info("✅ Configuration refreshed successfully after update");
             
             return ResponseEntity.ok(new ApiResponse(true, "Configuration updated successfully"));

@@ -13,7 +13,7 @@ import com.jtradebot.processor.service.exit.ExitSignalTrackingService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
 import com.jtradebot.processor.service.tracking.OptionLTPTrackingService;
-import com.jtradebot.processor.config.TradingConfigService;
+import com.jtradebot.processor.config.DayTradingSettingService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
 import jakarta.annotation.PostConstruct;
@@ -50,7 +50,7 @@ public class ActiveOrderTrackingService {
     private final LiveOptionPricingService liveOptionPricingService;
     private final BarSeriesManager barSeriesManager;
     private final OptionLTPTrackingService optionLTPTrackingService;
-    private final TradingConfigService tradingConfigService;
+    private final DayTradingSettingService dayTradingSettingService;
 
 
     // In-memory storage for active orders
@@ -201,7 +201,7 @@ public class ActiveOrderTrackingService {
 
         // Check traditional stop loss and target FIRST (highest priority, if enabled)
         ExitReasonEnum stopLossOrTargetReason = null;
-        if (tradingConfigService.isStopLossTargetExitEnabled()) {
+        if (dayTradingSettingService.isStopLossTargetExitEnabled()) {
             stopLossOrTargetReason = checkPrimaryExitReason(order, currentLTP);
             if (stopLossOrTargetReason == ExitReasonEnum.STOPLOSS_HIT ||
                     stopLossOrTargetReason == ExitReasonEnum.TRAILING_STOPLOSS_HIT ||
@@ -219,14 +219,14 @@ public class ActiveOrderTrackingService {
         }
 
         // Check strategy-based exit (if enabled)
-        if (tradingConfigService.isStrategyBasedExitEnabled() && 
+        if (dayTradingSettingService.isStrategyBasedExitEnabled() &&
             exitSignalTrackingService.shouldExitBasedOnStrategy(order, tick, qualityScore, dominantTrend)) {
             log.info("📊 STRATEGY EXIT - Order: {} | Reason: EXIT_SIGNAL", order.getId());
             return ExitReasonEnum.EXIT_SIGNAL;
         }
 
         // Check price movement-based exit (if enabled)
-        if (tradingConfigService.isPriceMovementExitEnabled()) {
+        if (dayTradingSettingService.isPriceMovementExitEnabled()) {
             OptionLTPTrackingService.PriceMovementExitInfo priceMovementExitInfo = 
                 optionLTPTrackingService.shouldExitBasedOnPriceMovement(order.getId());
             
@@ -243,7 +243,7 @@ public class ActiveOrderTrackingService {
         }
 
         // Check time-based exit last (lowest priority, if enabled)
-        if (tradingConfigService.isTimeBasedExitEnabled() && 
+        if (dayTradingSettingService.isTimeBasedExitEnabled() &&
             shouldExitBasedOnTime(order, tick.getTickTimestamp())) {
             log.info("⏰ TIME EXIT - Order: {} | Reason: TIME_BASED_EXIT", order.getId());
             return ExitReasonEnum.TIME_BASED_EXIT;
@@ -351,7 +351,7 @@ public class ActiveOrderTrackingService {
             updateIndexPriceTracking(order, currentIndexPrice);
 
             // Handle milestone system for additional target-based exits (lowest priority, if enabled)
-            if (tradingConfigService.isMilestoneBasedExitEnabled() && 
+            if (dayTradingSettingService.isMilestoneBasedExitEnabled() &&
                 order.getTargetMilestones() != null && !order.getTargetMilestones().isEmpty()) {
                 handleTrailingStopLossAndMilestones(order, currentLTP, currentIndexPrice);
             }
@@ -499,7 +499,7 @@ public class ActiveOrderTrackingService {
             log.info("_________________________ 💰 LIVE P&L - {} | Points: {}, P&L: ₹{}, LTP: {} _________________________",
                     orderTypeDisplay, String.format("%+.2f", points), String.format("%.2f", pnl), String.format("%.2f", currentOptionPrice));
 
-            if (tradingConfigService.isPriceMovementExitEnabled()) {
+            if (dayTradingSettingService.isPriceMovementExitEnabled()) {
                 // Track option LTP movements for analysis
                 optionLTPTrackingService.trackOptionLTP(activeOrder, currentOptionPrice, currentIndexPrice);
             }

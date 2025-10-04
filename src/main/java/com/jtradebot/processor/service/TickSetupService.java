@@ -1,6 +1,6 @@
 package com.jtradebot.processor.service;
 
-import com.jtradebot.processor.config.TradingConfigService;
+import com.jtradebot.processor.config.DayTradingSettingService;
 import com.jtradebot.processor.model.ExitSettings;
 import com.jtradebot.processor.repository.TickRepository;
 import com.jtradebot.processor.repository.TradeConfigRepository;
@@ -31,7 +31,7 @@ public class TickSetupService {
     private final KiteConnect kiteConnect;
     private final TradeConfigRepository tradeConfigRepository;
     private final TickRepository tickRepository;
-    private final TradingConfigService tradingConfigService;
+    private final DayTradingSettingService dayTradingSettingService;
     
     // Cache for TradeConfig to avoid repeated database calls
     private final Map<String, TradeConfig> tradeConfigCache = new ConcurrentHashMap<>();
@@ -62,8 +62,8 @@ public class TickSetupService {
         String currentTimestamp = getCurrentISTTimestamp();
         
         // Get trade preferences from TradingConfigService
-        TradeConfig.TradePreference tradePreference = tradingConfigService.getDefaultTradePreference();
-        ExitSettings exitSettings = tradingConfigService.getExitSettings();
+        TradeConfig.TradePreference tradePreference = dayTradingSettingService.getDefaultTradePreference();
+        ExitSettings exitSettings = dayTradingSettingService.getExitSettings();
         
         log.info("🔧 SAVING TRADE CONFIG - Date: {}, TradePreference: {}, ExitSettings: {}", 
                 formattedDate, tradePreference != null ? "LOADED" : "NULL", exitSettings != null ? "LOADED" : "NULL");
@@ -219,7 +219,7 @@ public class TickSetupService {
     private boolean updateTradePreferenceField(TradeConfig tradeConfig, String fieldName, Object value, String currentTimestamp) {
             // Ensure tradePreference exists
             if (tradeConfig.getTradePreference() == null) {
-                tradeConfig.setTradePreference(tradingConfigService.getDefaultTradePreference());
+                tradeConfig.setTradePreference(dayTradingSettingService.getDefaultTradePreference());
             }
         
         TradeConfig.TradePreference preferences = tradeConfig.getTradePreference();

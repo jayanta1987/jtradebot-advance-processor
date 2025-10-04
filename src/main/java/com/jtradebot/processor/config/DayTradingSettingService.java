@@ -18,7 +18,7 @@ import static com.jtradebot.processor.handler.DateTimeHandler.getTodaysDateStrin
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TradingConfigService implements InitializingBean {
+public class DayTradingSettingService implements InitializingBean {
 
     private final TradeConfigRepository tradeConfigRepository;
     private final ObjectMapper objectMapper;
