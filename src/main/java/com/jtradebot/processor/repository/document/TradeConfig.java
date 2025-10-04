@@ -28,8 +28,8 @@ public class TradeConfig {
         private double maxInvestment;
         private int minQuantity;
         private int maxQuantity;
-        private double maxLossPercentagePerDay;
-        private double maxProfitPercentagePerDay;
+        private double maxLossPerDay;  // Fixed value instead of percentage
+        private double maxProfitPerDay;  // Fixed value instead of percentage
         private long maxTradeHoldingTimeInSec;
     }
 }

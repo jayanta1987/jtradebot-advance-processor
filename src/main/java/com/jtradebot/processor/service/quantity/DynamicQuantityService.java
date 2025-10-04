@@ -38,16 +38,11 @@ public class DynamicQuantityService {
             if (tradeConfig.getTradePreference() != null) {
                 return tradeConfig.getTradePreference();
             }
+            throw new RuntimeException("Trading preferences not configured in database and no fallback available");
         } catch (Exception e) {
-            log.warn("Failed to get trading preferences from database, using defaults: {}", e.getMessage());
+            log.error("Failed to get trading preferences from database: {}", e.getMessage());
+            throw new RuntimeException("Failed to get trading preferences from configuration", e);
         }
-        
-        // Return default values if database access fails
-        TradeConfig.TradePreference defaultPrefs = new TradeConfig.TradePreference();
-        defaultPrefs.setMaxInvestment(50000.0);
-        defaultPrefs.setMinQuantity(75);
-        defaultPrefs.setMaxQuantity(150);
-        return defaultPrefs;
     }
 
     public int getMinQuantity() {

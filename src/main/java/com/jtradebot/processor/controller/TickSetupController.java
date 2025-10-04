@@ -1,12 +1,15 @@
 package com.jtradebot.processor.controller;
 
 import com.jtradebot.processor.config.TradingConfigurationService;
-import com.jtradebot.processor.config.ExitSettingsService;
+import com.jtradebot.processor.config.DayTradingSettingService;
 import com.jtradebot.processor.model.ExitSettings;
 import com.jtradebot.processor.repository.document.TradeConfig;
 import com.jtradebot.processor.service.TickSetupService;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
@@ -20,9 +23,26 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class TickSetupController {
+
+    @Data
+    public static class TradeConfigUpdateRequest {
+        private String field;
+        private Object value;
+    }
+
+    @Data
+    public static class ApiResponse {
+        private boolean success;
+        private String message;
+        
+        public ApiResponse(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+    }
     private final TickSetupService tickSetupService;
     private final TradingConfigurationService tradingConfigurationService;
-    private final ExitSettingsService exitSettingsService;
+    private final DayTradingSettingService dayTradingSettingService;
 
     @GetMapping("/tick-dates")
     public List<String> getTickDates() {
@@ -38,7 +58,7 @@ public class TickSetupController {
     public Map<String, Object> getCurrentTradeConfig() {
         try {
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            ExitSettings exitSettings = exitSettingsService.getExitSettings();
+            ExitSettings exitSettings = dayTradingSettingService.getExitSettings();
             
             Map<String, Object> response = new HashMap<>();
             
@@ -54,8 +74,8 @@ public class TickSetupController {
                 preferences.put("maxInvestment", prefs.getMaxInvestment());
                 preferences.put("minQuantity", prefs.getMinQuantity());
                 preferences.put("maxQuantity", prefs.getMaxQuantity());
-                preferences.put("maxLossPercentagePerDay", prefs.getMaxLossPercentagePerDay());
-                preferences.put("maxProfitPercentagePerDay", prefs.getMaxProfitPercentagePerDay());
+                preferences.put("maxLossPerDay", prefs.getMaxLossPerDay());
+                preferences.put("maxProfitPerDay", prefs.getMaxProfitPerDay());
                 preferences.put("maxTradeHoldingTimeInSec", prefs.getMaxTradeHoldingTimeInSec());
                 
                 response.put("tradePreference", preferences);
@@ -107,12 +127,12 @@ public class TickSetupController {
             log.info("✅ ScalpingEntryConfig refreshed from MongoDB");
             
             // Step 3: Refresh ExitSettings from database
-            exitSettingsService.refreshExitSettings();
+            dayTradingSettingService.refreshExitSettings();
             log.info("✅ ExitSettings refreshed from database");
             
             // Step 4: Get the fresh configuration to return
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            ExitSettings exitSettings = exitSettingsService.getExitSettings();
+            ExitSettings exitSettings = dayTradingSettingService.getExitSettings();
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -132,8 +152,8 @@ public class TickSetupController {
                 preferences.put("maxInvestment", prefs.getMaxInvestment());
                 preferences.put("minQuantity", prefs.getMinQuantity());
                 preferences.put("maxQuantity", prefs.getMaxQuantity());
-                preferences.put("maxLossPercentagePerDay", prefs.getMaxLossPercentagePerDay());
-                preferences.put("maxProfitPercentagePerDay", prefs.getMaxProfitPercentagePerDay());
+                preferences.put("maxLossPerDay", prefs.getMaxLossPerDay());
+                preferences.put("maxProfitPerDay", prefs.getMaxProfitPerDay());
                 preferences.put("maxTradeHoldingTimeInSec", prefs.getMaxTradeHoldingTimeInSec());
                 
                 configData.put("tradePreference", preferences);
@@ -172,6 +192,50 @@ public class TickSetupController {
             errorResponse.put("message", e.getMessage());
             errorResponse.put("timestamp", java.time.LocalDateTime.now().toString());
             return errorResponse;
+        }
+    }
+
+    @PatchMapping("/trade-config")
+    public ResponseEntity<ApiResponse> updateTradeConfig(@RequestBody TradeConfigUpdateRequest request) {
+        try {
+            log.info("PATCH /trade-config called with field: {} and value: {}", request.getField(), request.getValue());
+            
+            // Validate request
+            if (request.getField() == null || request.getField().trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "Field cannot be null or empty"));
+            }
+            
+            if (request.getValue() == null) {
+                return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "Value cannot be null"));
+            }
+            
+            // Update the trade configuration
+            boolean updateSuccess = tickSetupService.updateTradePreference(request.getField(), request.getValue());
+            
+            if (!updateSuccess) {
+                return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "Invalid field or value. Please check the field name and value format."));
+            }
+            
+            // Refresh configuration after successful update
+            log.info("🔄 Refreshing configuration after successful update");
+            tickSetupService.invalidateTradeConfigCache();
+            tradingConfigurationService.refreshConfigurationFromMongoDB();
+            dayTradingSettingService.refreshExitSettings();
+            log.info("✅ Configuration refreshed successfully after update");
+            
+            return ResponseEntity.ok(new ApiResponse(true, "Configuration updated successfully"));
+            
+        } catch (IllegalArgumentException e) {
+            log.error("Validation error in PATCH /trade-config: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(new ApiResponse(false, "Validation error: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to update trade config: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false, "Internal server error: " + e.getMessage()));
         }
     }
 

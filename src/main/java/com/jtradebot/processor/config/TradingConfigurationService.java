@@ -140,10 +140,11 @@ public class TradingConfigurationService implements InitializingBean {
             if (tradeConfig.getTradePreference() != null) {
                 return tradeConfig.getTradePreference().getMaxTradeHoldingTimeInSec();
             }
+            throw new RuntimeException("Max trade holding time not configured in database and no fallback available");
         } catch (Exception e) {
-            log.warn("Failed to get maxTradeHoldingTimeInSec from database, using default: {}", e.getMessage());
+            log.error("Failed to get maxTradeHoldingTimeInSec from database: {}", e.getMessage());
+            throw new RuntimeException("Failed to get max trade holding time from configuration", e);
         }
-        return 150; // Default fallback value
     }
 
     // Risk Management Methods
@@ -214,12 +215,10 @@ public class TradingConfigurationService implements InitializingBean {
                     return tradingHoursFilter.getStartHour();
                 }
             }
-            log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default start hour: 9");
-            return 9; // Default
+            throw new RuntimeException("Market start hour not configured in database and no fallback available");
         } catch (Exception e) {
             log.error("Error getting market start hour: {}", e.getMessage(), e);
-            log.warn("🕒 TRADING HOURS - Exception occurred, using default start hour: 9");
-            return 9; // Default
+            throw new RuntimeException("Failed to get market start hour from configuration", e);
         }
     }
 
@@ -234,12 +233,10 @@ public class TradingConfigurationService implements InitializingBean {
                     return tradingHoursFilter.getStartMinute();
                 }
             }
-            log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default start minute: 15");
-            return 15; // Default
+            throw new RuntimeException("Market start minute not configured in database and no fallback available");
         } catch (Exception e) {
             log.error("Error getting market start minute: {}", e.getMessage(), e);
-            log.warn("🕒 TRADING HOURS - Exception occurred, using default start minute: 15");
-            return 15; // Default
+            throw new RuntimeException("Failed to get market start minute from configuration", e);
         }
     }
 
@@ -254,12 +251,10 @@ public class TradingConfigurationService implements InitializingBean {
                     return tradingHoursFilter.getEndHour();
                 }
             }
-            log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default end hour: 15");
-            return 15; // Default
+            throw new RuntimeException("Market end hour not configured in database and no fallback available");
         } catch (Exception e) {
             log.error("Error getting market end hour: {}", e.getMessage(), e);
-            log.warn("🕒 TRADING HOURS - Exception occurred, using default end hour: 15");
-            return 15; // Default
+            throw new RuntimeException("Failed to get market end hour from configuration", e);
         }
     }
 
@@ -274,12 +269,10 @@ public class TradingConfigurationService implements InitializingBean {
                     return tradingHoursFilter.getEndMinute();
                 }
             }
-            log.warn("🕒 TRADING HOURS - scalpingEntryConfig or noTradeZones is null, using default end minute: 20");
-            return 20; // Default - matching your database config
+            throw new RuntimeException("Market end minute not configured in database and no fallback available");
         } catch (Exception e) {
             log.error("Error getting market end minute: {}", e.getMessage(), e);
-            log.warn("🕒 TRADING HOURS - Exception occurred, using default end minute: 20");
-            return 20; // Default - matching your database config
+            throw new RuntimeException("Failed to get market end minute from configuration", e);
         }
     }
 

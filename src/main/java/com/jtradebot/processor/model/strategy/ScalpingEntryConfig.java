@@ -37,19 +37,8 @@ public class ScalpingEntryConfig {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class TradingConfiguration {
         private Double accountBalance;
-        private QuantitySettings quantitySettings;
         private RiskManagement riskManagement;
         private TradeSettings tradeSettings;
-    }
-    
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class QuantitySettings {
-        private Integer minLotSize;
-        private Integer maxQuantityPerTrade;
     }
     
     

@@ -1,0 +1,45 @@
+{
+  "strategy": "TRADING_DAY_SETTINGS_CONFIGURATION",
+  "version": "1.0",
+  "description": "Trading day settings configuration with exit settings and trade preferences",
+  
+  "exitSettings": {
+    "milestoneBasedExit": {
+      "enabled": true,
+      "description": "Exit based on milestone system (trailing stop loss and target milestones)"
+    },
+    "priceMovementExit": {
+      "enabled": false,
+      "description": "Exit based on price movement patterns (reversal and neutral signals)"
+    },
+    "timeBasedExit": {
+      "enabled": true,
+      "description": "Exit based on maximum trade holding time"
+    },
+    "strategyBasedExit": {
+      "enabled": true,
+      "description": "Exit based on strategy reversal signals"
+    },
+    "stopLossTargetExit": {
+      "enabled": true,
+      "description": "Exit based on stop loss and target hit"
+    }
+  },
+  
+  "tradePreferences": {
+    "maxInvestment": 50000.0,
+    "minQuantity": 75,
+    "maxQuantity": 525,
+    "maxLossPerDay": 5000.0,
+    "maxProfitPerDay": 15000.0,
+    "maxTradeHoldingTimeInSec": 150
+  },
+  
+  "marketHours": {
+    "startHour": 9,
+    "startMinute": 15,
+    "endHour": 15,
+    "endMinute": 30,
+    "description": "Default market trading hours"
+  }
+}
