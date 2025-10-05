@@ -12,10 +12,8 @@ public interface JtradeOrderRepository extends MongoRepository<JtradeOrder, Stri
     
     @Query("{'status': 'ACTIVE'}")
     List<JtradeOrder> findAllActiveOrders();
-    
-    @Query("{'status': 'ACTIVE', 'orderType': ?0}")
-    List<JtradeOrder> findActiveOrdersByType(String orderType);
-    
-    @Query("{'status': 'ACTIVE', 'tradingSymbol': ?0}")
-    List<JtradeOrder> findActiveOrdersBySymbol(String tradingSymbol);
+
+    @Query("{'status': ?0}")
+    List<JtradeOrder> findByStatus(String status);
+
 }

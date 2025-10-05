@@ -11,6 +11,7 @@ import com.jtradebot.processor.model.NtpDetails;
 
 import lombok.Data;
 import lombok.ToString;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
@@ -24,6 +25,9 @@ import java.util.Map;
 import java.util.Set;
 
 @Document(collection = "jtrade_orders")
+@CompoundIndex(name = "status_orderType_idx", def = "{'status': 1, 'orderType': 1}")
+@CompoundIndex(name = "status_tradingSymbol_idx", def = "{'status': 1, 'tradingSymbol': 1}")
+@CompoundIndex(name = "entryTime_status_idx", def = "{'entryTime': 1, 'status': 1}")
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @ToString

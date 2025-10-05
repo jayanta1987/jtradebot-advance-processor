@@ -59,9 +59,6 @@ public class EnhancedStrikeSelectionService {
             }
 
             StrikeScore best = bestStrike.get();
-            log.info("🏆 BEST STRIKE SELECTED - Symbol: {}, Score: {:.2f}, Strike: {}, Volume: {}, OI: {}, LTP: {}", 
-                    best.getInstrument().getTradingSymbol(), best.getTotalScore(),
-                    best.getInstrument().getStrike(), best.getVolume(), best.getOi(), best.getLtp());
 
             return Optional.of(best.getInstrument());
 

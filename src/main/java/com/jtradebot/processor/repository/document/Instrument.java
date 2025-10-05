@@ -1,11 +1,15 @@
 package com.jtradebot.processor.repository.document;
 
 import lombok.Data;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
 @Document(collection = "instruments")
+@CompoundIndex(name = "name_instrumentType_segment_idx", def = "{'name': 1, 'instrumentType': 1, 'segment': 1}")
+@CompoundIndex(name = "tradingSymbol_idx", def = "{'tradingSymbol': 1}")
+@CompoundIndex(name = "name_instrumentType_idx", def = "{'name': 1, 'instrumentType': 1}")
 @Data
 public class Instrument {
     @MongoId
