@@ -82,7 +82,7 @@ public class DynamicStrategyConfigService {
     }
 
     public double getCallVolumeSurgeMultiplier() {
-        return tradingConfigurationService.getVolumeSurgeMultiplier();
+        return tradingConfigurationService.getVolumeSurgeMultiplierMin();
     }
 
     public double getCallMinMilestonePoints() {

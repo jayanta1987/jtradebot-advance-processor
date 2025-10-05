@@ -16,6 +16,7 @@ import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
 import com.jtradebot.processor.service.quantity.DynamicQuantityService;
+import com.jtradebot.processor.service.scheduler.DailyLimitsSchedulerService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Tick;
@@ -45,12 +46,19 @@ public class OrderService {
     private final KiteOrderService kiteOrderService;
     private final OrderManagementService orderManagementService;
     private final DynamicQuantityService dynamicQuantityService;
+    private final DailyLimitsSchedulerService dailyLimitsSchedulerService;
 
     /**
      * Place a manual order immediately, skipping all filters, NTP checks, and category scores
      */
     public JtradeOrder placeOrder(OrderTypeEnum orderType) throws KiteException {
         log.info("🎯 PLACING MANUAL ORDER - Type: {}", orderType);
+
+        // Check daily P&L limits first - if limits are hit, stop processing
+        if (dailyLimitsSchedulerService.isDailyLimitReached()) {
+            log.warn("🚫 DAILY LIMITS HIT - Stopping tick processing for the day");
+            return null;
+        }
         
         // Check if there's already an active order
         if (activeOrderTrackingService.hasActiveOrder()) {

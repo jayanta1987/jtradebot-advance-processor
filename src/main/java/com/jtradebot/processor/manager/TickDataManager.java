@@ -31,10 +31,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class TickDataManager {
 
     private final BarSeriesManager barSeriesManager;
-    private final SupportResistanceIndicator supportResistanceIndicator;
-    private final MultiEmaIndicator multiEmaIndicator;
-    private final RsiIndicator rsiIndicator;
-    private final com.jtradebot.processor.handler.KiteInstrumentHandler kiteInstrumentHandler;
 
     private final ConcurrentHashMap<CandleTimeFrameEnum, IndexData> indexDataMap = new ConcurrentHashMap<>();
 
@@ -56,42 +52,12 @@ public class TickDataManager {
         lock.lock();
         try {
             barSeriesManager.addTick(instrumentToken, tick);
-           /* if(instrumentToken.equals(kiteInstrumentHandler.getNifty50Token().toString())){
-                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_MIN);
-                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.THREE_MIN);
-                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.FIVE_MIN);
-                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.FIFTEEN_MIN);
-                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_HOUR);
-                addIndexData(instrumentToken, tick, CandleTimeFrameEnum.ONE_DAY);
-            }*/
         } catch (Exception e) {
             log.error("Error adding tick to Nifty50 - {}", e.getMessage());
         } finally {
             lock.unlock();
         }
     }
-
-    /*private void addIndexData(String instrumentToken, Tick tick, CandleTimeFrameEnum timeFrame) {
-        BarSeries barSeriesForTimeFrame = getBarSeriesForTimeFrame(instrumentToken, timeFrame);
-        EmaIndicatorInfo emaIndicatorInfo = multiEmaIndicator.createEmaInfoForTimeframes(barSeriesForTimeFrame, timeFrame);
-        EmaInfo emaValues = multiEmaIndicator.calculateEmaValues(barSeriesForTimeFrame, timeFrame);
-        int[] periods = {50, 34, 20, 9};
-        Set<Support> supports = supportResistanceIndicator.calculateSupports(timeFrame, barSeriesForTimeFrame, tick.getLastTradedPrice(), emaIndicatorInfo, periods);
-        Set<Resistance> resistances = supportResistanceIndicator.calculateResistances(timeFrame, barSeriesForTimeFrame, tick.getLastTradedPrice(), emaIndicatorInfo, periods);
-        Double rsiValue = rsiIndicator.getRsiValue(barSeriesForTimeFrame, 14);
-        TrendEnum trend = multiEmaIndicator.determineOverallTrendByEma(barSeriesForTimeFrame);
-
-        IndexData indexData = IndexData.builder()
-                .emaIndicatorInfo(emaIndicatorInfo)
-                .emaValues(emaValues)
-                .barSeries(barSeriesForTimeFrame)
-                .supports(supports)
-                .resistances(resistances)
-                .rsiValue(rsiValue)
-                .trend(trend)
-                .build();
-        indexDataMap.put(timeFrame, indexData);
-    }*/
 
     public BarSeries getBarSeriesForTimeFrame(String instrumentToken, CandleTimeFrameEnum timeFrame) {
         return barSeriesManager.getBarSeriesForTimeFrame(instrumentToken, timeFrame);

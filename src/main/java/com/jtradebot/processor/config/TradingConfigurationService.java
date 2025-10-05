@@ -147,6 +147,33 @@ public class TradingConfigurationService implements InitializingBean {
         }
     }
 
+    // Daily P&L Limits Configuration
+    public double getMaxProfitPerDay() {
+        try {
+            TradeConfig tradeConfig = tickSetupService.getTradeConfig();
+            if (tradeConfig.getTradePreference() != null) {
+                return tradeConfig.getTradePreference().getMaxProfitPerDay();
+            }
+            throw new RuntimeException("Max profit per day not configured in database and no fallback available");
+        } catch (Exception e) {
+            log.error("Failed to get maxProfitPerDay from database: {}", e.getMessage());
+            throw new RuntimeException("Failed to get max profit per day from configuration", e);
+        }
+    }
+
+    public double getMaxLossPerDay() {
+        try {
+            TradeConfig tradeConfig = tickSetupService.getTradeConfig();
+            if (tradeConfig.getTradePreference() != null) {
+                return tradeConfig.getTradePreference().getMaxLossPerDay();
+            }
+            throw new RuntimeException("Max loss per day not configured in database and no fallback available");
+        } catch (Exception e) {
+            log.error("Failed to get maxLossPerDay from database: {}", e.getMessage());
+            throw new RuntimeException("Failed to get max loss per day from configuration", e);
+        }
+    }
+
     // Risk Management Methods
     public double getMinMilestonePoints() {
         return tradingConfig.getRiskManagement().getMinMilestonePoints();
@@ -165,8 +192,8 @@ public class TradingConfigurationService implements InitializingBean {
     }
 
     // Volume and Signal Configuration
-    public double getVolumeSurgeMultiplier() {
-        return tradingConfig.getRiskManagement().getVolumeSurgeMultiplier();
+    public double getVolumeSurgeMultiplierMin() {
+        return tradingConfig.getRiskManagement().getVolumeSurgeMultiplierMin();
     }
 
     // Legacy Risk Management (for backward compatibility)
@@ -311,7 +338,7 @@ public class TradingConfigurationService implements InitializingBean {
         private double minMilestonePoints;
         private double maxMilestonePoints;
         private RsiThresholds rsiThresholds;
-        private double volumeSurgeMultiplier;
+        private double volumeSurgeMultiplierMin;
         private double signalStrength;
         private double stopLossPercentage;
         private double targetPercentage;

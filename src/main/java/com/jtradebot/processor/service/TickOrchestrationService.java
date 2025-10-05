@@ -20,6 +20,7 @@ import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisServ
 import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
 import com.jtradebot.processor.service.order.OrderManagementService;
 import com.jtradebot.processor.service.scheduler.TickEventTracker;
+import com.jtradebot.processor.service.scheduler.DailyLimitsSchedulerService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
@@ -53,8 +54,13 @@ public class TickOrchestrationService {
     private final DynamicStrategyConfigService configService;
     private final KafkaTickProducer kafkaTickProducer;
     private final Environment environment;
+    private final DailyLimitsSchedulerService dailyLimitsSchedulerService;
 
     public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) {
+
+        if (dailyLimitsSchedulerService.isDailyLimitReached()) {
+            log.info("DAILY LIMITS HIT - Only new Orders are blocked. But Tick processing and tick storing will continue.");
+        }
 
         // Get trading hours from configuration
         int startHour = tradingHoursConfig.getMarketStartHour();
@@ -146,6 +152,11 @@ public class TickOrchestrationService {
                         }
 
                         if (scenarioDecision != null && scenarioDecision.isShouldEntry()) {
+                            // Check daily P&L limits first - if limits are hit, stop processing
+                            if (dailyLimitsSchedulerService.isDailyLimitReached()) {
+                                log.warn("🚫 DAILY LIMITS HIT - Stopping tick processing for the day");
+                                return;
+                            }
                             orderManagementService.entryOrder(tick, scenarioDecision, result.isConditionsMet(), dominantTrend, qualityScore, detailedCallScores, detailedPutScores, result);
                         }
                     }

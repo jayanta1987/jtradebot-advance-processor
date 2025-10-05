@@ -33,13 +33,5 @@
     "maxLossPerDay": 5000.0,
     "maxProfitPerDay": 15000.0,
     "maxTradeHoldingTimeInSec": 150
-  },
-  
-  "marketHours": {
-    "startHour": 9,
-    "startMinute": 15,
-    "endHour": 15,
-    "endMinute": 30,
-    "description": "Default market trading hours"
   }
 }
