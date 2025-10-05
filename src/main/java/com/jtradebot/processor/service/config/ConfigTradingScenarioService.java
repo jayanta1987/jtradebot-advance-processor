@@ -45,50 +45,60 @@ public class ConfigTradingScenarioService {
         TradingScenario existing = tradingScenarioRepository.findByName(name)
                 .orElseThrow(() -> new IllegalArgumentException("Scenario with name '" + name + "' not found"));
         
-        // Update multiple fields based on field names
+        log.debug("Found scenario with ID: {} for field updates", existing.getId());
+        
+        // Build update map with proper type conversions
+        Map<String, Object> updateMap = new java.util.HashMap<>();
+        
         for (Map.Entry<String, Object> entry : fieldUpdates.entrySet()) {
             String fieldName = entry.getKey();
             Object newValue = entry.getValue();
             
             switch (fieldName) {
                 case "description":
-                    existing.setDescription((String) newValue);
+                    updateMap.put("description", newValue);
                     break;
                 case "targetMode":
-                    existing.setTargetMode((String) newValue);
+                    updateMap.put("targetMode", newValue);
                     break;
                 case "minQualityScore":
-                    existing.setMinQualityScore((Double) newValue);
+                    updateMap.put("minQualityScore", convertToDouble(newValue));
                     break;
                 case "flatMarketFilter":
-                    existing.setFlatMarketFilter((Boolean) newValue);
+                    updateMap.put("flatMarketFilter", newValue);
                     break;
                 case "minEmaPer":
-                    existing.setMinEmaPer((Double) newValue);
+                    updateMap.put("minEmaPer", convertToDouble(newValue));
                     break;
                 case "minFutureSignalPer":
-                    existing.setMinFutureSignalPer((Double) newValue);
+                    updateMap.put("minFutureSignalPer", convertToDouble(newValue));
                     break;
                 case "minCandlestickPer":
-                    existing.setMinCandlestickPer((Double) newValue);
+                    updateMap.put("minCandlestickPer", convertToDouble(newValue));
                     break;
                 case "minMomentumPer":
-                    existing.setMinMomentumPer((Double) newValue);
+                    updateMap.put("minMomentumPer", convertToDouble(newValue));
                     break;
                 case "comments":
-                    existing.setComments((String) newValue);
+                    updateMap.put("comments", newValue);
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown field name: " + fieldName);
             }
         }
         
-        existing.setUpdatedAt(LocalDateTime.now());
-        existing.setVersion(existing.getVersion() + 1);
+        // Add updatedAt timestamp
+        updateMap.put("updatedAt", LocalDateTime.now());
         
-        TradingScenario saved = tradingScenarioRepository.save(existing);
-        log.info("Updated {} fields in trading scenario: {}", fieldUpdates.size(), saved.getName());
-        return saved;
+        // Use direct MongoDB update
+        tradingScenarioRepository.updateScenarioFields(name, updateMap);
+        
+        // Fetch the updated scenario to return
+        TradingScenario updated = tradingScenarioRepository.findByName(name)
+                .orElseThrow(() -> new IllegalStateException("Scenario disappeared after update"));
+        
+        log.info("Updated {} fields in trading scenario: {} (ID: {})", fieldUpdates.size(), updated.getName(), updated.getId());
+        return updated;
     }
     
     public void deleteScenario(String name) {
@@ -100,15 +110,73 @@ public class ConfigTradingScenarioService {
         log.info("Deleted trading scenario: {}", name);
     }
     
+    public TradingScenario activateScenario(String name) {
+        TradingScenario scenario = tradingScenarioRepository.findByName(name)
+                .orElseThrow(() -> new IllegalArgumentException("Scenario with name '" + name + "' not found"));
+        
+        log.debug("Found scenario with ID: {} for activation", scenario.getId());
+        
+        LocalDateTime now = LocalDateTime.now();
+        tradingScenarioRepository.updateActiveStatus(name, true, now);
+        
+        // Fetch the updated scenario to return
+        TradingScenario updated = tradingScenarioRepository.findByName(name)
+                .orElseThrow(() -> new IllegalStateException("Scenario disappeared after activation"));
+        
+        log.info("Activated trading scenario: {} (ID: {})", updated.getName(), updated.getId());
+        return updated;
+    }
+    
     public TradingScenario deactivateScenario(String name) {
         TradingScenario scenario = tradingScenarioRepository.findByName(name)
                 .orElseThrow(() -> new IllegalArgumentException("Scenario with name '" + name + "' not found"));
         
-        scenario.setActive(false);
-        scenario.setUpdatedAt(LocalDateTime.now());
+        log.debug("Found scenario with ID: {} for deactivation", scenario.getId());
         
-        TradingScenario saved = tradingScenarioRepository.save(scenario);
-        log.info("Deactivated trading scenario: {}", saved.getName());
-        return saved;
+        LocalDateTime now = LocalDateTime.now();
+        tradingScenarioRepository.updateActiveStatus(name, false, now);
+        
+        // Fetch the updated scenario to return
+        TradingScenario updated = tradingScenarioRepository.findByName(name)
+                .orElseThrow(() -> new IllegalStateException("Scenario disappeared after deactivation"));
+        
+        log.info("Deactivated trading scenario: {} (ID: {})", updated.getName(), updated.getId());
+        return updated;
+    }
+    
+    /**
+     * Safely converts various numeric types to Double
+     * Handles Integer, Long, Float, Double, and String representations of numbers
+     */
+    private Double convertToDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+        
+        if (value instanceof Double) {
+            return (Double) value;
+        }
+        
+        if (value instanceof Integer) {
+            return ((Integer) value).doubleValue();
+        }
+        
+        if (value instanceof Long) {
+            return ((Long) value).doubleValue();
+        }
+        
+        if (value instanceof Float) {
+            return ((Float) value).doubleValue();
+        }
+        
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid numeric value: " + value);
+            }
+        }
+        
+        throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to Double: " + value);
     }
 }

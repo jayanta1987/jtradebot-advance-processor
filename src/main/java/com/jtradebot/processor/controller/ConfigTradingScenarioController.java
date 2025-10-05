@@ -91,6 +91,20 @@ public class ConfigTradingScenarioController {
         }
     }
     
+    @PatchMapping("/{name}/activate")
+    public ResponseEntity<TradingScenario> activateScenario(@PathVariable String name) {
+        try {
+            TradingScenario activated = configTradingScenarioService.activateScenario(name);
+            return ResponseEntity.ok(activated);
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid scenario activation request: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            log.error("Error activating scenario: {}", name, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
     @PatchMapping("/{name}/deactivate")
     public ResponseEntity<TradingScenario> deactivateScenario(@PathVariable String name) {
         try {
