@@ -4,6 +4,7 @@ import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -15,8 +16,10 @@ import java.util.List;
 /**
  * Scheduler service that runs every 30 minutes to check if any orders in the jtrade_orders collection
  * have an entry date older than today's date. If found, it clears the entire collection.
+ * This scheduler runs only in the live profile.
  */
 @Service
+@Profile("live")
 @RequiredArgsConstructor
 @Slf4j
 public class OrderCollectionCleanupSchedulerService {
