@@ -41,6 +41,7 @@ public class FlattenedIndicators {
     // EMA values for additional filtering
     private Double ema5_5min; // EMA 5 value in 5min timeframe
     private Double ema34_5min; // EMA 34 value in 5min timeframe
+    private Double ema200_1min; // EMA 200 value in 1min timeframe
     private Double ema200_5min; // EMA 200 value in 5min timeframe
     
     // New EMA price position indicators

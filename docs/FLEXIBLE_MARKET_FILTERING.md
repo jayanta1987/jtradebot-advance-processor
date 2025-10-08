@@ -36,18 +36,27 @@ The system is configured in `src/main/resources/rules/scalping-entry-config.json
         "threshold": 0.50,
         "priority": 3
       },
-      "ema200Distance": {
+      "ema200TooClose5Min": {
         "enabled": true,
-        "name": "EMA 200 Distance",
-        "description": "Filter out entries with EMA 200 distance more than 0.6% of EMA 200",
-        "threshold": 0.006,
+        "name": "EMA 200 Too Close (5min)",
+        "description": "Filter out entries when price is too close to EMA 200 (less than 0.2% on 5min)",
+        "threshold": 0.002,
+        "ntp": 3,
         "priority": 4
+      },
+      "ema200TooFar1Min": {
+        "enabled": true,
+        "name": "EMA 200 Too Far (1min)",
+        "description": "Filter out entries when price is too far from EMA 200 (more than 0.6% on 1min)",
+        "threshold": 0.006,
+        "ntp": 2,
+        "priority": 5
       },
       "priceBetweenEma34AndEma200": {
         "enabled": true,
         "name": "Price Between EMA34 and EMA200",
         "description": "Filter out entries when price is between EMA34 and EMA200",
-        "priority": 5
+        "priority": 6
       },
       "overboughtOversold": {
         "enabled": true,
@@ -55,7 +64,7 @@ The system is configured in `src/main/resources/rules/scalping-entry-config.json
         "description": "Filter out entries when RSI is overbought (>80) or oversold (<20)",
         "overboughtThreshold": 80.0,
         "oversoldThreshold": 20.0,
-        "priority": 6
+        "priority": 7
       }
     }
   }
@@ -99,10 +108,17 @@ Each filter can be configured with:
 - **Purpose**: Ensures candles have meaningful body size
 - **Threshold**: Minimum body ratio (0.0 to 1.0)
 
-#### EMA 200 Distance Filter
-- **Key**: `ema200Distance`
-- **Purpose**: Prevents entries too far from EMA 200
-- **Threshold**: Maximum distance as percentage of EMA 200
+#### EMA 200 Too Close Filter (5min)
+- **Key**: `ema200TooClose5Min`
+- **Purpose**: Prevents entries when price is too close to EMA 200 on 5min timeframe
+- **Threshold**: Minimum distance as percentage of EMA 200 (default: 0.002 = 0.2%)
+- **NTP**: 3 points
+
+#### EMA 200 Too Far Filter (1min)
+- **Key**: `ema200TooFar1Min`
+- **Purpose**: Prevents entries when price is too far from EMA 200 on 1min timeframe
+- **Threshold**: Maximum distance as percentage of EMA 200 (default: 0.006 = 0.6%)
+- **NTP**: 2 points
 
 #### Price Between EMAs Filter
 - **Key**: `priceBetweenEma34AndEma200`

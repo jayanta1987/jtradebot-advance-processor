@@ -167,27 +167,46 @@ public class UnstableMarketConditionAnalysisService {
                         candleAnalysis.getBodyRatio(), filter.getThreshold());
                 break;
 
-            case "ema200Distance":
-                Double ema200Distance5min = indicators.getEma200_distance_5min();
-                Double ema200_5min = indicators.getEma200_5min();
+            case "ema200TooClose5Min":
+                // Check if price is too close to EMA 200 (5min timeframe)
+                Double ema200Distance5minClose = indicators.getEma200_distance_5min();
+                Double ema200_5minClose = indicators.getEma200_5min();
 
-                if (ema200Distance5min == null || ema200_5min == null) {
+                if (ema200Distance5minClose == null || ema200_5minClose == null) {
                     passed = false;
-                    details = "EMA 200 distance or EMA 200 value is null";
+                    details = "EMA 200 distance (5min) or EMA 200 value is null";
                     break;
                 }
 
-                double absDistance = Math.abs(ema200Distance5min);
-                double minAllowedDistance = ema200_5min * (filter.getMinThreshold() != null ? filter.getMinThreshold() : 0.0);
-                double maxAllowedDistance = ema200_5min * (filter.getMaxThreshold() != null ? filter.getMaxThreshold() : filter.getThreshold());
+                double absDistanceClose = Math.abs(ema200Distance5minClose);
+                double minAllowedDistance5min = ema200_5minClose * filter.getThreshold();
 
-                // Check both minimum and maximum distance
-                boolean minDistanceOk = absDistance >= minAllowedDistance;
-                boolean maxDistanceOk = absDistance <= maxAllowedDistance;
-                passed = minDistanceOk && maxDistanceOk;
+                // Filter passes if price is NOT too close (distance >= threshold)
+                passed = absDistanceClose >= minAllowedDistance5min;
 
-                details = String.format("EMA 200 distance: %.2f (min: %.2f, max: %.2f)",
-                        absDistance, minAllowedDistance, maxAllowedDistance);
+                details = String.format("EMA 200 distance (5min): %.2f (min allowed: %.2f) - %s",
+                        absDistanceClose, minAllowedDistance5min, passed ? "OK" : "TOO CLOSE");
+                break;
+
+            case "ema200TooFar1Min":
+                // Check if price is too far from EMA 200 (1min timeframe)
+                Double ema200Distance1minFar = indicators.getEma200_distance_1min();
+                Double ema200_1minFar = indicators.getEma200_1min(); // Using 1min EMA 200 for percentage calculation
+
+                if (ema200Distance1minFar == null || ema200_1minFar == null) {
+                    passed = false;
+                    details = "EMA 200 distance (1min) or EMA 200 value (1min) is null";
+                    break;
+                }
+
+                double absDistanceFar = Math.abs(ema200Distance1minFar);
+                double maxAllowedDistance1min = ema200_1minFar * filter.getThreshold();
+
+                // Filter passes if price is NOT too far (distance <= threshold)
+                passed = absDistanceFar <= maxAllowedDistance1min;
+
+                details = String.format("EMA 200 distance (1min): %.2f (max allowed: %.2f) - %s",
+                        absDistanceFar, maxAllowedDistance1min, passed ? "OK" : "TOO FAR");
                 break;
 
             case "ema5Distance":

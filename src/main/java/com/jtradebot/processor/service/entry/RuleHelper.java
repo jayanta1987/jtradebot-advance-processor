@@ -52,6 +52,7 @@ public class RuleHelper {
                     double ema200_1min = emaInfo_1min.getEma200();
                     double currentPrice = oneMinSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance1min = currentPrice - ema200_1min;
+                    indicators.setEma200_1min(ema200_1min); // Store EMA 200 value
                     indicators.setEma200_distance_1min(ema200Distance1min);
                     
                     // Calculate EMA 5 distance for 1min timeframe

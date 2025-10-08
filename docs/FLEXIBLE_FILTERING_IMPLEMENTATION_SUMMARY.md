@@ -22,9 +22,10 @@ Added a new `noTradeZones` configuration section:
       "candleHeight": { "enabled": true, "threshold": 8.0, "priority": 1 },
       "volumeSurge": { "enabled": true, "threshold": 10.0, "priority": 2 },
       "bodyRatio": { "enabled": true, "threshold": 0.50, "priority": 3 },
-      "ema200Distance": { "enabled": true, "threshold": 0.006, "priority": 4 },
-      "priceBetweenEma34AndEma200": { "enabled": true, "priority": 5 },
-      "overboughtOversold": { "enabled": true, "overboughtThreshold": 80.0, "oversoldThreshold": 20.0, "priority": 6 }
+      "ema200TooClose5Min": { "enabled": true, "threshold": 0.002, "priority": 4, "ntp": 3 },
+      "ema200TooFar1Min": { "enabled": true, "threshold": 0.006, "priority": 5, "ntp": 2 },
+      "priceBetweenEma34AndEma200": { "enabled": true, "priority": 6 },
+      "overboughtOversold": { "enabled": true, "overboughtThreshold": 80.0, "oversoldThreshold": 20.0, "priority": 7 }
     }
   }
 }
@@ -62,9 +63,10 @@ Added methods to support the new configuration:
 1. **Candle Height**: Ensures minimum candle height ≥ threshold
 2. **Volume Surge**: Ensures volume surge multiplier > threshold
 3. **Body Ratio**: Ensures candle body ratio ≥ threshold
-4. **EMA 200 Distance**: Ensures distance ≤ threshold % of EMA 200
-5. **Price Between EMAs**: Prevents entries when price is between EMA34 and EMA200
-6. **Overbought/Oversold**: Prevents entries at extreme RSI levels
+4. **EMA 200 Too Close (5min)**: Prevents entries when price is too close to EMA 200 (< 0.2% on 5min timeframe)
+5. **EMA 200 Too Far (1min)**: Prevents entries when price is too far from EMA 200 (> 0.6% on 1min timeframe)
+6. **Price Between EMAs**: Prevents entries when price is between EMA34 and EMA200
+7. **Overbought/Oversold**: Prevents entries at extreme RSI levels
 
 ### 5. Testing
 
