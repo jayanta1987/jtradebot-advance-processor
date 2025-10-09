@@ -17,7 +17,8 @@ import java.util.Optional;
 public class StrikePriceCalculator {
 
     private static final String STRIKE_TYPE = "ATM"; // Changed to ATM for live trading
-    private static final int STRIKE_DIFFERENCE = 50;
+    private static final int STRIKE_DIFFERENCE = 100;
+    private static final int OTM_THRESHOLD = 20; // If price is within 20 points of next strike, go OTM
     
     private final InstrumentRepository instrumentRepository;
 
@@ -32,21 +33,53 @@ public class StrikePriceCalculator {
     /**
      * Get ATM strike price for current Nifty index
      * 
-     * ATM (At-The-Money) strikes are closest to the current index price:
-     * - CE (CALL): Strike closest to but below current price
-     * - PE (PUT): Strike closest to but above current price
+     * Strike prices are divisible by 100. If current price is too close to next strike (within 20 points),
+     * we go OTM to avoid strikes divisible by 50.
      * 
-     * Example: For index 24702 with 50-point difference:
-     * - CE strike: 24700 (closest below 24702)
-     * - PE strike: 24750 (closest above 24702)
+     * - CE (CALL): Strike closest to but below current price, or next strike if within 20 points
+     * - PE (PUT): Strike closest to but above current price, or previous strike if within 20 points
+     * 
+     * Example 1: For index 24990 with CE:
+     * - Base strike: 24900, Next strike: 25000
+     * - Distance to next: 25000 - 24990 = 10 (≤ 20 threshold)
+     * - Result: 25000 CE (go OTM)
+     * 
+     * Example 2: For index 24975 with CE:
+     * - Base strike: 24900, Next strike: 25000
+     * - Distance to next: 25000 - 24975 = 25 (> 20 threshold)
+     * - Result: 24900 CE (stay at base)
      */
     public int getATMStrikePrice(double niftyIndexPrice, String optionType) {
         if ("CE".equals(optionType)) {
-            // For CALL options, ATM means strike closest to but below current price
-            return (int) Math.floor(niftyIndexPrice / STRIKE_DIFFERENCE) * STRIKE_DIFFERENCE;
+            // For CALL options: base strike is below current price
+            int baseStrike = (int) Math.floor(niftyIndexPrice / STRIKE_DIFFERENCE) * STRIKE_DIFFERENCE;
+            int nextStrike = baseStrike + STRIKE_DIFFERENCE;
+            
+            // If too close to next strike, go OTM (use next strike)
+            if ((nextStrike - niftyIndexPrice) <= OTM_THRESHOLD) {
+                log.debug("🎯 CE Strike Selection: Index {} too close to next strike {}, going OTM", 
+                        niftyIndexPrice, nextStrike);
+                return nextStrike;
+            }
+            
+            log.debug("🎯 CE Strike Selection: Index {} using base strike {}", niftyIndexPrice, baseStrike);
+            return baseStrike;
+            
         } else if ("PE".equals(optionType)) {
-            // For PUT options, ATM means strike closest to but above current price
-            return (int) Math.ceil(niftyIndexPrice / STRIKE_DIFFERENCE) * STRIKE_DIFFERENCE;
+            // For PUT options: base strike is above current price
+            int baseStrike = (int) Math.ceil(niftyIndexPrice / STRIKE_DIFFERENCE) * STRIKE_DIFFERENCE;
+            int previousStrike = baseStrike - STRIKE_DIFFERENCE;
+            
+            // If too close to previous strike, go OTM (use previous strike)
+            if ((niftyIndexPrice - previousStrike) <= OTM_THRESHOLD) {
+                log.debug("🎯 PE Strike Selection: Index {} too close to previous strike {}, going OTM", 
+                        niftyIndexPrice, previousStrike);
+                return previousStrike;
+            }
+            
+            log.debug("🎯 PE Strike Selection: Index {} using base strike {}", niftyIndexPrice, baseStrike);
+            return baseStrike;
+            
         } else {
             throw new IllegalArgumentException("Invalid option type: " + optionType);
         }
