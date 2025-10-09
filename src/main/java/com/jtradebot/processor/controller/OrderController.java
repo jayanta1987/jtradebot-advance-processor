@@ -169,4 +169,34 @@ public class OrderController {
             ));
         }
     }
+
+    /**
+     * Delete all orders from the jtrade_orders collection
+     * WARNING: This will permanently delete all orders
+     * Use with caution - typically used for testing or cleanup
+     */
+    @DeleteMapping("/deleteAll")
+    public ResponseEntity<Map<String, Object>> deleteAllOrders() {
+        try {
+            log.info("🗑️ DELETE ALL ORDERS REQUEST RECEIVED");
+            
+            Map<String, Object> result = orderService.deleteAllOrders();
+            
+            boolean success = (boolean) result.get("success");
+            if (success) {
+                log.info("✅ DELETE ALL ORDERS COMPLETED SUCCESSFULLY");
+                return ResponseEntity.ok(result);
+            } else {
+                log.error("❌ DELETE ALL ORDERS FAILED");
+                return ResponseEntity.internalServerError().body(result);
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ ERROR IN DELETE ALL ORDERS: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "Error during delete all orders: " + e.getMessage()
+            ));
+        }
+    }
 }

@@ -543,4 +543,35 @@ public class OrderService {
         return result;
     }
 
+    /**
+     * Delete all orders from the jtrade_orders collection
+     * Use with caution - this will permanently delete all orders
+     */
+    public Map<String, Object> deleteAllOrders() {
+        try {
+            log.info("🗑️ DELETE ALL ORDERS REQUEST - Starting deletion process");
+            
+            long count = jtradeOrderRepository.count();
+            log.info("📊 Found {} orders to delete", count);
+            
+            jtradeOrderRepository.deleteAll();
+            
+            log.info("✅ Successfully deleted {} orders from jtrade_orders collection", count);
+            
+            return Map.of(
+                "success", true,
+                "message", "Successfully deleted all orders from jtrade_orders collection",
+                "deletedCount", count,
+                "timestamp", System.currentTimeMillis()
+            );
+        } catch (Exception e) {
+            log.error("❌ ERROR DELETING ALL ORDERS: {}", e.getMessage(), e);
+            return Map.of(
+                "success", false,
+                "message", "Failed to delete all orders: " + e.getMessage(),
+                "timestamp", System.currentTimeMillis()
+            );
+        }
+    }
+
 }
