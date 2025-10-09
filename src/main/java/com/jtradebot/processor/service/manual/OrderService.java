@@ -449,6 +449,9 @@ public class OrderService {
      * Exit all active orders immediately
      * This will find all ACTIVE orders and close them with FORCE_EXIT reason
      * Uses OrderManagementService.exitOrder method for consistency
+     * 
+     * Note: After manual exit (FORCE_EXIT), new entry will be restricted for the current 5-minute candle
+     * to prevent immediate re-entry after manual exit
      */
     public Map<String, Object> exitAllActiveOrders() {
         Map<String, Object> result = new HashMap<>();
@@ -495,6 +498,9 @@ public class OrderService {
                     orderDetail.put("entryPrice", order.getEntryPrice());
                     orderDetail.put("quantity", order.getQuantity());
                     orderDetail.put("exitReason", "FORCE_EXIT");
+                    
+                    // Set FORCE_EXIT reason before calling exitOrder to ensure proper tracking
+                    order.setExitReason(com.jtradebot.processor.model.enums.ExitReasonEnum.FORCE_EXIT);
                     
                     // Use OrderManagementService.exitOrder for consistent exit processing
                     orderManagementService.exitOrder(currentTick, order, currentTick.getLastTradedPrice());

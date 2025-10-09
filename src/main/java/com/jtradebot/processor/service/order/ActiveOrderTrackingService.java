@@ -73,6 +73,15 @@ public class ActiveOrderTrackingService {
     }
 
 
+    /**
+     * Check if entry should be blocked based on recent exit reasons
+     * Blocks entry if the specified candle is still open since the last exit with matching reason
+     * 
+     * @param instrumentToken The instrument token
+     * @param timeframe The candle timeframe to check (e.g., ONE_MIN, FIVE_MIN)
+     * @param exitReasons Exit reasons to check for blocking (e.g., STOPLOSS_HIT, FORCE_EXIT)
+     * @return true if entry should be blocked, false otherwise
+     */
     public boolean shouldBlockEntryAfterStopLoss(Long instrumentToken, CandleTimeFrameEnum timeframe, ExitReasonEnum... exitReasons) {
         // If no previous exit or lastExitReason not in provided reasons, allow entry
         if (lastExitTime == null || !java.util.Arrays.asList(exitReasons).contains(lastExitReason)) {

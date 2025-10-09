@@ -131,16 +131,23 @@ public class TickOrchestrationService {
                     // step 4: Log comprehensive indicator analysis
                     logComprehensiveIndicatorAnalysis(tick, qualityScore, detailedCallScores, detailedPutScores, dominantTrend);
 
-                    // Step 5: Block entries after recent stop-loss hits
-                    CandleTimeFrameEnum timeframe = CandleTimeFrameEnum.ONE_MIN;
-                    if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken(), timeframe, ExitReasonEnum.STOPLOSS_HIT)) {
-                        log.warn("🚫 ORDER CREATION BLOCKED - Recent stoploss exit in same {} candle", timeframe);
+                    // Step 5: Block entries after recent stop-loss hits (1-min candle)
+                    CandleTimeFrameEnum stopLossTimeframe = CandleTimeFrameEnum.ONE_MIN;
+                    if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken(), stopLossTimeframe, ExitReasonEnum.STOPLOSS_HIT)) {
+                        log.warn("🚫 ORDER CREATION BLOCKED - Recent stoploss exit in same {} candle", stopLossTimeframe);
+                        return;
+                    }
+
+                    // Step 6: Block entries after manual exit via API (5-min candle)
+                    CandleTimeFrameEnum manualExitTimeframe = CandleTimeFrameEnum.FIVE_MIN;
+                    if (activeOrderTrackingService.shouldBlockEntryAfterStopLoss(tick.getInstrumentToken(), manualExitTimeframe, ExitReasonEnum.FORCE_EXIT)) {
+                        log.warn("🚫 ORDER CREATION BLOCKED - Manual exit (FORCE_EXIT) in same {} candle", manualExitTimeframe);
                         return;
                     }
 
                     boolean filtersPassed = isEligibleForEntryCheck(qualityScore, inTradingZone);
 
-                    // Step 6: Execute orders if signals are generated
+                    // Step 7: Execute orders if signals are generated
                     if (filtersPassed) {
                         // Get entry decision directly from DynamicRuleEvaluatorService
                         ScalpingEntryDecision scenarioDecision;
