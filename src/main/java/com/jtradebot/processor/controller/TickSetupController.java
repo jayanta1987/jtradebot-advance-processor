@@ -54,6 +54,46 @@ public class TickSetupController {
         }
     }
 
+    @DeleteMapping("/calculated-ticks/{date}")
+    public ResponseEntity<Map<String, Object>> deleteCalculatedTicksByDate(@PathVariable String date) {
+        try {
+            log.info("🗑️ DELETE request received for calculated_ticks on date: {}", date);
+            
+            // Validate date format (yyyy-MM-dd)
+            if (!date.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("success", false);
+                errorResponse.put("message", "Invalid date format. Expected format: yyyy-MM-dd (e.g., 2024-10-09)");
+                errorResponse.put("timestamp", System.currentTimeMillis());
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+            
+            // Delete ticks for the specified date
+            long deletedCount = tickSetupService.deleteCalculatedTicksByDate(date);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Successfully deleted calculated_ticks for date: " + date);
+            response.put("deletedCount", deletedCount);
+            response.put("date", date);
+            response.put("timestamp", System.currentTimeMillis());
+            
+            log.info("✅ Successfully deleted {} calculated_ticks for date: {}", deletedCount, date);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to delete calculated_ticks for date: {}", date, e);
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Failed to delete calculated_ticks for date: " + date);
+            errorResponse.put("error", e.getMessage());
+            errorResponse.put("timestamp", System.currentTimeMillis());
+            
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+
     @GetMapping("/trade-config")
     public Map<String, Object> getCurrentTradeConfig() {
         try {

@@ -169,6 +169,63 @@ public class TickSetupService {
     }
 
     /**
+     * Delete all calculated_ticks for a specific date
+     * @param dateString The date in format yyyy-MM-dd (e.g., "2024-10-09")
+     * @return Number of documents deleted
+     */
+    public long deleteCalculatedTicksByDate(String dateString) {
+        try {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            dateFormat.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Kolkata"));
+            
+            // Parse the date string
+            Date targetDate = dateFormat.parse(dateString);
+            
+            // Set up start and end of the day (IST timezone)
+            Calendar calendar = Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"));
+            calendar.setTime(targetDate);
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            Date startOfDay = calendar.getTime();
+            
+            calendar.set(Calendar.HOUR_OF_DAY, 23);
+            calendar.set(Calendar.MINUTE, 59);
+            calendar.set(Calendar.SECOND, 59);
+            calendar.set(Calendar.MILLISECOND, 999);
+            Date endOfDay = calendar.getTime();
+            
+            log.info("🗑️ Deleting calculated_ticks for date: {} (from {} to {})", dateString, startOfDay, endOfDay);
+            
+            // Find all ticks for this date
+            List<CalculatedTick> ticksToDelete = tickRepository.findAllLastTradedTimes().stream()
+                .filter(calculatedTick -> {
+                    TickModel tick = calculatedTick.getTick();
+                    Date lastTradedTime = tick.getLastTradedTime();
+                    return lastTradedTime != null && 
+                           !lastTradedTime.before(startOfDay) && 
+                           !lastTradedTime.after(endOfDay);
+                })
+                .toList();
+            
+            // Delete the ticks
+            if (!ticksToDelete.isEmpty()) {
+                tickRepository.deleteAll(ticksToDelete);
+                log.info("✅ Deleted {} calculated_ticks for date: {}", ticksToDelete.size(), dateString);
+                return ticksToDelete.size();
+            } else {
+                log.info("ℹ️ No calculated_ticks found for date: {}", dateString);
+                return 0;
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Error deleting calculated_ticks for date: {}", dateString, e);
+            throw new RuntimeException("Failed to delete calculated_ticks for date: " + dateString, e);
+        }
+    }
+
+    /**
      * Update a specific field in the trade preference or exit settings
      * @param field The field name to update (e.g., "tradePreference.maxInvestment" or "exitSettings.priceMovementExitEnabled")
      * @param value The new value for the field

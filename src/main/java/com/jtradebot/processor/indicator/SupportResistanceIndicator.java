@@ -582,7 +582,7 @@ public class SupportResistanceIndicator {
         // Check if price is very close to any support level
         for (Support support : supportLevels) {
             if (Math.abs(ltp - support.getSupportValue()) <= VERY_MIN_SUPPORT_RESISTANCE_DISTANCE_BUFFER) {
-                log.info("Price {} is very near support level: {}", ltp, support.getSupportValue());
+                log.debug("Price {} is very near support level: {}", ltp, support.getSupportValue());
                 return true;
             }
         }
@@ -590,7 +590,7 @@ public class SupportResistanceIndicator {
         // Check if price is very close to any resistance level
         for (Resistance resistance : resistanceLevels) {
             if (Math.abs(ltp - resistance.getResistanceValue()) <= VERY_MIN_SUPPORT_RESISTANCE_DISTANCE_BUFFER) {
-                log.info("Price {} is very near resistance level: {}", ltp, resistance.getResistanceValue());
+                log.debug("Price {} is very near resistance level: {}", ltp, resistance.getResistanceValue());
                 return true;
             }
         }
