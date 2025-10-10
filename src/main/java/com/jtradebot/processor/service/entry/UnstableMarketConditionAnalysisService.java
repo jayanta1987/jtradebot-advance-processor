@@ -260,6 +260,15 @@ public class UnstableMarketConditionAnalysisService {
                 details = String.format("Overbought: %s, Oversold: %s", overbought, oversold);
                 break;
 
+            case "rsiNeutralZone":
+                // Check if RSI (1min) is in neutral zone (between 44 and 56)
+                boolean inNeutralZone = Boolean.TRUE.equals(indicators.getRsi_1min_between_44_56());
+                
+                // Filter passes when RSI is NOT in the neutral zone (we want clear directional signals)
+                passed = !inNeutralZone;
+                details = String.format("RSI 1min in neutral zone (44-56): %s", inNeutralZone);
+                break;
+
             case "atr5Min":
                 // Calculate 5-minute ATR
                 String atrInstrumentToken = String.valueOf(tick.getInstrumentToken());

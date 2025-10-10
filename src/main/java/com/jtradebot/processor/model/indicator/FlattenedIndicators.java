@@ -78,6 +78,9 @@ public class FlattenedIndicators {
     private Boolean rsi_5min_lt_40;
     private Boolean rsi_15min_lt_40;
     
+    // RSI neutral zone indicators (between 44 and 56)
+    private Boolean rsi_1min_between_44_56;
+    
     // RSI MA comparison indicators
     private Boolean rsi_1min_gt_rsi_ma;
     private Boolean rsi_5min_gt_rsi_ma;

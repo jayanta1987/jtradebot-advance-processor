@@ -279,6 +279,7 @@ public class RuleHelper {
                 indicators.setRsi_1min_lt_20(rsi_1min < 20);
                 indicators.setRsi_1min_gt_60(rsi_1min > 60);
                 indicators.setRsi_1min_lt_40(rsi_1min < 40);
+                indicators.setRsi_1min_between_44_56(rsi_1min >= 44 && rsi_1min <= 56);
 
                 // RSI MA comparison
                 if (enableRsiMaComparison && oneMinSeries.getBarCount() >= rsiMaPeriod) {
