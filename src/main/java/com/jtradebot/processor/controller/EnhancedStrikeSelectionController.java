@@ -197,21 +197,18 @@ public class EnhancedStrikeSelectionController {
                 callResult.put("expiry", instrument.getExpiry());
                 callResult.put("instrumentToken", instrument.getInstrumentToken());
                 callResult.put("totalScore", analysis.getTotalScore());
-                callResult.put("isFallback", analysis.isFallback());
                 
-                // Add Greeks information
-                if (analysis.getGreeks() != null) {
-                    Map<String, Object> greeks = new HashMap<>();
-                    greeks.put("delta", analysis.getGreeks().getDelta());
-                    greeks.put("gamma", analysis.getGreeks().getGamma());
-                    greeks.put("theta", analysis.getGreeks().getTheta());
-                    greeks.put("vega", analysis.getGreeks().getVega());
-                    greeks.put("intrinsicValue", analysis.getGreeks().getIntrinsicValue());
-                    greeks.put("timeValue", analysis.getGreeks().getTimeValue());
-                    greeks.put("impliedVolatility", analysis.getGreeks().getImpliedVolatility());
-                    greeks.put("timeToExpiry", analysis.getGreeks().getTimeToExpiry());
-                    callResult.put("greeks", greeks);
-                }
+                // Add Greeks information (always available in dynamic analysis)
+                Map<String, Object> greeks = new HashMap<>();
+                greeks.put("delta", analysis.getGreeks().getDelta());
+                greeks.put("gamma", analysis.getGreeks().getGamma());
+                greeks.put("theta", analysis.getGreeks().getTheta());
+                greeks.put("vega", analysis.getGreeks().getVega());
+                greeks.put("intrinsicValue", analysis.getGreeks().getIntrinsicValue());
+                greeks.put("timeValue", analysis.getGreeks().getTimeValue());
+                greeks.put("impliedVolatility", analysis.getGreeks().getImpliedVolatility());
+                greeks.put("timeToExpiry", analysis.getGreeks().getTimeToExpiry());
+                callResult.put("greeks", greeks);
                 
                 // Add market factors
                 if (analysis.getMarketFactors() != null) {
@@ -288,21 +285,18 @@ public class EnhancedStrikeSelectionController {
                 putResult.put("expiry", instrument.getExpiry());
                 putResult.put("instrumentToken", instrument.getInstrumentToken());
                 putResult.put("totalScore", analysis.getTotalScore());
-                putResult.put("isFallback", analysis.isFallback());
                 
-                // Add Greeks information
-                if (analysis.getGreeks() != null) {
-                    Map<String, Object> greeks = new HashMap<>();
-                    greeks.put("delta", analysis.getGreeks().getDelta());
-                    greeks.put("gamma", analysis.getGreeks().getGamma());
-                    greeks.put("theta", analysis.getGreeks().getTheta());
-                    greeks.put("vega", analysis.getGreeks().getVega());
-                    greeks.put("intrinsicValue", analysis.getGreeks().getIntrinsicValue());
-                    greeks.put("timeValue", analysis.getGreeks().getTimeValue());
-                    greeks.put("impliedVolatility", analysis.getGreeks().getImpliedVolatility());
-                    greeks.put("timeToExpiry", analysis.getGreeks().getTimeToExpiry());
-                    putResult.put("greeks", greeks);
-                }
+                // Add Greeks information (always available in dynamic analysis)
+                Map<String, Object> greeks = new HashMap<>();
+                greeks.put("delta", analysis.getGreeks().getDelta());
+                greeks.put("gamma", analysis.getGreeks().getGamma());
+                greeks.put("theta", analysis.getGreeks().getTheta());
+                greeks.put("vega", analysis.getGreeks().getVega());
+                greeks.put("intrinsicValue", analysis.getGreeks().getIntrinsicValue());
+                greeks.put("timeValue", analysis.getGreeks().getTimeValue());
+                greeks.put("impliedVolatility", analysis.getGreeks().getImpliedVolatility());
+                greeks.put("timeToExpiry", analysis.getGreeks().getTimeToExpiry());
+                putResult.put("greeks", greeks);
                 
                 // Add market factors
                 if (analysis.getMarketFactors() != null) {

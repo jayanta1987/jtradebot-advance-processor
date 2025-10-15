@@ -47,8 +47,8 @@ public class DynamicStrikeSelectionService {
             // Get valid options in range
             List<Instrument> validOptions = getValidOptionsInRange(optionType, range);
             if (validOptions.isEmpty()) {
-                log.warn("No valid options found in range {}-{}", range.minStrike, range.maxStrike);
-                return Optional.empty();
+                throw new RuntimeException("No valid options found in range " + range.minStrike + " to " + range.maxStrike + 
+                        " for option type " + optionType + " with index price " + niftyIndexPrice);
             }
 
             log.debug("Found {} valid options in range {}-{}", validOptions.size(), range.minStrike, range.maxStrike);
@@ -58,8 +58,8 @@ public class DynamicStrikeSelectionService {
             List<DynamicStrikeScore> scores = calculateDynamicScores(validOptions, tickDataMap, niftyIndexPrice, optionType, tradingStrategy);
 
             if (scores.isEmpty()) {
-                log.warn("No scored strikes found, falling back to ATM selection");
-                return createFallbackAnalysis(niftyIndexPrice, optionType);
+                throw new RuntimeException("No valid strikes found in range " + range.minStrike + " to " + range.maxStrike + 
+                        " for option type " + optionType + " with index price " + niftyIndexPrice);
             }
 
             // Sort by total score and get the best one
@@ -88,8 +88,9 @@ public class DynamicStrikeSelectionService {
             return Optional.of(analysis);
 
         } catch (Exception e) {
-            log.error("Error in dynamic strike selection", e);
-            return createFallbackAnalysis(niftyIndexPrice, optionType);
+            log.error("Error in dynamic strike selection for index: {}, type: {}, strategy: {}", 
+                    niftyIndexPrice, optionType, tradingStrategy, e);
+            throw new RuntimeException("Dynamic strike selection failed: " + e.getMessage(), e);
         }
     }
 
@@ -438,25 +439,6 @@ public class DynamicStrikeSelectionService {
                ((100 - riskMetrics.getTotalRisk()) * riskWeight); // Invert risk (lower risk = higher score)
     }
 
-    /**
-     * Create fallback analysis when dynamic selection fails
-     */
-    private Optional<DynamicStrikeAnalysis> createFallbackAnalysis(double niftyIndexPrice, String optionType) {
-        try {
-            Optional<Instrument> fallbackInstrument = strikePriceCalculator.findOptionInstrument(niftyIndexPrice, optionType);
-            if (fallbackInstrument.isPresent()) {
-                return Optional.of(DynamicStrikeAnalysis.builder()
-                        .instrument(fallbackInstrument.get())
-                        .totalScore(50.0) // Default score
-                        .isFallback(true)
-                        .analysisTimestamp(System.currentTimeMillis())
-                        .build());
-            }
-        } catch (Exception e) {
-            log.warn("Fallback analysis also failed", e);
-        }
-        return Optional.empty();
-    }
 
     // Data classes
     @Data
@@ -476,8 +458,6 @@ public class DynamicStrikeSelectionService {
         private RiskMetrics riskMetrics;
         private List<DynamicStrikeScore> allScores;
         private long analysisTimestamp;
-        @lombok.Builder.Default
-        private boolean isFallback = false;
     }
 
     @Data
