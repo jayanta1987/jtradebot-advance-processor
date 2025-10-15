@@ -9,7 +9,7 @@
       },
       "volumeSurgeMultiplierMin": 1.5,
       "stopLossPercentage": 2.5,
-      "targetPercentage": 15
+      "targetPercentage": 5
     },
     "exitSignalConfiguration": {
       "exitThresholds": {
