@@ -8,7 +8,7 @@
         "enableRsiMaComparison": true
       },
       "volumeSurgeMultiplierMin": 1.5,
-      "stopLossPercentage": 2.5,
+      "stopLossPercentage": 2,
       "targetPercentage": 5
     },
     "exitSignalConfiguration": {

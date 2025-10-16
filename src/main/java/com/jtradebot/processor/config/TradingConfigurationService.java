@@ -6,8 +6,11 @@ import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.repository.document.TradeConfig;
 import com.jtradebot.processor.service.TickSetupService;
 import com.jtradebot.processor.service.config.MongoConfigurationService;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -48,18 +51,43 @@ public class TradingConfigurationService implements InitializingBean {
 
     private void loadTradingConfiguration() {
         try {
-            ClassPathResource resource = new ClassPathResource("rules/trading-config.json");
-            JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-            
-            if (rootNode.has("tradingConfiguration")) {
-                JsonNode tradingNode = rootNode.get("tradingConfiguration");
-                tradingConfig = objectMapper.treeToValue(tradingNode, TradingConfig.class);
-                log.info("Trading configuration loaded successfully: {}", tradingConfig);
+            // Try to load from MongoDB first
+            TradingConfig mongoTradingConfig = mongoConfigurationService.getRiskManagementFromMongoDB();
+            if (mongoTradingConfig != null) {
+                tradingConfig = mongoTradingConfig;
+                log.info("Trading configuration loaded successfully from MongoDB: {}", tradingConfig);
             } else {
-                throw new IllegalStateException("tradingConfiguration section not found in JSON configuration");
+                // Fallback to JSON file if MongoDB doesn't have configuration
+                log.warn("No MongoDB configuration found, falling back to JSON file");
+                ClassPathResource resource = new ClassPathResource("rules/trading-config.json");
+                JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
+                
+                if (rootNode.has("tradingConfiguration")) {
+                    JsonNode tradingNode = rootNode.get("tradingConfiguration");
+                    tradingConfig = objectMapper.treeToValue(tradingNode, TradingConfig.class);
+                    log.info("Trading configuration loaded successfully from JSON fallback: {}", tradingConfig);
+                } else {
+                    throw new IllegalStateException("tradingConfiguration section not found in JSON configuration");
+                }
             }
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to load trading configuration from JSON", e);
+            throw new IllegalStateException("Failed to load trading configuration from JSON fallback", e);
+        } catch (Exception e) {
+            log.error("Failed to load trading configuration from MongoDB, trying JSON fallback", e);
+            try {
+                ClassPathResource resource = new ClassPathResource("rules/trading-config.json");
+                JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
+                
+                if (rootNode.has("tradingConfiguration")) {
+                    JsonNode tradingNode = rootNode.get("tradingConfiguration");
+                    tradingConfig = objectMapper.treeToValue(tradingNode, TradingConfig.class);
+                    log.info("Trading configuration loaded successfully from JSON fallback after MongoDB error");
+                } else {
+                    throw new IllegalStateException("tradingConfiguration section not found in JSON configuration");
+                }
+            } catch (IOException ex) {
+                throw new IllegalStateException("Failed to load trading configuration from both MongoDB and JSON", ex);
+            }
         }
     }
 
@@ -226,8 +254,12 @@ public class TradingConfigurationService implements InitializingBean {
 
     // Market end scheduler configuration
     public boolean isMarketEndSchedulerEnabled() {
-        // Default to enabled - this can be made configurable in MongoDB if needed
-        return true;
+        try {
+            return mongoConfigurationService.isMarketEndSchedulerEnabledFromMongoDB();
+        } catch (Exception e) {
+            log.error("Failed to get market end scheduler setting from MongoDB, defaulting to enabled", e);
+            return true; // Default to enabled if MongoDB fails
+        }
     }
 
     // Trading hours configuration
@@ -316,6 +348,15 @@ public class TradingConfigurationService implements InitializingBean {
             scalpingEntryConfig.setCategoryScoring(mongoConfigurationService.getCategoryScoringFromMongoDB());
             scalpingEntryConfig.setNoTradeZones(mongoConfigurationService.getNoTradeZonesFromMongoDB());
             
+            // Refresh trading configuration (risk management settings) from MongoDB
+            TradingConfig mongoTradingConfig = mongoConfigurationService.getRiskManagementFromMongoDB();
+            if (mongoTradingConfig != null) {
+                tradingConfig = mongoTradingConfig;
+                log.info("Trading configuration refreshed from MongoDB");
+            } else {
+                log.warn("No MongoDB trading configuration found during refresh, keeping existing configuration");
+            }
+            
             log.info("Configuration refreshed successfully from MongoDB");
         } catch (Exception e) {
             log.error("Failed to refresh configuration from MongoDB", e);
@@ -326,12 +367,18 @@ public class TradingConfigurationService implements InitializingBean {
 
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class TradingConfig {
         private RiskManagement riskManagement;
         private ExitSignalConfiguration exitSignalConfiguration;
     }
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RiskManagement {
         private double maxRiskPerDayPercentage;
         private double maxProfitPerDayPercentage;
@@ -347,6 +394,9 @@ public class TradingConfigurationService implements InitializingBean {
     }
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RsiThresholds {
         private double callRsiThreshold;
         private double putRsiThreshold;
@@ -357,6 +407,9 @@ public class TradingConfigurationService implements InitializingBean {
 
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ExitSignalConfiguration {
         private boolean enabled;
         private String description;
@@ -366,6 +419,9 @@ public class TradingConfigurationService implements InitializingBean {
     }
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ExitThresholds {
         private double callExitThreshold;
         private double putExitThreshold;
@@ -373,12 +429,18 @@ public class TradingConfigurationService implements InitializingBean {
     }
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RsiDivergenceExit {
         private boolean enabled;
         private String description;
     }
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class MarketConditionExit {
         private boolean enabled;
         private String description;

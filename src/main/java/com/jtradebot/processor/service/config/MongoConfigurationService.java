@@ -3,10 +3,13 @@ package com.jtradebot.processor.service.config;
 import com.jtradebot.processor.model.strategy.ScalpingEntryConfig;
 import com.jtradebot.processor.repository.CategoryScoringRepository;
 import com.jtradebot.processor.repository.NoTradeZoneFilterRepository;
+import com.jtradebot.processor.repository.RiskManagementSettingRepository;
 import com.jtradebot.processor.repository.TradingScenarioRepository;
 import com.jtradebot.processor.repository.document.CategoryScoring;
 import com.jtradebot.processor.repository.document.NoTradeZoneFilter;
+import com.jtradebot.processor.repository.document.RiskManagementSetting;
 import com.jtradebot.processor.repository.document.TradingScenario;
+import com.jtradebot.processor.config.TradingConfigurationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,6 +28,7 @@ public class MongoConfigurationService {
     private final TradingScenarioRepository tradingScenarioRepository;
     private final CategoryScoringRepository categoryScoringRepository;
     private final NoTradeZoneFilterRepository noTradeZoneFilterRepository;
+    private final RiskManagementSettingRepository riskManagementSettingRepository;
     
     public List<ScalpingEntryConfig.Scenario> getScenariosFromMongoDB() {
         List<TradingScenario> mongoScenarios = tradingScenarioRepository.findByActiveTrue();
@@ -96,6 +101,69 @@ public class MongoConfigurationService {
                 .maxAllowedNTP(2) // Default value, can be made configurable
                 .filters(filters)
                 .build();
+    }
+    
+    public TradingConfigurationService.TradingConfig getRiskManagementFromMongoDB() {
+        Optional<RiskManagementSetting> mongoSetting = riskManagementSettingRepository.findByActiveTrue();
+        
+        if (mongoSetting.isEmpty()) {
+            log.warn("No active risk management setting found in MongoDB, returning null");
+            return null;
+        }
+        
+        RiskManagementSetting setting = mongoSetting.get();
+        
+        // Build RiskManagement
+        TradingConfigurationService.RsiThresholds rsiThresholds = TradingConfigurationService.RsiThresholds.builder()
+                .rsiMaPeriod(setting.getRsiMaPeriod() != null ? setting.getRsiMaPeriod() : 14)
+                .enableRsiMaComparison(setting.getEnableRsiMaComparison() != null ? setting.getEnableRsiMaComparison() : true)
+                .build();
+        
+        TradingConfigurationService.RiskManagement riskManagement = TradingConfigurationService.RiskManagement.builder()
+                .minMilestonePoints(setting.getMinMilestonePoints() != null ? setting.getMinMilestonePoints() : 2.0)
+                .maxMilestonePoints(setting.getMaxMilestonePoints() != null ? setting.getMaxMilestonePoints() : 3.0)
+                .rsiThresholds(rsiThresholds)
+                .volumeSurgeMultiplierMin(setting.getVolumeSurgeMultiplierMin() != null ? setting.getVolumeSurgeMultiplierMin() : 1.5)
+                .stopLossPercentage(setting.getStopLossPercentage() != null ? setting.getStopLossPercentage() : 2.0)
+                .targetPercentage(setting.getTargetPercentage() != null ? setting.getTargetPercentage() : 5.0)
+                .build();
+        
+        // Build ExitSignalConfiguration
+        TradingConfigurationService.ExitThresholds exitThresholds = TradingConfigurationService.ExitThresholds.builder()
+                .callExitThreshold(setting.getCallExitThreshold() != null ? setting.getCallExitThreshold() : 0.5)
+                .putExitThreshold(setting.getPutExitThreshold() != null ? setting.getPutExitThreshold() : 0.5)
+                .description("Exit thresholds loaded from MongoDB")
+                .build();
+        
+        TradingConfigurationService.RsiDivergenceExit rsiDivergenceExit = TradingConfigurationService.RsiDivergenceExit.builder()
+                .enabled(setting.getRsiDivergenceExitEnabled() != null ? setting.getRsiDivergenceExitEnabled() : true)
+                .description("RSI divergence exit configuration")
+                .build();
+        
+        TradingConfigurationService.MarketConditionExit marketConditionExit = TradingConfigurationService.MarketConditionExit.builder()
+                .enabled(setting.getMarketConditionExitEnabled() != null ? setting.getMarketConditionExitEnabled() : true)
+                .description("Market condition exit configuration")
+                .build();
+        
+        TradingConfigurationService.ExitSignalConfiguration exitSignalConfiguration = TradingConfigurationService.ExitSignalConfiguration.builder()
+                .enabled(true)
+                .description("Exit signal configuration loaded from MongoDB")
+                .exitThresholds(exitThresholds)
+                .rsiDivergenceExit(rsiDivergenceExit)
+                .marketConditionExit(marketConditionExit)
+                .build();
+        
+        // Build and return TradingConfig
+        return TradingConfigurationService.TradingConfig.builder()
+                .riskManagement(riskManagement)
+                .exitSignalConfiguration(exitSignalConfiguration)
+                .build();
+    }
+    
+    public boolean isMarketEndSchedulerEnabledFromMongoDB() {
+        Optional<RiskManagementSetting> mongoSetting = riskManagementSettingRepository.findByActiveTrue();
+        return mongoSetting.map(RiskManagementSetting::getMarketEndSchedulerEnabled)
+                .orElse(true); // Default to enabled
     }
     
     private ScalpingEntryConfig.Scenario convertToScalpingEntryScenario(TradingScenario mongoScenario) {
