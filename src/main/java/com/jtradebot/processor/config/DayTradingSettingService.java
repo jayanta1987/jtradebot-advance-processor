@@ -161,7 +161,27 @@ public class DayTradingSettingService implements InitializingBean {
      */
     public void refreshExitSettings() {
         log.info("🔄 Refreshing exit settings from database");
-        loadTradingConfiguration();
+        try {
+            // Get current date and fetch exit settings from database
+            String today = getTodaysDateString("Asia/Kolkata", "'IST-'yyyy-MM-dd");
+            TradeConfig tradeConfig = tradeConfigRepository.findByDate(today).orElse(null);
+            
+            if (tradeConfig != null && tradeConfig.getExitSettings() != null) {
+                // Update cached exit settings with database version
+                this.exitSettings = tradeConfig.getExitSettings();
+                log.info("✅ Exit settings refreshed from database - Milestone: {}, PriceMovement: {}, Time: {}, Strategy: {}, StopLoss: {}", 
+                    exitSettings.isMilestoneBasedExitEnabled(), exitSettings.isPriceMovementExitEnabled(),
+                    exitSettings.isTimeBasedExitEnabled(), exitSettings.isStrategyBasedExitEnabled(), exitSettings.isStopLossTargetExitEnabled());
+            } else {
+                // Fallback to JSON configuration if no database settings found
+                log.warn("⚠️ No exit settings found in database for date: {}, falling back to JSON configuration", today);
+                loadTradingConfiguration();
+            }
+        } catch (Exception e) {
+            log.error("❌ Error refreshing exit settings from database, falling back to JSON configuration: {}", e.getMessage(), e);
+            // Fallback to JSON configuration in case of any error
+            loadTradingConfiguration();
+        }
     }
 
     // ========== TRADE PREFERENCES METHODS ==========

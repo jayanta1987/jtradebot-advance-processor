@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service.order;
 
 import com.jtradebot.processor.common.CommonUtils;
+import com.jtradebot.processor.config.DayTradingSettingService;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
@@ -52,6 +53,7 @@ public class OrderManagementService {
     private final LiveOptionPricingService liveOptionPricingService;
     private final MockOptionPricingService mockOptionPricingService;
     private final TradingConfigurationService tradingConfigService;
+    private final DayTradingSettingService dayTradingSettingService;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final TickDataManager tickDataManager;
     private final ActiveOrderTrackingService activeOrderTrackingService;
@@ -244,8 +246,12 @@ public class OrderManagementService {
                     log.error("Error populating market condition details for order: {}", order.getId(), e);
                 }
 
-                // Initialize milestone system
-                initializeMilestoneSystem(order, tick);
+                // Initialize milestone system only if milestone-based exit is enabled
+                if (dayTradingSettingService.isMilestoneBasedExitEnabled()) {
+                    initializeMilestoneSystem(order, tick);
+                } else {
+                    log.info("Milestone system initialization skipped - milestoneBasedExitEnabled is false");
+                }
 
                 // Store in memory
                 activeOrderTrackingService.setActiveOrderMap(order);

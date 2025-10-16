@@ -18,17 +18,9 @@ public class StrikePriceCalculator {
 
     private static final String STRIKE_TYPE = "ATM"; // Changed to ATM for live trading
     private static final int STRIKE_DIFFERENCE = 100;
-    private static final int OTM_THRESHOLD = 20; // If price is within 20 points of next strike, go OTM
+    private static final int OTM_THRESHOLD = 15; // If price is within 20 points of next strike, go OTM
     
     private final InstrumentRepository instrumentRepository;
-
-    private static String getBaseStrikePrice(Double ltp, String instrumentType) {
-        if (instrumentType.equals("PE")) {
-            return String.valueOf((int) Math.ceil(ltp / STRIKE_DIFFERENCE) * STRIKE_DIFFERENCE);
-        } else {
-            return String.valueOf((int) Math.floor(ltp / STRIKE_DIFFERENCE) * STRIKE_DIFFERENCE);
-        }
-    }
 
     /**
      * Get ATM strike price for current Nifty index
