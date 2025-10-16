@@ -104,14 +104,17 @@ public class MongoConfigurationService {
     }
     
     public TradingConfigurationService.TradingConfig getRiskManagementFromMongoDB() {
+        log.info("Attempting to load risk management configuration from MongoDB...");
         Optional<RiskManagementSetting> mongoSetting = riskManagementSettingRepository.findByActiveTrue();
         
         if (mongoSetting.isEmpty()) {
-            log.warn("No active risk management setting found in MongoDB, returning null");
+            log.error("❌ No active risk management setting found in MongoDB. Please ensure a RiskManagementSetting document exists with active=true");
             return null;
         }
         
         RiskManagementSetting setting = mongoSetting.get();
+        log.info("✅ Found active risk management setting in MongoDB: ID={}, minMilestonePoints={}, maxMilestonePoints={}", 
+                setting.getId(), setting.getMinMilestonePoints(), setting.getMaxMilestonePoints());
         
         // Build RiskManagement
         TradingConfigurationService.RsiThresholds rsiThresholds = TradingConfigurationService.RsiThresholds.builder()
@@ -154,10 +157,15 @@ public class MongoConfigurationService {
                 .build();
         
         // Build and return TradingConfig
-        return TradingConfigurationService.TradingConfig.builder()
+        TradingConfigurationService.TradingConfig tradingConfig = TradingConfigurationService.TradingConfig.builder()
                 .riskManagement(riskManagement)
                 .exitSignalConfiguration(exitSignalConfiguration)
                 .build();
+        
+        log.info("✅ Successfully built TradingConfig from MongoDB: riskManagement={}, exitSignalConfiguration={}", 
+                riskManagement != null ? "LOADED" : "NULL", exitSignalConfiguration != null ? "LOADED" : "NULL");
+        
+        return tradingConfig;
     }
     
     public boolean isMarketEndSchedulerEnabledFromMongoDB() {

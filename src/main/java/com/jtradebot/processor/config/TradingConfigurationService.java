@@ -51,43 +51,17 @@ public class TradingConfigurationService implements InitializingBean {
 
     private void loadTradingConfiguration() {
         try {
-            // Try to load from MongoDB first
+            log.info("Loading trading configuration from MongoDB...");
             TradingConfig mongoTradingConfig = mongoConfigurationService.getRiskManagementFromMongoDB();
             if (mongoTradingConfig != null) {
                 tradingConfig = mongoTradingConfig;
-                log.info("Trading configuration loaded successfully from MongoDB: {}", tradingConfig);
+                log.info("✅ Risk Management configuration loaded successfully from MongoDB: {}", tradingConfig);
             } else {
-                // Fallback to JSON file if MongoDB doesn't have configuration
-                log.warn("No MongoDB configuration found, falling back to JSON file");
-                ClassPathResource resource = new ClassPathResource("rules/trading-config.json");
-                JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-                
-                if (rootNode.has("tradingConfiguration")) {
-                    JsonNode tradingNode = rootNode.get("tradingConfiguration");
-                    tradingConfig = objectMapper.treeToValue(tradingNode, TradingConfig.class);
-                    log.info("Trading configuration loaded successfully from JSON fallback: {}", tradingConfig);
-                } else {
-                    throw new IllegalStateException("tradingConfiguration section not found in JSON configuration");
-                }
+                throw new IllegalStateException("No active risk management setting found in MongoDB. Please ensure the RiskManagementSetting document exists and is marked as active.");
             }
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to load trading configuration from JSON fallback", e);
         } catch (Exception e) {
-            log.error("Failed to load trading configuration from MongoDB, trying JSON fallback", e);
-            try {
-                ClassPathResource resource = new ClassPathResource("rules/trading-config.json");
-                JsonNode rootNode = objectMapper.readTree(resource.getInputStream());
-                
-                if (rootNode.has("tradingConfiguration")) {
-                    JsonNode tradingNode = rootNode.get("tradingConfiguration");
-                    tradingConfig = objectMapper.treeToValue(tradingNode, TradingConfig.class);
-                    log.info("Trading configuration loaded successfully from JSON fallback after MongoDB error");
-                } else {
-                    throw new IllegalStateException("tradingConfiguration section not found in JSON configuration");
-                }
-            } catch (IOException ex) {
-                throw new IllegalStateException("Failed to load trading configuration from both MongoDB and JSON", ex);
-            }
+            log.error("❌ Failed to load trading configuration from MongoDB", e);
+            throw new IllegalStateException("Failed to load trading configuration from MongoDB. System cannot start without proper configuration.", e);
         }
     }
 
