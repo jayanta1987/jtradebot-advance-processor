@@ -98,7 +98,6 @@ public class TickSetupController {
     public Map<String, Object> getCurrentTradeConfig() {
         try {
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            ExitSettings exitSettings = dayTradingSettingService.getExitSettings();
             
             Map<String, Object> response = new HashMap<>();
             
@@ -123,6 +122,13 @@ public class TickSetupController {
                 response.put("tradePreference", null);
             }
             
+            // Get exit settings from database (tradeConfig) first, fallback to cached settings if null
+            ExitSettings exitSettings = tradeConfig.getExitSettings();
+            if (exitSettings == null) {
+                log.warn("Exit settings not found in database, falling back to cached settings");
+                exitSettings = dayTradingSettingService.getExitSettings();
+            }
+            
             // Add exit settings to response
             if (exitSettings != null) {
                 Map<String, Object> exitSettingsMap = new HashMap<>();
@@ -141,7 +147,8 @@ public class TickSetupController {
                 response.put("exitSettings", null);
             }
             
-            log.info("TradeConfig API called - returning config for date: {} with exit settings", tradeConfig.getDate());
+            log.info("TradeConfig API called - returning config for date: {} with exit settings from database: milestoneEnabled={}", 
+                    tradeConfig.getDate(), exitSettings != null ? exitSettings.isMilestoneBasedExitEnabled() : "null");
             return response;
             
         } catch (Exception e) {
@@ -172,7 +179,6 @@ public class TickSetupController {
             
             // Step 4: Get the fresh configuration to return
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            ExitSettings exitSettings = dayTradingSettingService.getExitSettings();
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -199,6 +205,13 @@ public class TickSetupController {
                 configData.put("tradePreference", preferences);
             } else {
                 configData.put("tradePreference", null);
+            }
+            
+            // Get exit settings from database (tradeConfig) first, fallback to cached settings if null
+            ExitSettings exitSettings = tradeConfig.getExitSettings();
+            if (exitSettings == null) {
+                log.warn("Exit settings not found in database after refresh, falling back to cached settings");
+                exitSettings = dayTradingSettingService.getExitSettings();
             }
             
             // Include the refreshed exit settings

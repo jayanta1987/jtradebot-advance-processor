@@ -1,6 +1,7 @@
 package com.jtradebot.processor.service.manual;
 
 import com.jtradebot.processor.common.CommonUtils;
+import com.jtradebot.processor.config.DayTradingSettingService;
 import com.jtradebot.processor.config.DynamicStrategyConfigService;
 import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
@@ -37,6 +38,7 @@ public class OrderService {
     private final LiveOptionPricingService liveOptionPricingService;
     private final MockOptionPricingService mockOptionPricingService;
     private final TradingConfigurationService tradingConfigService;
+    private final DayTradingSettingService dayTradingSettingService;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final TickDataManager tickDataManager;
     private final ActiveOrderTrackingService activeOrderTrackingService;
@@ -184,8 +186,12 @@ public class OrderService {
             order.setEntryQualityScore(10.0); // Manual orders bypass quality checks
             order.setEntryDominantTrend(orderType.name().replace("_BUY", ""));
 
-            // Initialize milestone system
-            initializeMilestoneSystem(order, tick);
+            // Initialize milestone system only if milestone-based exit is enabled
+            if (dayTradingSettingService.isMilestoneBasedExitEnabled()) {
+                initializeMilestoneSystem(order, tick);
+            } else {
+                log.info("Milestone system initialization skipped for manual order - milestoneBasedExitEnabled is false");
+            }
 
             log.info("📝 MANUAL ORDER CREATED - {} {} @ {} (SL: {}, Target: {})",
                     orderType, optionSymbol, optionEntryPrice, stopLossPrice, targetPrice);

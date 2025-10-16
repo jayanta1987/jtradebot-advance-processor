@@ -43,6 +43,8 @@ public class DynamicStrikeSelectionService {
 
             // Define range based on strategy
             StrikeRange range = getStrikeRange(niftyIndexPrice, tradingStrategy);
+            log.info("🎯 STRIKE RANGE CALCULATION - Index: {}, Strategy: {}, Range: {}-{}", 
+                    niftyIndexPrice, tradingStrategy, range.minStrike, range.maxStrike);
             
             // Get valid options in range
             List<Instrument> validOptions = getValidOptionsInRange(optionType, range);
@@ -96,17 +98,21 @@ public class DynamicStrikeSelectionService {
 
     /**
      * Get strike range based on trading strategy
+     * Nifty options use 100-point strike increments, so ranges must align with this
      */
     private StrikeRange getStrikeRange(double niftyIndexPrice, String tradingStrategy) {
         switch (tradingStrategy.toUpperCase()) {
             case "SCALPING":
-                return new StrikeRange(niftyIndexPrice - 50, niftyIndexPrice + 50);
+                // ±100 range for scalping (1 strike on each side of ATM)
+                return new StrikeRange(niftyIndexPrice - 100, niftyIndexPrice + 100);
             case "INTRADAY":
-                return new StrikeRange(niftyIndexPrice - 100, niftyIndexPrice + 100);
-            case "SWING":
+                // ±200 range for intraday (2 strikes on each side of ATM)
                 return new StrikeRange(niftyIndexPrice - 200, niftyIndexPrice + 200);
+            case "SWING":
+                // ±400 range for swing trading (4 strikes on each side of ATM)
+                return new StrikeRange(niftyIndexPrice - 400, niftyIndexPrice + 400);
             default:
-                return new StrikeRange(niftyIndexPrice - 100, niftyIndexPrice + 100);
+                return new StrikeRange(niftyIndexPrice - 200, niftyIndexPrice + 200);
         }
     }
 
@@ -115,10 +121,17 @@ public class DynamicStrikeSelectionService {
      */
     private List<Instrument> getValidOptionsInRange(String optionType, StrikeRange range) {
         LocalDate currentDate = LocalDate.now();
+        log.info("📅 CURRENT DATE: {}", currentDate);
         
-        return instrumentRepository.findAll().stream()
+        // Get all NIFTY options first
+        List<Instrument> allNiftyOptions = instrumentRepository.findAll().stream()
                 .filter(instrument -> "NIFTY".equals(instrument.getName()))
                 .filter(instrument -> optionType.equals(instrument.getInstrumentType()))
+                .collect(Collectors.toList());
+        
+        log.info("🔍 TOTAL NIFTY {} OPTIONS FOUND: {}", optionType, allNiftyOptions.size());
+        
+        List<Instrument> validOptions = allNiftyOptions.stream()
                 .filter(instrument -> {
                     try {
                         int strike = Integer.parseInt(instrument.getStrike());
@@ -128,8 +141,21 @@ public class DynamicStrikeSelectionService {
                                 DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
                         boolean notExpired = expiryDate.isAfter(currentDate);
                         
+                        if (inRange && notExpired) {
+                            log.info("✅ VALID OPTION: Strike={}, Expiry={}, Symbol={}", 
+                                    strike, instrument.getExpiry(), instrument.getTradingSymbol());
+                        } else if (inRange && !notExpired) {
+                            log.info("❌ EXPIRED OPTION: Strike={}, Expiry={}, Symbol={}", 
+                                    strike, instrument.getExpiry(), instrument.getTradingSymbol());
+                        } else {
+                            log.info("❌ OUT OF RANGE: Strike={}, Range={}-{}, Symbol={}", 
+                                    strike, range.minStrike, range.maxStrike, instrument.getTradingSymbol());
+                        }
+                        
                         return inRange && notExpired;
                     } catch (Exception e) {
+                        log.info("❌ PARSE ERROR: Strike={}, Expiry={}, Error={}", 
+                                instrument.getStrike(), instrument.getExpiry(), e.getMessage());
                         return false;
                     }
                 })
@@ -153,6 +179,11 @@ public class DynamicStrikeSelectionService {
                     }
                 })
                 .collect(Collectors.toList());
+        
+        log.info("🎯 VALID OPTIONS FOUND: {} out of {} total NIFTY {} options", 
+                validOptions.size(), allNiftyOptions.size(), optionType);
+        
+        return validOptions;
     }
 
     /**

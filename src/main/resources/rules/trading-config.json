@@ -1,8 +1,8 @@
 {
   "tradingConfiguration": {
     "riskManagement": {
-      "minMilestonePoints": 3.0,
-      "maxMilestonePoints": 4.0,
+      "minMilestonePoints": 2.0,
+      "maxMilestonePoints": 3.0,
       "rsiThresholds": {
         "rsiMaPeriod": 14,
         "enableRsiMaComparison": true
