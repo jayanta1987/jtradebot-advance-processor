@@ -79,6 +79,9 @@ public class ConfigTradingScenarioService {
                 case "minMomentumPer":
                     updateMap.put("minMomentumPer", convertToDouble(newValue));
                     break;
+                case "maxNTP":
+                    updateMap.put("maxNTP", convertToInteger(newValue));
+                    break;
                 case "comments":
                     updateMap.put("comments", newValue);
                     break;
@@ -178,5 +181,41 @@ public class ConfigTradingScenarioService {
         }
         
         throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to Double: " + value);
+    }
+    
+    /**
+     * Safely converts various numeric types to Integer
+     * Handles Integer, Long, Float, Double, and String representations of numbers
+     */
+    private Integer convertToInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        
+        if (value instanceof Integer) {
+            return (Integer) value;
+        }
+        
+        if (value instanceof Long) {
+            return ((Long) value).intValue();
+        }
+        
+        if (value instanceof Float) {
+            return ((Float) value).intValue();
+        }
+        
+        if (value instanceof Double) {
+            return ((Double) value).intValue();
+        }
+        
+        if (value instanceof String) {
+            try {
+                return Integer.parseInt((String) value);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid integer value: " + value);
+            }
+        }
+        
+        throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to Integer: " + value);
     }
 }
