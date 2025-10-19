@@ -96,15 +96,18 @@ public class StrikePriceCalculator {
                 .filter(instrument -> "NIFTY".equals(instrument.getName()) && 
                         ("OPT".equals(instrument.getInstrumentType()) || "CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
                 .filter(instrument -> {
-                    // Filter out expired options
+                    // Filter out expired options - include today's expiry if today is expiry date
                     try {
                         LocalDate expiryDate = LocalDate.parse(instrument.getExpiry(), DateTimeFormatter.ofPattern("dd-MMM-yyyy"));
-                        boolean isNotExpired = expiryDate.isAfter(currentDate);
-                        if (!isNotExpired) {
+                        boolean isValidExpiry = expiryDate.isAfter(currentDate) || expiryDate.isEqual(currentDate);
+                        if (!isValidExpiry) {
                             log.debug("⏰ FILTERING OUT EXPIRED OPTION - Symbol: {}, Expiry: {}, Current: {}", 
                                     instrument.getTradingSymbol(), expiryDate, currentDate);
+                        } else if (expiryDate.isEqual(currentDate)) {
+                            log.info("📅 INCLUDING TODAY'S EXPIRY - Symbol: {}, Expiry: {}, Current: {}", 
+                                    instrument.getTradingSymbol(), expiryDate, currentDate);
                         }
-                        return isNotExpired;
+                        return isValidExpiry;
                     } catch (Exception e) {
                         log.warn("⚠️ Could not parse expiry date for instrument: {} - Expiry: {}", 
                                 instrument.getTradingSymbol(), instrument.getExpiry());

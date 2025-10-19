@@ -59,7 +59,7 @@ public class TickOrchestrationService {
     public void processLiveTicks(List<Tick> ticks, boolean skipMarketHoursCheck) {
 
         if (dailyLimitsSchedulerService.isDailyLimitReached()) {
-            log.warn("DAILY LIMITS HIT - Only new Orders are blocked. But Tick processing and tick storing will continue.");
+            log.warn(" 🚫🚫🚫 DAILY LIMITS HIT - Only new Orders are blocked. But Tick processing and tick storing will continue. 🚫🚫🚫");
         }
 
         // Get trading hours from configuration

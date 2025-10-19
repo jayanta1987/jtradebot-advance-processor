@@ -629,7 +629,7 @@ public class SupportResistanceIndicator {
         boolean nearRoundFigure = isNearRoundFigureLevel(ltp);
         
         if (nearSupportResistance || nearRoundFigure) {
-            log.info("🚫 NEAR SUPPORT/RESISTANCE - Price: {}, Near Support/Resistance: {}, Near Round Figure: {}", 
+            log.debug("🚫 NEAR SUPPORT/RESISTANCE - Price: {}, Near Support/Resistance: {}, Near Round Figure: {}",
                     ltp, nearSupportResistance, nearRoundFigure);
             return true;
         }

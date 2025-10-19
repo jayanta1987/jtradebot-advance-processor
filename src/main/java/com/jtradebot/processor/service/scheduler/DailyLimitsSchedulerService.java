@@ -1,10 +1,13 @@
 package com.jtradebot.processor.service.scheduler;
 
 import com.jtradebot.processor.config.TradingConfigurationService;
+import com.jtradebot.processor.handler.KiteInstrumentHandler;
+import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.enums.ExitReasonEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.order.ActiveOrderTrackingService;
 import com.jtradebot.processor.service.order.OrderManagementService;
+import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,6 +25,8 @@ public class DailyLimitsSchedulerService {
     private final TradingConfigurationService tradingConfigurationService;
     private final OrderManagementService orderManagementService;
     private final ActiveOrderTrackingService activeOrderTrackingService;
+    private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final TickDataManager tickDataManager;
 
     // Daily limits flag - set to true when limits are reached
     private final AtomicBoolean dailyLimitReached = new AtomicBoolean(false);
@@ -42,15 +47,19 @@ public class DailyLimitsSchedulerService {
             double maxProfitPerDay = tradingConfigurationService.getMaxProfitPerDay();
             double maxLossPerDay = tradingConfigurationService.getMaxLossPerDay();
             
-            // Calculate today's P&L
+            // Calculate today's P&L (including both closed and active orders)
             double todayPnL = calculateTodayPnL();
             
-            log.info("Daily P&L check - Today's P&L: {}, Max Profit: {}, Max Loss: {}",
+            log.info("Daily P&L check - Today's Total P&L (Closed + Active): {}, Max Profit: {}, Max Loss: {}",
                      String.format("%.2f", todayPnL), String.format("%.2f", maxProfitPerDay), String.format("%.2f", maxLossPerDay));
             
             // Check if profit limit is exceeded
             if (todayPnL >= maxProfitPerDay) {
-                log.warn("Daily profit limit hit - Today's profit: {} >= Max allowed: {}", 
+                log.warn("🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯\n" +
+                        "🚨 PROFIT LIMIT HIT! 🚨\n" +
+                        "💰 Today's Profit: {} >= Max Allowed: {}\n" +
+                        "🎉 EXCELLENT TRADING DAY! 🎉\n" +
+                        "🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯", 
                         String.format("%.2f", todayPnL), String.format("%.2f", maxProfitPerDay));
                 dailyProfitLimitReached.set(true);
                 dailyLimitReached.set(true);
@@ -60,7 +69,11 @@ public class DailyLimitsSchedulerService {
             
             // Check if loss limit is exceeded
             if (todayPnL <= -maxLossPerDay) {
-                log.warn("Daily loss limit hit - Today's loss: {} >= Max allowed: {}", 
+                log.warn("⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n" +
+                        "🚨 LOSS LIMIT HIT! 🚨\n" +
+                        "💸 Today's Loss: {} >= Max Allowed: {}\n" +
+                        "🛑 TRADING STOPPED FOR RISK MANAGEMENT 🛑\n" +
+                        "⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️", 
                         String.format("%.2f", Math.abs(todayPnL)), String.format("%.2f", maxLossPerDay));
                 dailyLossLimitReached.set(true);
                 dailyLimitReached.set(true);
@@ -96,29 +109,86 @@ public class DailyLimitsSchedulerService {
 
 
     /**
-     * Calculate today's P&L from completed orders
-     * @return today's total P&L
+     * Calculate today's P&L from completed orders and active orders
+     * @return today's total P&L including both closed and active orders
      */
     private double calculateTodayPnL() {
         try {
-            // Get all completed orders for today (no date range needed)
-            List<JtradeOrder> todayOrders = orderManagementService.getCompletedOrdersForToday();
-            
             double totalPnL = 0.0;
-            for (JtradeOrder order : todayOrders) {
+            
+            // 1. Get all completed orders for today
+            List<JtradeOrder> completedOrders = orderManagementService.getCompletedOrdersForToday();
+            double closedOrdersPnL = 0.0;
+            for (JtradeOrder order : completedOrders) {
                 if (order.getTotalProfit() != null) {
-                    totalPnL += order.getTotalProfit();
+                    closedOrdersPnL += order.getTotalProfit();
                 }
             }
             
-            log.debug("Found {} completed orders today, Total P&L: {}", 
-                     todayOrders.size(), String.format("%.2f", totalPnL));
+            // 2. Get all active orders and calculate their current P&L
+            double activeOrdersPnL = 0.0;
+            List<JtradeOrder> activeOrders = activeOrderTrackingService.getActiveOrders();
+            for (JtradeOrder activeOrder : activeOrders) {
+                try {
+                    // Get current index price (assuming Nifty token for index price)
+                    Double currentIndexPrice = getCurrentIndexPrice();
+                    if (currentIndexPrice != null) {
+                        // Get current option price for the active order
+                        Double currentOptionPrice = activeOrderTrackingService.getCurrentPrice(activeOrder, currentIndexPrice);
+                        if (currentOptionPrice != null) {
+                            // Calculate current P&L for this active order
+                            double points = currentOptionPrice - activeOrder.getEntryPrice();
+                            double orderPnL = points * activeOrder.getQuantity();
+                            activeOrdersPnL += orderPnL;
+                            
+                            log.debug("Active order P&L - ID: {}, Entry: {}, Current: {}, Points: {}, P&L: {}", 
+                                     activeOrder.getId(), activeOrder.getEntryPrice(), currentOptionPrice, 
+                                     String.format("%.2f", points), String.format("%.2f", orderPnL));
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error calculating P&L for active order: {} - {}", activeOrder.getId(), e.getMessage());
+                }
+            }
+            
+            // 3. Calculate total P&L
+            totalPnL = closedOrdersPnL + activeOrdersPnL;
+            
+            // Create profit visualization for logs
+            log.info("📊 Closed Orders: {} ({} orders) " +
+                     "📈 Active Orders: {} ({} orders) " +
+                     "💎 Total P&L: {}",
+                     String.format("%.2f", closedOrdersPnL), completedOrders.size(),
+                     String.format("%.2f", activeOrdersPnL), activeOrders.size(),
+                     String.format("%.2f", totalPnL));
             
             return totalPnL;
             
         } catch (Exception e) {
             log.error("Error calculating today's P&L: {}", e.getMessage(), e);
             return 0.0; // Return 0 on error to avoid false positives
+        }
+    }
+    
+    /**
+     * Get current index price for active order P&L calculation
+     * @return current Nifty index price
+     */
+    private Double getCurrentIndexPrice() {
+        try {
+            // Get current Nifty index price from tick data manager
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            Tick niftyTick = tickDataManager.getLastTick(niftyToken);
+            
+            if (niftyTick != null) {
+                return niftyTick.getLastTradedPrice();
+            } else {
+                log.warn("No Nifty index tick data available for active order P&L calculation");
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error getting current index price: {}", e.getMessage(), e);
+            return null;
         }
     }
 
