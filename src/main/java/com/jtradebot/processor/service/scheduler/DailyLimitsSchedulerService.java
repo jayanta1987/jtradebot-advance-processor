@@ -107,6 +107,22 @@ public class DailyLimitsSchedulerService {
         return dailyLimitReached.get();
     }
 
+    /**
+     * Check if daily profit limit has been reached
+     * @return true if profit limit is reached, false otherwise
+     */
+    public boolean isDailyProfitLimitReached() {
+        return dailyProfitLimitReached.get();
+    }
+
+    /**
+     * Check if daily loss limit has been reached
+     * @return true if loss limit is reached, false otherwise
+     */
+    public boolean isDailyLossLimitReached() {
+        return dailyLossLimitReached.get();
+    }
+
 
     /**
      * Calculate today's P&L from completed orders and active orders

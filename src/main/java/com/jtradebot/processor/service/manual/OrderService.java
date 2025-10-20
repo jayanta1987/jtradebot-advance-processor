@@ -367,6 +367,12 @@ public class OrderService {
             status.put("totalActiveProfit", totalActiveProfit);
             status.put("totalClosedOrdersProfit", totalClosedProfit);
             status.put("overallProfit", totalActiveProfit + totalClosedProfit);
+            
+            // Add daily limit flags
+            status.put("dailyProfitLimitReached", dailyLimitsSchedulerService.isDailyProfitLimitReached());
+            status.put("dailyLossLimitReached", dailyLimitsSchedulerService.isDailyLossLimitReached());
+            status.put("dailyLimitReached", dailyLimitsSchedulerService.isDailyLimitReached());
+            
             status.put("success", true);
             status.put("message", "Detailed order status retrieved successfully");
             
