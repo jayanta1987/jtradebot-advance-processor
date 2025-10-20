@@ -34,10 +34,10 @@ public class DailyLimitsSchedulerService {
     private final AtomicBoolean dailyLossLimitReached = new AtomicBoolean(false);
 
     /**
-     * Check daily P&L limits every 3 minutes
-     * Runs every 5 minutes (300,000 milliseconds)
+     * Check daily P&L limits every 30 sec
+     * Runs every 30 sec
      */
-    @Scheduled(cron = "0 */3 * * * *")
+    @Scheduled(fixedRate = 30000)
     public void checkDailyPnLLimits() {
         try {
             resetDailyLimits();
@@ -50,12 +50,12 @@ public class DailyLimitsSchedulerService {
             // Calculate today's P&L (including both closed and active orders)
             double todayPnL = calculateTodayPnL();
             
-            log.info("Daily P&L check - Today's Total P&L (Closed + Active): {}, Max Profit: {}, Max Loss: {}",
+            log.debug("Daily P&L check - Today's Total P&L (Closed + Active): {}, Max Profit: {}, Max Loss: {}",
                      String.format("%.2f", todayPnL), String.format("%.2f", maxProfitPerDay), String.format("%.2f", maxLossPerDay));
             
             // Check if profit limit is exceeded
             if (todayPnL >= maxProfitPerDay) {
-                log.warn("🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯\n" +
+                log.debug("🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯🎯\n" +
                         "🚨 PROFIT LIMIT HIT! 🚨\n" +
                         "💰 Today's Profit: {} >= Max Allowed: {}\n" +
                         "🎉 EXCELLENT TRADING DAY! 🎉\n" +
@@ -69,7 +69,7 @@ public class DailyLimitsSchedulerService {
             
             // Check if loss limit is exceeded
             if (todayPnL <= -maxLossPerDay) {
-                log.warn("⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n" +
+                log.debug("⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n" +
                         "🚨 LOSS LIMIT HIT! 🚨\n" +
                         "💸 Today's Loss: {} >= Max Allowed: {}\n" +
                         "🛑 TRADING STOPPED FOR RISK MANAGEMENT 🛑\n" +
@@ -155,7 +155,7 @@ public class DailyLimitsSchedulerService {
             totalPnL = closedOrdersPnL + activeOrdersPnL;
             
             // Create profit visualization for logs
-            log.info("📊 Closed Orders: {} ({} orders) " +
+            log.debug("📊 Closed Orders: {} ({} orders) " +
                      "📈 Active Orders: {} ({} orders) " +
                      "💎 Total P&L: {}",
                      String.format("%.2f", closedOrdersPnL), completedOrders.size(),
