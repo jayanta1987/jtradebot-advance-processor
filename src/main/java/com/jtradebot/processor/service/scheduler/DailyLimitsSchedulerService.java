@@ -10,6 +10,7 @@ import com.jtradebot.processor.service.order.OrderManagementService;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -43,9 +44,21 @@ public class DailyLimitsSchedulerService {
             resetDailyLimits();
             log.debug("Starting daily P&L limits check");
 
-            // Get daily limits from configuration
-            double maxProfitPerDay = tradingConfigurationService.getMaxProfitPerDay();
-            double maxLossPerDay = tradingConfigurationService.getMaxLossPerDay();
+            // Get daily limits from configuration with error handling
+            double maxProfitPerDay;
+            double maxLossPerDay;
+            
+            try {
+                maxProfitPerDay = tradingConfigurationService.getMaxProfitPerDay();
+                maxLossPerDay = tradingConfigurationService.getMaxLossPerDay();
+                log.debug("Daily limits loaded - Max Profit: {}, Max Loss: {}", 
+                         String.format("%.2f", maxProfitPerDay), String.format("%.2f", maxLossPerDay));
+            } catch (Exception e) {
+                log.error("❌ CRITICAL CONFIGURATION ERROR: Failed to load daily limits from configuration: {}", e.getMessage());
+                log.error("❌ Daily P&L limits scheduler will be disabled until configuration is fixed");
+                // Don't return - let the exception propagate to stop the scheduler
+                throw new RuntimeException("Daily limits configuration is missing or invalid. Please fix configuration before starting the system.", e);
+            }
             
             // Calculate today's P&L (including both closed and active orders)
             double todayPnL = calculateTodayPnL();

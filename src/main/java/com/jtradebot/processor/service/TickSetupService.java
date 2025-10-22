@@ -77,6 +77,22 @@ public class TickSetupService {
             throw new RuntimeException("ExitSettings is NULL from TradingConfigService. Configuration not properly loaded at startup.");
         }
         
+        // Validate that TradePreference has required values
+        if (tradePreference.getMaxProfitPerDay() <= 0) {
+            String errorMsg = "TradePreference.maxProfitPerDay is not set or invalid: " + tradePreference.getMaxProfitPerDay() + ". Configuration must be properly set.";
+            log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
+            throw new RuntimeException(errorMsg);
+        }
+        
+        if (tradePreference.getMaxLossPerDay() <= 0) {
+            String errorMsg = "TradePreference.maxLossPerDay is not set or invalid: " + tradePreference.getMaxLossPerDay() + ". Configuration must be properly set.";
+            log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
+            throw new RuntimeException(errorMsg);
+        }
+        
+        log.info("🔧 TRADE PREFERENCE VALIDATION - MaxProfitPerDay: {}, MaxLossPerDay: {}", 
+                tradePreference.getMaxProfitPerDay(), tradePreference.getMaxLossPerDay());
+        
         if (existingConfig != null) {
             // Update existing record
             existingConfig.setAccessToken(user.accessToken);
