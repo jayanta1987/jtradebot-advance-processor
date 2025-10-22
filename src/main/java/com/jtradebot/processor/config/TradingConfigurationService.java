@@ -153,10 +153,14 @@ public class TradingConfigurationService implements InitializingBean {
     public double getMaxProfitPerDay() {
         try {
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            if (tradeConfig.getTradePreference() != null) {
+            if (tradeConfig.getTradePreference() != null && tradeConfig.getTradePreference().getMaxProfitPerDay() > 0) {
                 return tradeConfig.getTradePreference().getMaxProfitPerDay();
             }
-            throw new RuntimeException("Max profit per day not configured in database and no fallback available");
+            
+            String errorMsg = "Max profit per day not configured in database. TradePreference is " + 
+                            (tradeConfig.getTradePreference() == null ? "NULL" : "present but maxProfitPerDay is " + tradeConfig.getTradePreference().getMaxProfitPerDay());
+            log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
+            throw new RuntimeException(errorMsg);
         } catch (Exception e) {
             log.error("Failed to get maxProfitPerDay from database: {}", e.getMessage());
             throw new RuntimeException("Failed to get max profit per day from configuration", e);
@@ -166,10 +170,14 @@ public class TradingConfigurationService implements InitializingBean {
     public double getMaxLossPerDay() {
         try {
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            if (tradeConfig.getTradePreference() != null) {
+            if (tradeConfig.getTradePreference() != null && tradeConfig.getTradePreference().getMaxLossPerDay() > 0) {
                 return tradeConfig.getTradePreference().getMaxLossPerDay();
             }
-            throw new RuntimeException("Max loss per day not configured in database and no fallback available");
+            
+            String errorMsg = "Max loss per day not configured in database. TradePreference is " + 
+                            (tradeConfig.getTradePreference() == null ? "NULL" : "present but maxLossPerDay is " + tradeConfig.getTradePreference().getMaxLossPerDay());
+            log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
+            throw new RuntimeException(errorMsg);
         } catch (Exception e) {
             log.error("Failed to get maxLossPerDay from database: {}", e.getMessage());
             throw new RuntimeException("Failed to get max loss per day from configuration", e);

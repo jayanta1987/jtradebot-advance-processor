@@ -1,15 +1,7 @@
 package com.jtradebot.processor.manager;
 
-import com.jtradebot.processor.indicator.MultiEmaIndicator;
-import com.jtradebot.processor.indicator.RsiIndicator;
-import com.jtradebot.processor.indicator.SupportResistanceIndicator;
-import com.jtradebot.processor.model.indicator.EmaIndicatorInfo;
-import com.jtradebot.processor.model.indicator.EmaInfo;
 import com.jtradebot.processor.model.IndexData;
-import com.jtradebot.processor.model.indicator.Resistance;
-import com.jtradebot.processor.model.indicator.Support;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
-import com.jtradebot.processor.model.enums.TrendEnum;
 import com.zerodhatech.models.Tick;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +11,6 @@ import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
