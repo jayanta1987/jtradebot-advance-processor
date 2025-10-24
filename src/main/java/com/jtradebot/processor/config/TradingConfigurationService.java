@@ -189,8 +189,8 @@ public class TradingConfigurationService implements InitializingBean {
         return tradingConfig.getRiskManagement().getMinMilestonePoints();
     }
 
-    public double getMaxMilestonePoints() {
-        return tradingConfig.getRiskManagement().getMaxMilestonePoints();
+    public double getBaseMilestonePoints() {
+        return tradingConfig.getRiskManagement().getBaseMilestonePoints();
     }
 
     public int getRsiMaPeriod() {
@@ -365,7 +365,7 @@ public class TradingConfigurationService implements InitializingBean {
         private double maxRiskPerDayPercentage;
         private double maxProfitPerDayPercentage;
         private double minMilestonePoints;
-        private double maxMilestonePoints;
+        private double baseMilestonePoints;
         private RsiThresholds rsiThresholds;
         private double volumeSurgeMultiplierMin;
         private double signalStrength;

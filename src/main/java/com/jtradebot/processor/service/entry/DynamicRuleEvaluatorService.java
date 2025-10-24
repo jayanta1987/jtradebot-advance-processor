@@ -196,14 +196,15 @@ public class DynamicRuleEvaluatorService {
             BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, ONE_MIN);
             BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, FIVE_MIN);
             BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, FIFTEEN_MIN);
+            BarSeries oneHourSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, ONE_HOUR);
 
 
             // Use RuleHelper to flatten indicators using INDEX data
-            ruleHelper.flattenEmaIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
-            ruleHelper.flattenRsiIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries,
+            ruleHelper.flattenEmaIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, oneHourSeries);
+            ruleHelper.flattenRsiIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, oneHourSeries,
                     configService.getRsiMaPeriod(), configService.isEnableRsiMaComparison());
-            ruleHelper.flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, indexTick);
-            ruleHelper.flattenCandlestickPatternIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries);
+            ruleHelper.flattenPriceActionIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, oneHourSeries, indexTick);
+            ruleHelper.flattenCandlestickPatternIndicators(indicators, oneMinSeries, fiveMinSeries, fifteenMinSeries, oneHourSeries);
 
             log.debug("✅ Index-based indicators calculated successfully for instrument: {}", instrumentToken);
 

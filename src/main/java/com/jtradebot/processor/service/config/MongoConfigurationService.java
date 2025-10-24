@@ -113,8 +113,8 @@ public class MongoConfigurationService {
         }
         
         RiskManagementSetting setting = mongoSetting.get();
-        log.info("✅ Found active risk management setting in MongoDB: ID={}, minMilestonePoints={}, maxMilestonePoints={}", 
-                setting.getId(), setting.getMinMilestonePoints(), setting.getMaxMilestonePoints());
+        log.info("✅ Found active risk management setting in MongoDB: ID={}, minMilestonePoints={}, baseMilestonePoints={}", 
+                setting.getId(), setting.getMinMilestonePoints(), setting.getBaseMilestonePoints());
         
         // Build RiskManagement
         TradingConfigurationService.RsiThresholds rsiThresholds = TradingConfigurationService.RsiThresholds.builder()
@@ -124,7 +124,7 @@ public class MongoConfigurationService {
         
         TradingConfigurationService.RiskManagement riskManagement = TradingConfigurationService.RiskManagement.builder()
                 .minMilestonePoints(setting.getMinMilestonePoints() != null ? setting.getMinMilestonePoints() : 2.0)
-                .maxMilestonePoints(setting.getMaxMilestonePoints() != null ? setting.getMaxMilestonePoints() : 3.0)
+                .baseMilestonePoints(setting.getBaseMilestonePoints() != null ? setting.getBaseMilestonePoints() : 5.0)
                 .rsiThresholds(rsiThresholds)
                 .volumeSurgeMultiplierMin(setting.getVolumeSurgeMultiplierMin() != null ? setting.getVolumeSurgeMultiplierMin() : 1.5)
                 .stopLossPercentage(setting.getStopLossPercentage() != null ? setting.getStopLossPercentage() : 2.0)

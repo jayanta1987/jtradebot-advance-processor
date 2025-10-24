@@ -209,36 +209,55 @@ public class OrderService {
      */
     private void initializeMilestoneSystem(JtradeOrder order, Tick tick) {
         try {
-            // Get milestone configuration from strategy config (min/max values)
+            // Get milestone configuration from strategy config
             double minMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
                     configService.getCallMinMilestonePoints() : configService.getPutMinMilestonePoints();
-            double maxMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
-                    configService.getCallMaxMilestonePoints() : configService.getPutMaxMilestonePoints();
+            double baseMilestonePoints = configService.getBaseMilestonePoints();
             
-            double totalTargetPoints = order.getTargetPrice() - order.getEntryPrice();
 
-            // Calculate dynamic milestone points using ATR values with min/max constraints
-            double dynamicMilestonePoints = CommonUtils.calculateDynamicMilestonePoints(tick, tickDataManager, minMilestonePoints, maxMilestonePoints);
-            
-            // Create target milestones
+            // Create target milestones using decremental approach
             List<MilestoneSystem.Milestone> targetMilestones = new ArrayList<>();
             List<String> milestoneHistory = new ArrayList<>();
 
-            if (dynamicMilestonePoints > 0) {
-                int milestoneCount = (int) Math.ceil(totalTargetPoints / dynamicMilestonePoints);
-                for (int i = 1; i <= milestoneCount; i++) {
-                    double points = Math.min(i * dynamicMilestonePoints, totalTargetPoints);
-                    double targetPrice = order.getEntryPrice() + points;
-
+            if (baseMilestonePoints > 0 && minMilestonePoints > 0) {
+                double currentPrice = order.getEntryPrice();
+                int milestoneNumber = 1;
+                
+                // Create milestones until we reach or exceed the target price
+                while (currentPrice < order.getTargetPrice()) {
+                    // Calculate decremental milestone points for this milestone
+                    double milestonePoints = CommonUtils.calculateDecrementalMilestonePoints(milestoneNumber, baseMilestonePoints, minMilestonePoints);
+                    
+                    // Calculate target price for this milestone
+                    double targetPrice = currentPrice + milestonePoints;
+                    
+                    // Don't exceed the final target price
+                    if (targetPrice > order.getTargetPrice()) {
+                        targetPrice = order.getTargetPrice();
+                    }
+                    
+                    // Calculate actual points for this milestone
+                    double actualPoints = targetPrice - order.getEntryPrice();
+                    
                     MilestoneSystem.Milestone milestone = MilestoneSystem.Milestone.builder()
-                            .milestoneNumber(i)
-                            .points(points)
+                            .milestoneNumber(milestoneNumber)
+                            .points(actualPoints)
                             .targetPrice(targetPrice)
                             .targetHit(false)
                             .profitAtMilestone(0.0)
                             .build();
 
                     targetMilestones.add(milestone);
+                    
+                    // Move to next milestone
+                    currentPrice = targetPrice;
+                    milestoneNumber++;
+                    
+                    // Safety check to prevent infinite loop
+                    if (milestoneNumber > 100) {
+                        log.warn("⚠️ Too many milestones created, stopping at milestone {}", milestoneNumber - 1);
+                        break;
+                    }
                 }
             }
 
@@ -250,8 +269,8 @@ public class OrderService {
             order.setMinIndexPrice(order.getEntryIndexPrice());
             order.setMaxIndexPrice(order.getEntryIndexPrice());
 
-            log.info("🎯 Manual order milestone system initialized - Milestones: {}, Dynamic Step: {}", 
-                    targetMilestones.size(), dynamicMilestonePoints);
+            log.info("🎯 Manual order decremental milestone system initialized - Milestones: {}, Base: {}, Min: {}", 
+                    targetMilestones.size(), baseMilestonePoints, minMilestonePoints);
 
         } catch (Exception e) {
             log.error("Error initializing milestone system for manual order: {}", order.getId(), e);

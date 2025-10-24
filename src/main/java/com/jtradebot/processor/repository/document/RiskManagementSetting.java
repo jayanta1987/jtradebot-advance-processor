@@ -23,7 +23,7 @@ public class RiskManagementSetting {
     
     // Risk Management Settings
     private Double minMilestonePoints;
-    private Double maxMilestonePoints;
+    private Double baseMilestonePoints;
     private Double volumeSurgeMultiplierMin;
     private Double stopLossPercentage;
     private Double targetPercentage;

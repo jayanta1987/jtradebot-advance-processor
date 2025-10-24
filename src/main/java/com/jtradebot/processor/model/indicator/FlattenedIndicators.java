@@ -22,124 +22,157 @@ public class FlattenedIndicators {
     private Boolean ema5_1min_gt_ema34_1min;
     private Boolean ema5_5min_gt_ema34_5min;
     private Boolean ema5_15min_gt_ema34_15min;
+    private Boolean ema5_1hour_gt_ema34_1hour;
     
     // Bearish EMA indicators (EMA5 < EMA34)
     private Boolean ema5_1min_lt_ema34_1min;
     private Boolean ema5_5min_lt_ema34_5min;
     private Boolean ema5_15min_lt_ema34_15min;
+    private Boolean ema5_1hour_lt_ema34_1hour;
     
     // EMA 200 distance indicators (distance from EMA 200)
     private Double ema200_distance_1min; // Distance from EMA 200 in 1min timeframe
     private Double ema200_distance_5min; // Distance from EMA 200 in 5min timeframe
     private Double ema200_distance_15min; // Distance from EMA 200 in 15min timeframe
+    private Double ema200_distance_1hour; // Distance from EMA 200 in 1hour timeframe
     
     // EMA 5 distance indicators (distance from EMA 5)
     private Double ema5_distance_1min; // Distance from EMA 5 in 1min timeframe
     private Double ema5_distance_5min; // Distance from EMA 5 in 5min timeframe
     private Double ema5_distance_15min; // Distance from EMA 5 in 15min timeframe
+    private Double ema5_distance_1hour; // Distance from EMA 5 in 1hour timeframe
     
     // EMA values for additional filtering
     private Double ema5_5min; // EMA 5 value in 5min timeframe
     private Double ema34_5min; // EMA 34 value in 5min timeframe
     private Double ema200_1min; // EMA 200 value in 1min timeframe
     private Double ema200_5min; // EMA 200 value in 5min timeframe
+    private Double ema5_1hour; // EMA 5 value in 1hour timeframe
+    private Double ema34_1hour; // EMA 34 value in 1hour timeframe
+    private Double ema200_1hour; // EMA 200 value in 1hour timeframe
     
     // New EMA price position indicators
     private Boolean price_above_ema5_5min;
     private Boolean price_above_ema5_1min;
     private Boolean price_above_ema34_5min;
     private Boolean price_above_ema34_1min;
+    private Boolean price_above_ema5_1hour;
+    private Boolean price_above_ema34_1hour;
     
     // New EMA price position indicators for PUT strategy
     private Boolean price_below_ema5_5min;
     private Boolean price_below_ema5_1min;
     private Boolean price_below_ema34_5min;
     private Boolean price_below_ema34_1min;
+    private Boolean price_below_ema5_1hour;
+    private Boolean price_below_ema34_1hour;
     
     // New EMA crossover indicators
     private Boolean ema_crossover_bullish_5min;
     private Boolean ema_crossover_bullish_1min;
     private Boolean ema_crossover_bearish_5min;
     private Boolean ema_crossover_bearish_1min;
+    private Boolean ema_crossover_bullish_1hour;
+    private Boolean ema_crossover_bearish_1hour;
     
     // RSI indicators - Updated thresholds
     private Boolean rsi_1min_gt_80;
     private Boolean rsi_5min_gt_80;
     private Boolean rsi_15min_gt_80;
+    private Boolean rsi_1hour_gt_80;
     private Boolean rsi_1min_lt_20;
     private Boolean rsi_5min_lt_20;
     private Boolean rsi_15min_lt_20;
+    private Boolean rsi_1hour_lt_20;
     
     // New RSI indicators for updated thresholds (60 and 40)
     private Boolean rsi_1min_gt_60;
     private Boolean rsi_5min_gt_60;
     private Boolean rsi_15min_gt_60;
+    private Boolean rsi_1hour_gt_60;
     private Boolean rsi_1min_lt_40;
     private Boolean rsi_5min_lt_40;
     private Boolean rsi_15min_lt_40;
+    private Boolean rsi_1hour_lt_40;
     
     // RSI neutral zone indicators (between 44 and 56)
     private Boolean rsi_1min_between_44_56;
+    private Boolean rsi_1hour_between_44_56;
     
     // RSI MA comparison indicators
     private Boolean rsi_1min_gt_rsi_ma;
     private Boolean rsi_5min_gt_rsi_ma;
     private Boolean rsi_15min_gt_rsi_ma;
+    private Boolean rsi_1hour_gt_rsi_ma;
     private Boolean rsi_1min_lt_rsi_ma;
     private Boolean rsi_5min_lt_rsi_ma;
     private Boolean rsi_15min_lt_rsi_ma;
+    private Boolean rsi_1hour_lt_rsi_ma;
     
     // RSI Divergence indicators
     private Boolean rsi_bullish_divergence_1min;
     private Boolean rsi_bullish_divergence_5min;
     private Boolean rsi_bullish_divergence_15min;
+    private Boolean rsi_bullish_divergence_1hour;
     private Boolean rsi_bearish_divergence_1min;
     private Boolean rsi_bearish_divergence_5min;
     private Boolean rsi_bearish_divergence_15min;
+    private Boolean rsi_bearish_divergence_1hour;
     
     // MACD indicators
     private Boolean macd_bullish_crossover_1min;
     private Boolean macd_bullish_crossover_5min;
     private Boolean macd_bullish_crossover_15min;
+    private Boolean macd_bullish_crossover_1hour;
     private Boolean macd_bearish_crossover_1min;
     private Boolean macd_bearish_crossover_5min;
     private Boolean macd_bearish_crossover_15min;
+    private Boolean macd_bearish_crossover_1hour;
     private Boolean macd_above_zero_1min;
     private Boolean macd_above_zero_5min;
     private Boolean macd_above_zero_15min;
+    private Boolean macd_above_zero_1hour;
     private Boolean macd_below_zero_1min;
     private Boolean macd_below_zero_5min;
     private Boolean macd_below_zero_15min;
+    private Boolean macd_below_zero_1hour;
     
     // Volume surge indicators
     private Boolean volume_1min_surge;
     private Boolean volume_5min_surge;
     private Boolean volume_15min_surge;
+    private Boolean volume_1hour_surge;
     private Double volume_surge_multiplier;
     
     // Combined Price-Volume Directional Indicators
     private Boolean price_volume_bullish_surge_1min;
     private Boolean price_volume_bullish_surge_5min;
     private Boolean price_volume_bullish_surge_15min;
+    private Boolean price_volume_bullish_surge_1hour;
     private Boolean price_volume_bearish_surge_1min;
     private Boolean price_volume_bearish_surge_5min;
     private Boolean price_volume_bearish_surge_15min;
+    private Boolean price_volume_bearish_surge_1hour;
     
     // Open Interest (OI) indicators
     private Boolean oi_bullish_signal_1min;
     private Boolean oi_bullish_signal_5min;
     private Boolean oi_bullish_signal_15min;
+    private Boolean oi_bullish_signal_1hour;
     private Boolean oi_bearish_signal_1min;
     private Boolean oi_bearish_signal_5min;
     private Boolean oi_bearish_signal_15min;
+    private Boolean oi_bearish_signal_1hour;
     
     // Price action indicators
     private Boolean price_gt_vwap_1min;
     private Boolean price_gt_vwap_5min;
     private Boolean price_gt_vwap_15min;
+    private Boolean price_gt_vwap_1hour;
     private Boolean price_lt_vwap_1min;
     private Boolean price_lt_vwap_5min;
     private Boolean price_lt_vwap_15min;
+    private Boolean price_lt_vwap_1hour;
     
     // Support/Resistance indicators
     private Boolean price_above_resistance;

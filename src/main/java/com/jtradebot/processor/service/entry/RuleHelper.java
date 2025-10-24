@@ -34,7 +34,7 @@ public class RuleHelper {
     /**
      * Flatten EMA indicators for all timeframes
      */
-    public void flattenEmaIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries) {
+    public void flattenEmaIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, BarSeries oneHourSeries) {
         try {
             // 1-minute EMA calculation
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 21) {
@@ -252,6 +252,103 @@ public class RuleHelper {
                 indicators.setEma200_distance_15min(null);
             }
 
+            // 1-hour EMA calculation
+            if (oneHourSeries != null && oneHourSeries.getBarCount() >= 21) {
+                try {
+                    EmaInfo emaInfo_1hour = multiEmaIndicator.calculateEmaValues(oneHourSeries, ONE_HOUR);
+                    double ema5_1hour = emaInfo_1hour.getEma5();
+                    double ema34_1hour = emaInfo_1hour.getEma34();
+
+                    boolean gtResult = ema5_1hour > ema34_1hour;
+                    boolean ltResult = ema5_1hour < ema34_1hour;
+                    indicators.setEma5_1hour_gt_ema34_1hour(gtResult);
+                    indicators.setEma5_1hour_lt_ema34_1hour(ltResult);
+
+                    // Calculate EMA 200 distance for 1hour timeframe
+                    double ema200_1hour = emaInfo_1hour.getEma200();
+                    double currentPrice = oneHourSeries.getLastBar().getClosePrice().doubleValue();
+                    double ema200Distance1hour = currentPrice - ema200_1hour;
+                    indicators.setEma200_1hour(ema200_1hour); // Store EMA 200 value
+                    indicators.setEma200_distance_1hour(ema200Distance1hour);
+                    
+                    // Calculate EMA 5 distance for 1hour timeframe
+                    double ema5Distance1hour = currentPrice - ema5_1hour;
+                    indicators.setEma5_distance_1hour(ema5Distance1hour);
+                    
+                    // Store EMA values for additional filtering
+                    indicators.setEma5_1hour(ema5_1hour);
+                    indicators.setEma34_1hour(ema34_1hour);
+                    
+                    // Calculate new EMA price position indicators for 1hour
+                    indicators.setPrice_above_ema5_1hour(currentPrice > ema5_1hour);
+                    indicators.setPrice_above_ema34_1hour(currentPrice > ema34_1hour);
+                    indicators.setPrice_below_ema5_1hour(currentPrice < ema5_1hour);
+                    indicators.setPrice_below_ema34_1hour(currentPrice < ema34_1hour);
+                    
+                    // Calculate EMA crossover indicators for 1hour
+                    if (oneHourSeries.getBarCount() >= 2) {
+                        EmaInfo prevEmaInfo_1hour = multiEmaIndicator.calculateEmaValues(
+                            oneHourSeries.getSubSeries(0, oneHourSeries.getBarCount() - 1), ONE_HOUR);
+                        double prevEma5_1hour = prevEmaInfo_1hour.getEma5();
+                        double prevEma34_1hour = prevEmaInfo_1hour.getEma34();
+                        
+                        // Bullish crossover: EMA5 crosses above EMA34
+                        boolean bullishCrossover = prevEma5_1hour <= prevEma34_1hour && ema5_1hour > ema34_1hour;
+                        // Bearish crossover: EMA5 crosses below EMA34
+                        boolean bearishCrossover = prevEma5_1hour >= prevEma34_1hour && ema5_1hour < ema34_1hour;
+                        
+                        indicators.setEma_crossover_bullish_1hour(bullishCrossover);
+                        indicators.setEma_crossover_bearish_1hour(bearishCrossover);
+                    } else {
+                        indicators.setEma_crossover_bullish_1hour(false);
+                        indicators.setEma_crossover_bearish_1hour(false);
+                    }
+                    
+                    // Calculate MACD indicators for 1hour
+                    MACDIndicator.MACDResult macdResult1hour = macdIndicator.calculateMACD(oneHourSeries);
+                    indicators.setMacd_bullish_crossover_1hour(macdResult1hour.isBullishCrossover());
+                    indicators.setMacd_bearish_crossover_1hour(macdResult1hour.isBearishCrossover());
+                    indicators.setMacd_above_zero_1hour(macdResult1hour.isAboveZero());
+                    indicators.setMacd_below_zero_1hour(macdResult1hour.isBelowZero());
+                } catch (Exception e) {
+                    log.error("Error calculating 1hour EMA", e);
+                    indicators.setEma5_1hour_gt_ema34_1hour(null);
+                    indicators.setEma5_1hour_lt_ema34_1hour(null);
+                    indicators.setEma200_distance_1hour(null);
+                    indicators.setEma5_1hour(null);
+                    indicators.setEma34_1hour(null);
+                    indicators.setEma200_1hour(null);
+                    indicators.setPrice_above_ema5_1hour(null);
+                    indicators.setPrice_above_ema34_1hour(null);
+                    indicators.setPrice_below_ema5_1hour(null);
+                    indicators.setPrice_below_ema34_1hour(null);
+                    indicators.setEma_crossover_bullish_1hour(null);
+                    indicators.setEma_crossover_bearish_1hour(null);
+                    indicators.setMacd_bullish_crossover_1hour(null);
+                    indicators.setMacd_bearish_crossover_1hour(null);
+                    indicators.setMacd_above_zero_1hour(null);
+                    indicators.setMacd_below_zero_1hour(null);
+                }
+            } else {
+                log.warn("1hour BarSeries insufficient data - BarCount: {}", oneHourSeries != null ? oneHourSeries.getBarCount() : 0);
+                indicators.setEma5_1hour_gt_ema34_1hour(null);
+                indicators.setEma5_1hour_lt_ema34_1hour(null);
+                indicators.setEma200_distance_1hour(null);
+                indicators.setEma5_1hour(null);
+                indicators.setEma34_1hour(null);
+                indicators.setEma200_1hour(null);
+                indicators.setPrice_above_ema5_1hour(null);
+                indicators.setPrice_above_ema34_1hour(null);
+                indicators.setPrice_below_ema5_1hour(null);
+                indicators.setPrice_below_ema34_1hour(null);
+                indicators.setEma_crossover_bullish_1hour(null);
+                indicators.setEma_crossover_bearish_1hour(null);
+                indicators.setMacd_bullish_crossover_1hour(null);
+                indicators.setMacd_bearish_crossover_1hour(null);
+                indicators.setMacd_above_zero_1hour(null);
+                indicators.setMacd_below_zero_1hour(null);
+            }
+
         } catch (Exception e) {
             log.error("Error flattening EMA indicators", e);
             // Set to null on error to indicate no data
@@ -261,13 +358,15 @@ public class RuleHelper {
             indicators.setEma5_5min_lt_ema34_5min(null);
             indicators.setEma5_15min_gt_ema34_15min(null);
             indicators.setEma5_15min_lt_ema34_15min(null);
+            indicators.setEma5_1hour_gt_ema34_1hour(null);
+            indicators.setEma5_1hour_lt_ema34_1hour(null);
         }
     }
 
     /**
      * Flatten RSI indicators for all timeframes
      */
-    public void flattenRsiIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, int rsiMaPeriod, boolean enableRsiMaComparison) {
+    public void flattenRsiIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, BarSeries oneHourSeries, int rsiMaPeriod, boolean enableRsiMaComparison) {
         try {
 
             // 1-minute RSI calculation - Reduced minimum bars for backtesting
@@ -404,6 +503,55 @@ public class RuleHelper {
                 indicators.setRsi_bearish_divergence_15min(null);
             }
 
+            // 1-hour RSI calculation
+            if (oneHourSeries != null && oneHourSeries.getBarCount() >= 10) {
+                double rsi_1hour = rsiIndicator.getRsiValue(oneHourSeries, 14);
+                log.debug("1hour RSI: {} (BarCount: {})", rsi_1hour, oneHourSeries.getBarCount());
+
+                indicators.setRsi_1hour_gt_80(rsi_1hour > 80);
+                indicators.setRsi_1hour_lt_20(rsi_1hour < 20);
+                indicators.setRsi_1hour_gt_60(rsi_1hour > 60);
+                indicators.setRsi_1hour_lt_40(rsi_1hour < 40);
+
+                // RSI neutral zone indicators (between 44 and 56)
+                indicators.setRsi_1hour_between_44_56(rsi_1hour >= 44 && rsi_1hour <= 56);
+
+                // RSI MA comparison
+                if (enableRsiMaComparison && oneHourSeries.getBarCount() >= rsiMaPeriod) {
+                    double rsiMa_1hour = rsiIndicator.getRsiMaValue(oneHourSeries, 14, rsiMaPeriod);
+                    indicators.setRsi_1hour_gt_rsi_ma(rsi_1hour > rsiMa_1hour);
+                    indicators.setRsi_1hour_lt_rsi_ma(rsi_1hour < rsiMa_1hour);
+                } else {
+                    indicators.setRsi_1hour_gt_rsi_ma(null);
+                    indicators.setRsi_1hour_lt_rsi_ma(null);
+                }
+
+                // RSI Divergence calculation for 1hour
+                if (oneHourSeries.getBarCount() >= 30) {
+                    boolean bullishDivergence = rsiIndicator.isRsiDivergence(oneHourSeries, 14, 20, DivergenceType.BULLISH);
+                    boolean bearishDivergence = rsiIndicator.isRsiDivergence(oneHourSeries, 14, 20, DivergenceType.BEARISH);
+                    indicators.setRsi_bullish_divergence_1hour(bullishDivergence);
+                    indicators.setRsi_bearish_divergence_1hour(bearishDivergence);
+                    if (bullishDivergence || bearishDivergence) {
+                        log.info("RSI Divergence 1hour - Bullish: {}, Bearish: {}", bullishDivergence, bearishDivergence);
+                    }
+                } else {
+                    indicators.setRsi_bullish_divergence_1hour(null);
+                    indicators.setRsi_bearish_divergence_1hour(null);
+                }
+            } else {
+                log.debug("1hour BarSeries insufficient data - BarCount: {}", oneHourSeries != null ? oneHourSeries.getBarCount() : 0);
+                indicators.setRsi_1hour_gt_80(null);
+                indicators.setRsi_1hour_lt_20(null);
+                indicators.setRsi_1hour_gt_60(null);
+                indicators.setRsi_1hour_lt_40(null);
+                indicators.setRsi_1hour_between_44_56(null);
+                indicators.setRsi_1hour_gt_rsi_ma(null);
+                indicators.setRsi_1hour_lt_rsi_ma(null);
+                indicators.setRsi_bullish_divergence_1hour(null);
+                indicators.setRsi_bearish_divergence_1hour(null);
+            }
+
         } catch (Exception e) {
             log.error("Error flattening RSI indicators", e);
             // Set all to null on error
@@ -433,7 +581,7 @@ public class RuleHelper {
     /**
      * Flatten price action indicators
      */
-    public void flattenPriceActionIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, Tick tick) {
+    public void flattenPriceActionIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, BarSeries oneHourSeries, Tick tick) {
         try {
             // Support/Resistance indicators
             if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 20) {
@@ -485,7 +633,7 @@ public class RuleHelper {
     /**
      * Flatten candlestick pattern indicators
      */
-    public void flattenCandlestickPatternIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries) {
+    public void flattenCandlestickPatternIndicators(FlattenedIndicators indicators, BarSeries oneMinSeries, BarSeries fiveMinSeries, BarSeries fifteenMinSeries, BarSeries oneHourSeries) {
         try {
             // Process 1-minute candlestick patterns
             if (oneMinSeries != null && oneMinSeries.getBarCount() >= 3) {
@@ -500,6 +648,11 @@ public class RuleHelper {
             // Process 5-minute candlestick patterns
             if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 3) {
                 processCandlestickPatterns(indicators, fiveMinSeries, "5min");
+            }
+
+            // Process 1-hour candlestick patterns
+            if (oneHourSeries != null && oneHourSeries.getBarCount() >= 3) {
+                processCandlestickPatterns(indicators, oneHourSeries, "1hour");
             }
 
         } catch (Exception e) {

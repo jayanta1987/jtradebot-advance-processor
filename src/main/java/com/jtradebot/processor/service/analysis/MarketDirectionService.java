@@ -240,6 +240,20 @@ public class MarketDirectionService {
                 return Boolean.TRUE.equals(indicators.getPrice_below_ema34_1min());
             }
             
+            // 1-hour EMA price position indicators
+            if (condition.equals("price_above_ema5_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_above_ema5_1hour());
+            }
+            if (condition.equals("price_above_ema34_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_above_ema34_1hour());
+            }
+            if (condition.equals("price_below_ema5_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_below_ema5_1hour());
+            }
+            if (condition.equals("price_below_ema34_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_below_ema34_1hour());
+            }
+            
             // New EMA crossover indicators
             if (condition.equals("ema_crossover_bullish_5min")) {
                 return Boolean.TRUE.equals(indicators.getEma_crossover_bullish_5min());
@@ -253,6 +267,12 @@ public class MarketDirectionService {
             if (condition.equals("ema_crossover_bearish_1min")) {
                 return Boolean.TRUE.equals(indicators.getEma_crossover_bearish_1min());
             }
+            if (condition.equals("ema_crossover_bullish_1hour")) {
+                return Boolean.TRUE.equals(indicators.getEma_crossover_bullish_1hour());
+            }
+            if (condition.equals("ema_crossover_bearish_1hour")) {
+                return Boolean.TRUE.equals(indicators.getEma_crossover_bearish_1hour());
+            }
             if (condition.equals("ema5_5min_lt_ema34_5min")) {
                 return Boolean.TRUE.equals(indicators.getEma5_5min_lt_ema34_5min());
             }
@@ -261,6 +281,12 @@ public class MarketDirectionService {
             }
             if (condition.equals("ema5_15min_lt_ema34_15min")) {
                 return Boolean.TRUE.equals(indicators.getEma5_15min_lt_ema34_15min());
+            }
+            if (condition.equals("ema5_1hour_gt_ema34_1hour")) {
+                return Boolean.TRUE.equals(indicators.getEma5_1hour_gt_ema34_1hour());
+            }
+            if (condition.equals("ema5_1hour_lt_ema34_1hour")) {
+                return Boolean.TRUE.equals(indicators.getEma5_1hour_lt_ema34_1hour());
             }
 
             // RSI conditions
@@ -281,6 +307,12 @@ public class MarketDirectionService {
             }
             if (condition.equals("rsi_15min_lt_40")) {
                 return Boolean.TRUE.equals(indicators.getRsi_15min_lt_40());
+            }
+            if (condition.equals("rsi_1hour_gt_60")) {
+                return Boolean.TRUE.equals(indicators.getRsi_1hour_gt_60());
+            }
+            if (condition.equals("rsi_1hour_lt_40")) {
+                return Boolean.TRUE.equals(indicators.getRsi_1hour_lt_40());
             }
 
             // MACD conditions
@@ -320,6 +352,18 @@ public class MarketDirectionService {
             if (condition.equals("macd_below_zero_15min")) {
                 return Boolean.TRUE.equals(indicators.getMacd_below_zero_15min());
             }
+            if (condition.equals("macd_bullish_crossover_1hour")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bullish_crossover_1hour());
+            }
+            if (condition.equals("macd_bearish_crossover_1hour")) {
+                return Boolean.TRUE.equals(indicators.getMacd_bearish_crossover_1hour());
+            }
+            if (condition.equals("macd_above_zero_1hour")) {
+                return Boolean.TRUE.equals(indicators.getMacd_above_zero_1hour());
+            }
+            if (condition.equals("macd_below_zero_1hour")) {
+                return Boolean.TRUE.equals(indicators.getMacd_below_zero_1hour());
+            }
 
             // Volume conditions (keeping for backward compatibility but not used in JSON)
             if (condition.equals("volume_5min_surge")) {
@@ -330,6 +374,9 @@ public class MarketDirectionService {
             }
             if (condition.equals("volume_15min_surge")) {
                 return Boolean.TRUE.equals(indicators.getVolume_15min_surge());
+            }
+            if (condition.equals("volume_1hour_surge")) {
+                return Boolean.TRUE.equals(indicators.getVolume_1hour_surge());
             }
 
             // Combined Price-Volume Directional Indicators
@@ -351,6 +398,12 @@ public class MarketDirectionService {
             if (condition.equals("price_volume_bearish_surge_15min")) {
                 return Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_15min());
             }
+            if (condition.equals("price_volume_bullish_surge_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bullish_surge_1hour());
+            }
+            if (condition.equals("price_volume_bearish_surge_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_volume_bearish_surge_1hour());
+            }
 
             // Price action conditions
             if (condition.equals("price_gt_vwap_5min")) {
@@ -370,6 +423,12 @@ public class MarketDirectionService {
             }
             if (condition.equals("price_lt_vwap_15min")) {
                 return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_15min());
+            }
+            if (condition.equals("price_gt_vwap_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_gt_vwap_1hour());
+            }
+            if (condition.equals("price_lt_vwap_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_lt_vwap_1hour());
             }
 
             // Resistance/Support conditions
@@ -415,6 +474,12 @@ public class MarketDirectionService {
             if (condition.equals("rsi_15min_lt_rsi_ma")) {
                 return Boolean.TRUE.equals(indicators.getRsi_15min_lt_rsi_ma());
             }
+            if (condition.equals("rsi_1hour_gt_rsi_ma")) {
+                return Boolean.TRUE.equals(indicators.getRsi_1hour_gt_rsi_ma());
+            }
+            if (condition.equals("rsi_1hour_lt_rsi_ma")) {
+                return Boolean.TRUE.equals(indicators.getRsi_1hour_lt_rsi_ma());
+            }
             
             // RSI Divergence conditions
             if (condition.equals("rsi_bullish_divergence_5min")) {
@@ -434,6 +499,12 @@ public class MarketDirectionService {
             }
             if (condition.equals("rsi_bearish_divergence_15min")) {
                 return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_15min());
+            }
+            if (condition.equals("rsi_bullish_divergence_1hour")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bullish_divergence_1hour());
+            }
+            if (condition.equals("rsi_bearish_divergence_1hour")) {
+                return Boolean.TRUE.equals(indicators.getRsi_bearish_divergence_1hour());
             }
 
             // Additional candlestick pattern conditions
@@ -566,6 +637,12 @@ public class MarketDirectionService {
             if (condition.equals("oi_bearish_signal_15min")) {
                 return Boolean.TRUE.equals(indicators.getOi_bearish_signal_15min());
             }
+            if (condition.equals("oi_bullish_signal_1hour")) {
+                return Boolean.TRUE.equals(indicators.getOi_bullish_signal_1hour());
+            }
+            if (condition.equals("oi_bearish_signal_1hour")) {
+                return Boolean.TRUE.equals(indicators.getOi_bearish_signal_1hour());
+            }
 
             // Current candle crossed previous high/low patterns
             if (condition.equals("current_candle_crossed_above_prev_high_5min")) {
@@ -573,6 +650,14 @@ public class MarketDirectionService {
             }
             if (condition.equals("current_candle_crossed_below_prev_low_5min")) {
                 return Boolean.TRUE.equals(indicators.getCurrent_candle_crossed_below_prev_low_5min());
+            }
+
+            // 1-hour EMA34 price comparison conditions for scoring
+            if (condition.equals("price_above_ema34_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_above_ema34_1hour());
+            }
+            if (condition.equals("price_below_ema34_1hour")) {
+                return Boolean.TRUE.equals(indicators.getPrice_below_ema34_1hour());
             }
 
             // Default case - condition not recognized
