@@ -89,16 +89,12 @@ public class DynamicStrategyConfigService {
         return tradingConfigurationService.getMinMilestonePoints();
     }
 
-    public double getCallMaxMilestonePoints() {
-        return tradingConfigurationService.getMaxMilestonePoints();
-    }
-
     public double getPutMinMilestonePoints() {
         return tradingConfigurationService.getMinMilestonePoints();
     }
 
-    public double getPutMaxMilestonePoints() {
-        return tradingConfigurationService.getMaxMilestonePoints();
+    public double getBaseMilestonePoints() {
+        return tradingConfigurationService.getBaseMilestonePoints();
     }
 
 

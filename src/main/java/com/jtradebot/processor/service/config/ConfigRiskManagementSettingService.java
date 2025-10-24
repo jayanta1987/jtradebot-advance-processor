@@ -28,8 +28,8 @@ public class ConfigRiskManagementSettingService {
         if (updatedSetting.getMinMilestonePoints() != null) {
             existing.setMinMilestonePoints(updatedSetting.getMinMilestonePoints());
         }
-        if (updatedSetting.getMaxMilestonePoints() != null) {
-            existing.setMaxMilestonePoints(updatedSetting.getMaxMilestonePoints());
+        if (updatedSetting.getBaseMilestonePoints() != null) {
+            existing.setBaseMilestonePoints(updatedSetting.getBaseMilestonePoints());
         }
         if (updatedSetting.getVolumeSurgeMultiplierMin() != null) {
             existing.setVolumeSurgeMultiplierMin(updatedSetting.getVolumeSurgeMultiplierMin());
