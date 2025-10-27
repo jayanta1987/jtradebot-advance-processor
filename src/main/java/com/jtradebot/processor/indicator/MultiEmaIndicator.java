@@ -37,6 +37,11 @@ public class MultiEmaIndicator {
         return emaInfo;
     }
 
+    public double getEmaValue(BarSeries series, int barCount, int endIndex) {
+        ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
+        return new EMAIndicator(closePrice, barCount).getValue(endIndex).doubleValue();
+    }
+
 
     public EmaIndicatorInfo createEmaInfoForTimeframes(BarSeries series, CandleTimeFrameEnum timeframe) {
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
@@ -76,12 +81,12 @@ public class MultiEmaIndicator {
         boolean isCrossedEmaUp = currentLow < currentEmaValue
                 && ltp > currentEmaValue
                 && Math.abs(ltp - currentEmaValue) > buffer;
-                //&& previousEmaValue < currentEmaValue; not required. check later if needed
+        //&& previousEmaValue < currentEmaValue; not required. check later if needed
 
         boolean isCrossedEmaDown = currentHigh > currentEmaValue
                 && ltp < currentEmaValue
                 && Math.abs(ltp - currentEmaValue) > buffer;
-                //&& previousEmaValue > currentEmaValue; not required. check later if needed
+        //&& previousEmaValue > currentEmaValue; not required. check later if needed
 
         if (crossType == CrossTypeEnum.CROSS_UP) {
             return isCrossedEmaUp;
