@@ -66,11 +66,9 @@ public class RuleHelper {
                     indicators.setPrice_below_ema34_1min(currentPrice < ema34_1min);
                     
                     // Calculate EMA crossover indicators for 1min
-                    if (oneMinSeries.getBarCount() >= 2) {
-                        EmaInfo prevEmaInfo_1min = multiEmaIndicator.calculateEmaValues(
-                            oneMinSeries.getSubSeries(0, oneMinSeries.getBarCount() - 1), ONE_MIN);
-                        double prevEma5_1min = prevEmaInfo_1min.getEma5();
-                        double prevEma34_1min = prevEmaInfo_1min.getEma34();
+                    if (oneMinSeries.getBarCount() >= 5) {
+                        double prevEma5_1min = multiEmaIndicator.getEmaValue(oneMinSeries, 5, oneMinSeries.getEndIndex() -1);
+                        double prevEma34_1min = multiEmaIndicator.getEmaValue(oneMinSeries, 34, oneMinSeries.getEndIndex() -1);
                         
                         // Bullish crossover: EMA5 crosses above EMA34
                         boolean bullishCrossover = prevEma5_1min <= prevEma34_1min && ema5_1min > ema34_1min;
@@ -158,11 +156,10 @@ public class RuleHelper {
                     indicators.setPrice_below_ema34_5min(currentPrice < ema34_5min);
                     
                     // Calculate EMA crossover indicators for 5min
-                    if (fiveMinSeries.getBarCount() >= 2) {
-                        EmaInfo prevEmaInfo_5min = multiEmaIndicator.calculateEmaValues(
-                            fiveMinSeries.getSubSeries(0, fiveMinSeries.getBarCount() - 1), FIVE_MIN);
-                        double prevEma5_5min = prevEmaInfo_5min.getEma5();
-                        double prevEma34_5min = prevEmaInfo_5min.getEma34();
+                    if (fiveMinSeries.getBarCount() >= 5) {
+
+                        double prevEma5_5min = multiEmaIndicator.getEmaValue(fiveMinSeries, 5, fiveMinSeries.getEndIndex() -1);
+                        double prevEma34_5min = multiEmaIndicator.getEmaValue(fiveMinSeries, 34, fiveMinSeries.getEndIndex() -1);
                         
                         // Bullish crossover: EMA5 crosses above EMA34
                         boolean bullishCrossover = prevEma5_5min <= prevEma34_5min && ema5_5min > ema34_5min;
@@ -287,10 +284,8 @@ public class RuleHelper {
                     
                     // Calculate EMA crossover indicators for 1hour
                     if (oneHourSeries.getBarCount() >= 2) {
-                        EmaInfo prevEmaInfo_1hour = multiEmaIndicator.calculateEmaValues(
-                            oneHourSeries.getSubSeries(0, oneHourSeries.getBarCount() - 1), ONE_HOUR);
-                        double prevEma5_1hour = prevEmaInfo_1hour.getEma5();
-                        double prevEma34_1hour = prevEmaInfo_1hour.getEma34();
+                        double prevEma5_1hour = multiEmaIndicator.getEmaValue(oneHourSeries, 5, oneHourSeries.getEndIndex() -1);
+                        double prevEma34_1hour = multiEmaIndicator.getEmaValue(oneHourSeries, 5, oneHourSeries.getEndIndex() -1);
                         
                         // Bullish crossover: EMA5 crosses above EMA34
                         boolean bullishCrossover = prevEma5_1hour <= prevEma34_1hour && ema5_1hour > ema34_1hour;
