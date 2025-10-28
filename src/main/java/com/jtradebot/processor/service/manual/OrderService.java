@@ -16,6 +16,8 @@ import com.jtradebot.processor.service.order.OrderManagementService;
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
+import com.jtradebot.processor.service.price.GreeksAnalysisService;
+import com.jtradebot.processor.service.price.OptionGreeksCalculator;
 import com.jtradebot.processor.service.quantity.DynamicQuantityService;
 import com.jtradebot.processor.service.scheduler.DailyLimitsSchedulerService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
@@ -37,6 +39,7 @@ public class OrderService {
 
     private final LiveOptionPricingService liveOptionPricingService;
     private final MockOptionPricingService mockOptionPricingService;
+    private final GreeksAnalysisService greeksAnalysisService;
     private final TradingConfigurationService tradingConfigService;
     private final DayTradingSettingService dayTradingSettingService;
     private final KiteInstrumentHandler kiteInstrumentHandler;
@@ -135,6 +138,10 @@ public class OrderService {
             double optionEntryPrice;
             String optionSymbol;
             long optionInstrumentToken;
+            
+            // Variables to store Greeks data for order
+            GreeksAnalysisService.StrikeGreeksData bestStrikeData = null;
+            String optionType = (orderType == OrderTypeEnum.CALL_BUY) ? "CE" : "PE";
 
             if (liveOptionPricing.isPresent()) {
                 LiveOptionPricingService.LiveOptionPricingInfo pricingInfo = liveOptionPricing.get();
@@ -144,11 +151,34 @@ public class OrderService {
                 log.info("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}", 
                         optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice());
             } else {
-                optionEntryPrice = mockOptionPricingService.calculateEntryLTP(currentIndexPrice);
-                optionSymbol = orderType == OrderTypeEnum.CALL_BUY ? "MANUAL_CALL_CE" : "MANUAL_PUT_PE";
-                optionInstrumentToken = 0L;
-                log.info("📊 USING PLACEHOLDER PRICING - Index: {}, Premium: {}", 
-                        currentIndexPrice, optionEntryPrice);
+                // Try to get best strike data from Greeks analysis for more realistic local testing
+                try {
+                    GreeksAnalysisService.BestStrikeResult bestStrikeResult = greeksAnalysisService.getBestStrikeForScalping(optionType);
+                    
+                    if (bestStrikeResult.isSuccess() && bestStrikeResult.getBestStrike() != null) {
+                        bestStrikeData = bestStrikeResult.getBestStrike();
+                        optionEntryPrice = bestStrikeData.getOptionPrice();
+                        optionSymbol = bestStrikeData.getTradingSymbol();
+                        optionInstrumentToken = bestStrikeData.getInstrumentToken();
+                        log.info("🎯 USING GREEKS-BASED MANUAL PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {}, Delta: {}",
+                                optionSymbol, optionEntryPrice, bestStrikeData.getStrikePrice(), currentIndexPrice, 
+                                String.format("%.3f", bestStrikeData.getGreeks().getDelta()));
+                    } else {
+                        // Fallback to simple mock pricing
+                        optionEntryPrice = mockOptionPricingService.calculateEntryLTP(currentIndexPrice);
+                        optionSymbol = orderType == OrderTypeEnum.CALL_BUY ? "MANUAL_CALL_CE" : "MANUAL_PUT_PE";
+                        optionInstrumentToken = 0L;
+                        log.info("📊 USING FALLBACK MANUAL PRICING - Index: {}, Premium: {} (Greeks data unavailable)",
+                                currentIndexPrice, optionEntryPrice);
+                    }
+                } catch (Exception e) {
+                    // Fallback to simple mock pricing if Greeks analysis fails
+                    optionEntryPrice = mockOptionPricingService.calculateEntryLTP(currentIndexPrice);
+                    optionSymbol = orderType == OrderTypeEnum.CALL_BUY ? "MANUAL_CALL_CE" : "MANUAL_PUT_PE";
+                    optionInstrumentToken = 0L;
+                    log.warn("📊 USING FALLBACK MANUAL PRICING - Index: {}, Premium: {} (Error: {})",
+                            currentIndexPrice, optionEntryPrice, e.getMessage());
+                }
             }
 
             // Calculate stop loss and target
@@ -185,6 +215,28 @@ public class OrderService {
             order.setEntryMarketConditionSuitable(true); // Skip market condition checks
             order.setEntryQualityScore(10.0); // Manual orders bypass quality checks
             order.setEntryDominantTrend(orderType.name().replace("_BUY", ""));
+            
+            // Store Greeks data at entry time
+            if (bestStrikeData != null) {
+                OptionGreeksCalculator.OptionGreeks greeks = bestStrikeData.getGreeks();
+                order.setEntryDelta(greeks.getDelta());
+                order.setEntryGamma(greeks.getGamma());
+                order.setEntryTheta(greeks.getTheta());
+                order.setEntryVega(greeks.getVega());
+                order.setEntryImpliedVolatility(bestStrikeData.getImpliedVolatility());
+                order.setEntryTimeToExpiry(bestStrikeData.getTimeToExpiry());
+                order.setEntryStrikePrice(bestStrikeData.getStrikePrice());
+                order.setEntryOptionType(optionType);
+                
+                log.info("📊 MANUAL ORDER GREEKS DATA STORED - Delta: {}, Gamma: {}, Theta: {}, Vega: {}, IV: {}%, TTE: {} days, Strike: {}",
+                        String.format("%.3f", greeks.getDelta()), String.format("%.4f", greeks.getGamma()),
+                        String.format("%.2f", greeks.getTheta()), String.format("%.2f", greeks.getVega()),
+                        String.format("%.1f", bestStrikeData.getImpliedVolatility() * 100),
+                        String.format("%.1f", bestStrikeData.getTimeToExpiry()),
+                        bestStrikeData.getStrikePrice());
+            } else {
+                log.info("📊 NO GREEKS DATA AVAILABLE FOR MANUAL ORDER - Using fallback pricing without Greeks details");
+            }
 
             // Initialize milestone system only if milestone-based exit is enabled
             if (dayTradingSettingService.isMilestoneBasedExitEnabled()) {

@@ -150,8 +150,8 @@ public class OptionGreeksCalculator {
                 
                 // Safety check for oscillation or divergence
                 if (i > 10 && Math.abs(priceDifference) > Math.abs(theoreticalPrice * 0.1)) {
-                    log.warn("Newton-Raphson may be diverging, falling back to bisection. Iteration: {}, diff: {:.6f}", 
-                            i + 1, priceDifference);
+                    log.warn("Newton-Raphson may be diverging, falling back to bisection. Iteration: {}, diff: {}", 
+                            i + 1, String.format("%.6f", priceDifference));
                     vol = bisectionMethod(spotPrice, strikePrice, optionPrice, timeInYears, optionType, 
                                         volLower, volUpper, tolerance, maxIterations);
                     break;
