@@ -325,6 +325,7 @@ public class UnstableMarketConditionAnalysisService {
                         filter.getEndHour(), filter.getEndMinute());
                 break;
 
+
             default:
                 passed = true; // Unknown filter, pass by default
                 details = "Unknown filter type";

@@ -81,6 +81,7 @@ public class RuleHelper {
                         indicators.setEma_crossover_bullish_1min(false);
                         indicators.setEma_crossover_bearish_1min(false);
                     }
+                    
                 } catch (Exception e) {
                     log.error("Error calculating 1min EMA", e);
                     indicators.setEma5_1min_gt_ema34_1min(null);
@@ -173,6 +174,7 @@ public class RuleHelper {
                         indicators.setEma_crossover_bearish_5min(false);
                     }
                     
+                    
                     // Calculate MACD indicators for 5min
                     MACDIndicator.MACDResult macdResult5min = macdIndicator.calculateMACD(fiveMinSeries);
                     indicators.setMacd_bullish_crossover_5min(macdResult5min.isBullishCrossover());
@@ -230,6 +232,7 @@ public class RuleHelper {
                     double ema5Distance15min = currentPrice - ema5_15min;
                     indicators.setEma5_distance_15min(ema5Distance15min);
                     
+                    
                     // Calculate MACD indicators for 15min
                     MACDIndicator.MACDResult macdResult15min = macdIndicator.calculateMACD(fifteenMinSeries);
                     indicators.setMacd_bullish_crossover_15min(macdResult15min.isBullishCrossover());
@@ -280,6 +283,7 @@ public class RuleHelper {
                     indicators.setPrice_above_ema5_1hour(currentPrice > ema5_1hour);
                     indicators.setPrice_above_ema34_1hour(currentPrice > ema34_1hour);
                     indicators.setPrice_below_ema5_1hour(currentPrice < ema5_1hour);
+                    
                     indicators.setPrice_below_ema34_1hour(currentPrice < ema34_1hour);
                     
                     // Calculate EMA crossover indicators for 1hour

@@ -43,6 +43,7 @@ public class ScoringConfigurationService {
     // Convenience methods for quality thresholds
     public double getMinQualityScore() { return thresholdConfig.getQualityThresholds().getMinQualityScore(); }
 
+
     // Convenience methods for timing configuration
     public int getMinDataBars() { return timingConfig.getMinDataBars(); }
 }

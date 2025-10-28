@@ -51,6 +51,7 @@ public class FlattenedIndicators {
     private Double ema34_1hour; // EMA 34 value in 1hour timeframe
     private Double ema200_1hour; // EMA 200 value in 1hour timeframe
     
+    
     // New EMA price position indicators
     private Boolean price_above_ema5_5min;
     private Boolean price_above_ema5_1min;

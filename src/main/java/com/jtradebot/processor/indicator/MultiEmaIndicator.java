@@ -393,4 +393,5 @@ public class MultiEmaIndicator {
         return crossType == CrossTypeEnum.CROSS_UP ? crossedUp : crossedDown;
     }
 
+
 }
