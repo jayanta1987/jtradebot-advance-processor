@@ -44,11 +44,11 @@ public class BarSeriesManager {
 
         try {
             // Timeframe-specific days for historical data
-            Date fromDate1Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 7);  // 1 min: 2 days (enough for 1 min candles)
-            Date fromDate3Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 7);  // 3 min: 3 days
-            Date fromDate5Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 12); // 5 min: 10 days (keep as is)
-            Date fromDate15Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 15); // 15 min: 20 days
-            Date fromDate1Hour = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 20); // 1 hour: 30 days
+            Date fromDate1Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 7);  // 1 min: 7 days
+            Date fromDate3Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 7);  // 3 min: 7 days
+            Date fromDate5Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 12); // 5 min: 12 days
+            Date fromDate15Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 15); // 15 min: 15 days
+            Date fromDate1Hour = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 20); // 1 hour: 20 days
             Date fromDate1Day = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 60);  // 1 day: 60 days
             
             BarSeriesData seriesData = BarSeriesData.builder()

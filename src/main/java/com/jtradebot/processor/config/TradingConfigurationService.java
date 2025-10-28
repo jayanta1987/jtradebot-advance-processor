@@ -580,6 +580,7 @@ public class TradingConfigurationService implements InitializingBean {
         private String description;
     }
 
+
     // Supporting classes
     @Data
     public static class VolumeMultiplierThresholds {

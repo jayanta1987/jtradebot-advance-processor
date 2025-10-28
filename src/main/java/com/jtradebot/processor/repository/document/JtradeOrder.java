@@ -116,6 +116,16 @@ public class JtradeOrder {
     private Double entryNearestSupport; // Nearest support level at entry time
     private Double entryNearestResistance; // Nearest resistance level at entry time
     
+    // Greeks Data at Entry Time
+    private Double entryDelta; // Delta value at entry time
+    private Double entryGamma; // Gamma value at entry time
+    private Double entryTheta; // Theta value at entry time
+    private Double entryVega; // Vega value at entry time
+    private Double entryImpliedVolatility; // Implied volatility at entry time
+    private Double entryTimeToExpiry; // Time to expiry in days at entry time
+    private Integer entryStrikePrice; // Strike price of the option
+    private String entryOptionType; // CE or PE
+    
     // Helper methods
     public boolean isActive() {
         return "ACTIVE".equals(status);
