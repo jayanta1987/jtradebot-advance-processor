@@ -153,16 +153,36 @@ public class DynamicQuantityService {
         int minQuantity = getMinQuantity();
 
         if (dynamicQuantity < minQuantity) {
+            String targetedSymbol = null;
+            try {
+                // Try to resolve intended trading symbol (best-effort; optional)
+                Optional<LiveOptionPricingService.LiveOptionPricingInfo> pricingInfo =
+                        liveOptionPricingService.getLiveOptionPricing(orderType);
+                if (pricingInfo.isPresent() && pricingInfo.get().getOptionInstrument() != null) {
+                    targetedSymbol = pricingInfo.get().getOptionInstrument().getTradingSymbol();
+                }
+            } catch (KiteException e) {
+                log.debug("Unable to resolve targeted trading symbol due to KiteException: {}", e.getMessage());
+            } catch (Exception e) {
+                log.debug("Unable to resolve targeted trading symbol for notification: {}", e.getMessage());
+            }
+
             String message = String.format(
                     "⚠️ QUANTITY VALIDATION FAILED - %s\n\n" +
                             "📊 Details:\n" +
                             "• Order Type: %s\n" +
-                            "• Calculated Quantity: %d\n" +
-                            "• Minimum Required: %d\n" +
+                            (targetedSymbol != null ? "• Target Trading Symbol: %s\n" : "") +
+                            "• Target Order Quantity: %d\n" +
+                            "• Minimum Required Quantity: %d\n" +
                             "• Context: %s\n\n" +
                             "🚫 Order creation blocked due to insufficient quantity.\n" +
                             "💡 Consider increasing account balance or adjusting quantity calculation parameters.",
-                    context, orderType, dynamicQuantity, minQuantity, context
+                    context,
+                    orderType,
+                    targetedSymbol != null ? targetedSymbol : "",
+                    dynamicQuantity,
+                    minQuantity,
+                    context
             );
 
             // Log the validation failure
@@ -171,7 +191,8 @@ public class DynamicQuantityService {
 
             // Send email notification
             try {
-                String subject = "🚫 ORDER BLOCKED - Insufficient Quantity";
+                String subject = "🚫 ORDER BLOCKED - Insufficient Quantity" +
+                        (targetedSymbol != null ? (" - " + targetedSymbol) : "");
                 orderNotificationService.sendCustomNotification(subject, message);
                 log.info("📧 Quantity validation failure notification sent for {} order", context);
             } catch (Exception e) {
