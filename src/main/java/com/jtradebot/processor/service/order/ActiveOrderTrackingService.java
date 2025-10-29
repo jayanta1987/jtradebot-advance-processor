@@ -100,6 +100,34 @@ public class ActiveOrderTrackingService {
         return false;
     }
 
+    /**
+     * Check if entry should be blocked based on 1-minute candle cooldown after any order exit
+     * This prevents new orders from being created within the same 1-minute candle as the last order exit
+     * 
+     * @param instrumentToken The instrument token to check candle status
+     * @return true if entry should be blocked due to 1-minute candle cooldown, false otherwise
+     */
+    public boolean shouldBlockEntryAfterOneMinuteCandleCooldown(Long instrumentToken) {
+        if (lastExitTime == null) {
+            return false; // No previous exit, allow entry
+        }
+
+        // Check if the 1-minute candle is still open since the last exit
+        boolean isCandleOpen = barSeriesManager.isCandleOpen(String.valueOf(instrumentToken), lastExitTime, CandleTimeFrameEnum.ONE_MIN);
+
+        if (isCandleOpen) {
+            log.warn("🚫 ORDER CREATION BLOCKED - 1-minute candle cooldown active. Last exit: {} (same candle still open)",
+                    formatDateToIST(lastExitTime));
+            return true;
+        }
+
+        // Reset tracking if candle has closed
+        lastExitTime = null;
+        lastExitReason = null;
+        log.info("✅ 1-MINUTE CANDLE COOLDOWN EXPIRED - Entry allowed after candle closed");
+        return false;
+    }
+
 
     public void updateExitTracking(ExitReasonEnum exitReason, Date exitTime) {
         this.lastExitReason = exitReason;

@@ -89,6 +89,12 @@ public class OrderManagementService {
                 return order;
             }
 
+            // Check 1-minute candle cooldown period after any order exit
+            if (activeOrderTrackingService.shouldBlockEntryAfterOneMinuteCandleCooldown(Long.valueOf(niftyToken))) {
+                log.warn("🚫 CANNOT CREATE AUTO ORDER - 1-minute candle cooldown active after last order exit");
+                return order;
+            }
+
             if (niftyTick == null) {
                 log.error("No Nifty index data available for order creation");
                 return order;
@@ -111,8 +117,23 @@ public class OrderManagementService {
                 optionEntryPrice = pricingInfo.getOptionLTP();
                 optionSymbol = pricingInfo.getOptionInstrument().getTradingSymbol();
                 optionInstrumentToken = pricingInfo.getOptionInstrument().getInstrumentToken();
-                log.info("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {}",
-                        optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice);
+                
+                // Try to get Greeks data for live pricing as well
+                try {
+                    GreeksAnalysisService.BestStrikeResult bestStrikeResult = greeksAnalysisService.getBestStrikeForScalping(optionType);
+                    if (bestStrikeResult.isSuccess() && bestStrikeResult.getBestStrike() != null) {
+                        bestStrikeData = bestStrikeResult.getBestStrike();
+                        log.info("🎯 USING LIVE OPTION PRICING WITH GREEKS - Symbol: {}, LTP: {}, Strike: {}, Index: {}, Delta: {}",
+                                optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice,
+                                String.format("%.3f", bestStrikeData.getGreeks().getDelta()));
+                    } else {
+                        log.info("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {} (No Greeks data)",
+                                optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice);
+                    }
+                } catch (Exception e) {
+                    log.warn("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {} (Greeks fetch failed: {})",
+                            optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice, e.getMessage());
+                }
             } else { // local or fallback to mock pricing
                 // Try to get best strike data from Greeks analysis for more realistic local testing
                 try {
