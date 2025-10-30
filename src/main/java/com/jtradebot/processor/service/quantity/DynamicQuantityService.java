@@ -31,6 +31,9 @@ public class DynamicQuantityService {
     // Constants
     public static final int ZERO_QUANTITY = 0;
     
+    // Throttle state for insufficient quantity notification (global, 1-minute window)
+    private long lastInsufficientQtyEmailAtMillis = 0L;
+    
 
     private TradeConfig.TradePreference getTradingPreferences() {
         try {
@@ -189,14 +192,18 @@ public class DynamicQuantityService {
             log.warn("___________UNABLE TO CREATE ORDER. Calculated dynamic quantity {} is less than minimum required {}. Context: {}",
                     dynamicQuantity, minQuantity, context);
 
-            // Send email notification
-            try {
-                String subject = "🚫 ORDER BLOCKED - Insufficient Quantity" +
-                        (targetedSymbol != null ? (" - " + targetedSymbol) : "");
-                orderNotificationService.sendCustomNotification(subject, message);
-                log.info("📧 Quantity validation failure notification sent for {} order", context);
-            } catch (Exception e) {
-                log.error("Failed to send quantity validation failure notification: {}", e.getMessage(), e);
+            // Send email notification (throttled: at most once per minute)
+            if (shouldSendInsufficientQtyEmail()) {
+                try {
+                    String subject = "🚫 ORDER BLOCKED - Insufficient Quantity" +
+                            (targetedSymbol != null ? (" - " + targetedSymbol) : "");
+                    orderNotificationService.sendCustomNotification(subject, message);
+                    log.info("📧 Quantity validation failure notification sent for {} order", context);
+                } catch (Exception e) {
+                    log.error("Failed to send quantity validation failure notification: {}", e.getMessage(), e);
+                }
+            } else {
+                log.info("⏱️ Skipping insufficient quantity email - last notification sent less than 1 minute ago");
             }
 
             return false;
@@ -204,6 +211,15 @@ public class DynamicQuantityService {
 
         log.info("✅ Quantity validation passed - {}: {} (Min: {})", context, dynamicQuantity, minQuantity);
         return true;
+    }
+
+    private synchronized boolean shouldSendInsufficientQtyEmail() {
+        long now = System.currentTimeMillis();
+        if (now - lastInsufficientQtyEmailAtMillis >= 60_000L) {
+            lastInsufficientQtyEmailAtMillis = now;
+            return true;
+        }
+        return false;
     }
 
 }
