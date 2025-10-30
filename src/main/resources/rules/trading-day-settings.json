@@ -30,8 +30,8 @@
     "maxInvestment": 50000.0,
     "minQuantity": 75,
     "maxQuantity": 525,
-    "maxLossPerDay": 5000.0,
-    "maxProfitPerDay": 15000.0,
-    "maxTradeHoldingTimeInSec": 150
+    "maxLossPerDay": 4000.0,
+    "maxProfitPerDay": 12000.0,
+    "maxTradeHoldingTimeInSec": 100
   }
 }
