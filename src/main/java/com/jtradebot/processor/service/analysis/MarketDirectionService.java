@@ -139,7 +139,16 @@ public class MarketDirectionService {
     }
     
     /**
-     * Calculate weighted category scores using the new scoring structure
+     * Calculate weighted category scores using the new scoring structure.
+     * 
+     * This is the PRODUCTION scoring method that uses proper indicator weightages from MongoDB.
+     * 
+     * Example for futureAndVolume category:
+     * - If only price_volume_bullish_surge_5min (weight: 3.0) is true: score = 3.0
+     * - If both 5min indicators are true: score = 3.0 + 2.0 = 5.0
+     * - If all indicators are true: score = 8.0 (max)
+     * 
+     * Fallback weight: If MongoDB doesn't specify a weight, uses 1.0
      */
     private Map<String, Double> calculateWeightedCategoryScores(FlattenedIndicators indicators, Map<String, ScalpingEntryConfig.CategoryIndicatorScoring> categories) {
         Map<String, Double> categoryScores = new HashMap<>();

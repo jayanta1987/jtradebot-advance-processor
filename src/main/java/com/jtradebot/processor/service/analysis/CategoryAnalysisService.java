@@ -60,8 +60,20 @@ public class CategoryAnalysisService {
     }
     
     /**
-     * Get Future & Volume count for the given strategy
+     * DEPRECATED: Get Future & Volume count for the given strategy
+     * 
+     * ⚠️ WARNING: This method uses equal weighting (1 point each) which is NOT the production configuration.
+     * The production system uses weighted scoring from MongoDB with proper weightages:
+     * - Price-volume 5min: 3.0 (most important)
+     * - OI 5min: 2.0
+     * - 1min & 15min: 0.5 each
+     * - Support/Resistance: 1.0
+     * 
+     * This method is kept only as a fallback if MongoDB configuration is unavailable.
+     * 
+     * @deprecated Use weighted category scoring from MarketDirectionService instead
      */
+    @Deprecated
     public int getFutureVolumeCount(FlattenedIndicators indicators, boolean isCall) {
         int futureVolumeCount = 0;
         if (isCall) {

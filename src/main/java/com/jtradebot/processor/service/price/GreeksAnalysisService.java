@@ -18,6 +18,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Service for analyzing Greeks parameters for multiple strike prices
@@ -45,6 +48,10 @@ public class GreeksAnalysisService {
     private volatile long lastCacheRefreshTime = 0L;
     private static final double PRICE_CHANGE_THRESHOLD = 10.0; // Recalculate if index moves ≥10 points
     private static final long TIME_REFRESH_INTERVAL = 10000L; // Refresh every 10 seconds (10,000ms)
+    
+    // ReadWriteLock for better concurrency - allows multiple concurrent reads, exclusive writes
+    private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
+    private final AtomicBoolean refreshInProgress = new AtomicBoolean(false);
     
     // Cache for instruments (doesn't change during the day)
     private volatile List<Instrument> cachedInstruments = new ArrayList<>();
@@ -262,6 +269,7 @@ public class GreeksAnalysisService {
     /**
      * Get best strike for scalping (cached version - fast for order creation)
      * Uses both price-based and time-based refresh logic
+     * Uses read lock for concurrent reads - no blocking on cache reads
      */
     public BestStrikeResult getBestStrikeForScalping(String optionType) {
         try {
@@ -277,6 +285,7 @@ public class GreeksAnalysisService {
             }
 
             // Check if cache needs refresh (both price and time based)
+            // Use volatile reads for quick check without locking
             long currentTime = System.currentTimeMillis();
             long timeSinceLastRefresh = currentTime - lastCacheRefreshTime;
             
@@ -293,15 +302,21 @@ public class GreeksAnalysisService {
                 refreshBestStrikeCache(currentIndexPrice);
             }
 
-            // Return cached result
-            StrikeGreeksData bestStrike = "CE".equals(optionType) ? 
-                    bestStrikeCache.getBestCallStrike() : bestStrikeCache.getBestPutStrike();
+            // Use read lock for concurrent reads - allows multiple threads to read cache simultaneously
+            cacheLock.readLock().lock();
+            try {
+                // Return cached result
+                StrikeGreeksData bestStrike = "CE".equals(optionType) ? 
+                        bestStrikeCache.getBestCallStrike() : bestStrikeCache.getBestPutStrike();
 
-            if (bestStrike == null) {
-                return BestStrikeResult.error("No suitable strike found for " + optionType);
+                if (bestStrike == null) {
+                    return BestStrikeResult.error("No suitable strike found for " + optionType);
+                }
+
+                return BestStrikeResult.success(bestStrike, currentIndexPrice, optionType);
+            } finally {
+                cacheLock.readLock().unlock();
             }
-
-            return BestStrikeResult.success(bestStrike, currentIndexPrice, optionType);
 
         } catch (Exception e) {
             log.error("Error getting best strike for scalping", e);
@@ -382,38 +397,67 @@ public class GreeksAnalysisService {
 
     /**
      * Refresh the best strike cache with current index price
+     * Uses write lock for exclusive write access - prevents concurrent refreshes
+     * Skip refresh if already in progress to avoid redundant work
      */
-    private synchronized void refreshBestStrikeCache(double currentIndexPrice) {
+    private void refreshBestStrikeCache(double currentIndexPrice) {
+        // Skip if refresh is already in progress (optimization to avoid redundant work)
+        if (!refreshInProgress.compareAndSet(false, true)) {
+            log.debug("⏭️ SKIPPING REFRESH - Already in progress");
+            return;
+        }
+
         try {
-            // Get Greeks analysis for both CE and PE
-            GreeksAnalysisResult callAnalysis = getGreeksAnalysis(currentIndexPrice, "CE");
-            GreeksAnalysisResult putAnalysis = getGreeksAnalysis(currentIndexPrice, "PE");
+            // Use write lock for exclusive access during cache update
+            cacheLock.writeLock().lock();
+            try {
+                // Double-check after acquiring lock (in case another thread just finished)
+                long currentTime = System.currentTimeMillis();
+                long timeSinceLastRefresh = currentTime - lastCacheRefreshTime;
+                boolean needsTimeRefresh = timeSinceLastRefresh >= TIME_REFRESH_INTERVAL;
+                boolean needsPriceRefresh = !isCacheInitialized || 
+                                         Math.abs(currentIndexPrice - lastCachedIndexPrice) >= PRICE_CHANGE_THRESHOLD;
+                
+                // If cache is fresh and no refresh needed, skip (optimization)
+                if (!needsTimeRefresh && !needsPriceRefresh) {
+                    log.debug("⏭️ SKIPPING REFRESH - Cache is fresh");
+                    return;
+                }
 
-            // Find best strikes using the same scoring logic as controller
-            StrikeGreeksData bestCallStrike = findBestStrikeForScalping(callAnalysis.getStrikes(), currentIndexPrice, "CE");
-            StrikeGreeksData bestPutStrike = findBestStrikeForScalping(putAnalysis.getStrikes(), currentIndexPrice, "PE");
+                // Get Greeks analysis for both CE and PE
+                GreeksAnalysisResult callAnalysis = getGreeksAnalysis(currentIndexPrice, "CE");
+                GreeksAnalysisResult putAnalysis = getGreeksAnalysis(currentIndexPrice, "PE");
 
-            // Update cache
-            bestStrikeCache = BestStrikeCache.builder()
-                    .bestCallStrike(bestCallStrike)
-                    .bestPutStrike(bestPutStrike)
-                    .indexPrice(currentIndexPrice)
-                    .lastUpdated(System.currentTimeMillis())
-                    .build();
+                // Find best strikes using the same scoring logic as controller
+                StrikeGreeksData bestCallStrike = findBestStrikeForScalping(callAnalysis.getStrikes(), currentIndexPrice, "CE");
+                StrikeGreeksData bestPutStrike = findBestStrikeForScalping(putAnalysis.getStrikes(), currentIndexPrice, "PE");
 
-            lastCachedIndexPrice = currentIndexPrice;
-            lastCacheRefreshTime = System.currentTimeMillis();
-            isCacheInitialized = true;
+                // Update cache (volatile write ensures visibility)
+                bestStrikeCache = BestStrikeCache.builder()
+                        .bestCallStrike(bestCallStrike)
+                        .bestPutStrike(bestPutStrike)
+                        .indexPrice(currentIndexPrice)
+                        .lastUpdated(System.currentTimeMillis())
+                        .build();
 
-            log.info("✅ BEST STRIKE CACHE UPDATED - Index: {}, Call: {} ({}), Put: {} ({})", 
-                    currentIndexPrice,
-                    bestCallStrike != null ? bestCallStrike.getStrikePrice() : "N/A",
-                    bestCallStrike != null ? bestCallStrike.getTradingSymbol() : "N/A",
-                    bestPutStrike != null ? bestPutStrike.getStrikePrice() : "N/A",
-                    bestPutStrike != null ? bestPutStrike.getTradingSymbol() : "N/A");
+                lastCachedIndexPrice = currentIndexPrice;
+                lastCacheRefreshTime = System.currentTimeMillis();
+                isCacheInitialized = true;
 
+                log.info("✅ BEST STRIKE CACHE UPDATED - Index: {}, Call: {} ({}), Put: {} ({})", 
+                        currentIndexPrice,
+                        bestCallStrike != null ? bestCallStrike.getStrikePrice() : "N/A",
+                        bestCallStrike != null ? bestCallStrike.getTradingSymbol() : "N/A",
+                        bestPutStrike != null ? bestPutStrike.getStrikePrice() : "N/A",
+                        bestPutStrike != null ? bestPutStrike.getTradingSymbol() : "N/A");
+
+            } finally {
+                cacheLock.writeLock().unlock();
+            }
         } catch (Exception e) {
             log.error("Error refreshing best strike cache", e);
+        } finally {
+            refreshInProgress.set(false); // Always clear refresh flag
         }
     }
 
