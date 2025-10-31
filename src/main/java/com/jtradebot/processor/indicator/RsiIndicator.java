@@ -94,21 +94,7 @@ public class RsiIndicator {
         return swingLows;
     }
 
-    // Improve the findNearestIndex method
-    private int findNearestIndex(List<Integer> indices, int targetIndex, Indicator<Num> indicator, Num targetValue) {
-        int nearestIndex = -1;
-        Num minDifference = null;
-        for (int index : indices) {
-            Num difference = indicator.getValue(index).minus(targetValue).abs();
-            if (minDifference == null || difference.isLessThan(minDifference)) {
-                minDifference = difference;
-                nearestIndex = index;
-            }
-        }
-        return nearestIndex;
-    }
-
-    // Modify the isRsiDivergence method
+    // RSI Divergence detection method
     public boolean isRsiDivergence(BarSeries series, int barCount, int lookBackPeriod, DivergenceType divergenceType) {
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
         RSIIndicator rsi = new RSIIndicator(closePrice, barCount);
@@ -116,24 +102,19 @@ public class RsiIndicator {
         int startIndex = Math.max(series.getBeginIndex(), endIndex - lookBackPeriod);
         List<Integer> priceHighs = findSwingHighs(closePrice, startIndex, endIndex, lookBackPeriod);
         List<Integer> priceLows = findSwingLows(closePrice, startIndex, endIndex, lookBackPeriod);
-        List<Integer> rsiHighs = findSwingHighs(rsi, startIndex, endIndex, lookBackPeriod);
-        List<Integer> rsiLows = findSwingLows(rsi, startIndex, endIndex, lookBackPeriod);
         if (divergenceType == DivergenceType.BEARISH || divergenceType == DivergenceType.ANY) {
             for (int i = 1; i < priceHighs.size(); i++) {
                 int prevPriceHighIndex = priceHighs.get(i - 1);
                 int currentPriceHighIndex = priceHighs.get(i);
                 Num prevPriceHigh = closePrice.getValue(prevPriceHighIndex);
                 Num currentPriceHigh = closePrice.getValue(currentPriceHighIndex);
+                // Bearish divergence: price makes higher high, but RSI makes lower high
                 if (currentPriceHigh.isGreaterThan(prevPriceHigh)) {
-                    int prevRsiHighIndex = findNearestIndex(rsiHighs, prevPriceHighIndex, rsi, prevPriceHigh);
-                    int currentRsiHighIndex = findNearestIndex(rsiHighs, currentPriceHighIndex, rsi, currentPriceHigh);
-                    if (prevRsiHighIndex != -1 && currentRsiHighIndex != -1) {
-                        Num prevRsiHigh = rsi.getValue(prevRsiHighIndex);
-                        Num currentRsiHigh = rsi.getValue(currentRsiHighIndex);
-                        if (currentRsiHigh.isLessThan(prevRsiHigh)) {
-                            log.warn(".....................Bearish RSI divergence detected between indices {} and {}", prevPriceHighIndex, currentPriceHighIndex);
-                            return true;
-                        }
+                    Num prevRsiValue = rsi.getValue(prevPriceHighIndex);
+                    Num currentRsiValue = rsi.getValue(currentPriceHighIndex);
+                    if (currentRsiValue.isLessThan(prevRsiValue)) {
+                        log.warn(".....................Bearish RSI divergence detected between indices {} and {}", prevPriceHighIndex, currentPriceHighIndex);
+                        return true;
                     }
                 }
             }
@@ -144,16 +125,13 @@ public class RsiIndicator {
                 int currentPriceLowIndex = priceLows.get(i);
                 Num prevPriceLow = closePrice.getValue(prevPriceLowIndex);
                 Num currentPriceLow = closePrice.getValue(currentPriceLowIndex);
+                // Bullish divergence: price makes lower low, but RSI makes higher low
                 if (currentPriceLow.isLessThan(prevPriceLow)) {
-                    int prevRsiLowIndex = findNearestIndex(rsiLows, prevPriceLowIndex, rsi, prevPriceLow);
-                    int currentRsiLowIndex = findNearestIndex(rsiLows, currentPriceLowIndex, rsi, currentPriceLow);
-                    if (prevRsiLowIndex != -1 && currentRsiLowIndex != -1) {
-                        Num prevRsiLow = rsi.getValue(prevRsiLowIndex);
-                        Num currentRsiLow = rsi.getValue(currentRsiLowIndex);
-                        if (currentRsiLow.isGreaterThan(prevRsiLow)) {
-                            log.warn(".....................Bullish RSI divergence detected between indices {} and {}", prevPriceLowIndex, currentPriceLowIndex);
-                            return true;
-                        }
+                    Num prevRsiValue = rsi.getValue(prevPriceLowIndex);
+                    Num currentRsiValue = rsi.getValue(currentPriceLowIndex);
+                    if (currentRsiValue.isGreaterThan(prevRsiValue)) {
+                        log.warn(".....................Bullish RSI divergence detected between indices {} and {}", prevPriceLowIndex, currentPriceLowIndex);
+                        return true;
                     }
                 }
             }

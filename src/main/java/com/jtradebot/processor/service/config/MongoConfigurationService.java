@@ -38,6 +38,18 @@ public class MongoConfigurationService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Load category scoring from MongoDB with proper indicator weightages.
+     * 
+     * Production configuration for futureAndVolume category:
+     * - Price-volume 5min surge: 3.0 points (highest weight)
+     * - OI 5min signal: 2.0 points
+     * - Price-volume 1min/15min: 0.5 points each
+     * - OI 1min/15min: 0.5 points each
+     * - Support/Resistance levels: 1.0 point
+     * 
+     * Maximum score: 8.0 points
+     */
     public ScalpingEntryConfig.CategoryScoring getCategoryScoringFromMongoDB() {
         List<CategoryScoring> mongoCategoryScorings = categoryScoringRepository.findByActiveTrue();
         
@@ -55,6 +67,12 @@ public class MongoConfigurationService {
             } else if ("putCategories".equals(categoryScoring.getCategoryType())) {
                 putCategories.put(categoryScoring.getCategoryName(), indicatorScoring);
             }
+            
+            // Log category configuration for transparency
+            log.info("📊 Loaded category scoring - Type: {}, Name: {}, Indicators: {}", 
+                    categoryScoring.getCategoryType(), 
+                    categoryScoring.getCategoryName(),
+                    categoryScoring.getIndicators());
         }
         
         return ScalpingEntryConfig.CategoryScoring.builder()

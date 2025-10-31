@@ -204,10 +204,7 @@ public class GreeksAnalysisController {
                 
                 response.put("bestStrike", bestStrikeData);
                 response.put("found", true);
-                
-                log.info("✅ FAST BEST STRIKE FOUND - Symbol: {}, Strike: {}, Delta: {:.3f}, Price: {:.2f}", 
-                        bestStrike.getTradingSymbol(), bestStrike.getStrikePrice(), 
-                        bestStrike.getGreeks().getDelta(), bestStrike.getOptionPrice());
+
             } else {
                 response.put("bestStrike", null);
                 response.put("found", false);
