@@ -116,6 +116,8 @@ public class TickSetupController {
                 preferences.put("maxLossPerDay", prefs.getMaxLossPerDay());
                 preferences.put("maxProfitPerDay", prefs.getMaxProfitPerDay());
                 preferences.put("maxTradeHoldingTimeInSec", prefs.getMaxTradeHoldingTimeInSec());
+                preferences.put("enableTradeAfterStopLossHit", prefs.isEnableTradeAfterStopLossHit());
+                preferences.put("stopLossBlockTimeframe", prefs.getStopLossBlockTimeframe());
                 
                 response.put("tradePreference", preferences);
             } else {
@@ -201,6 +203,8 @@ public class TickSetupController {
                 preferences.put("maxLossPerDay", prefs.getMaxLossPerDay());
                 preferences.put("maxProfitPerDay", prefs.getMaxProfitPerDay());
                 preferences.put("maxTradeHoldingTimeInSec", prefs.getMaxTradeHoldingTimeInSec());
+                preferences.put("enableTradeAfterStopLossHit", prefs.isEnableTradeAfterStopLossHit());
+                preferences.put("stopLossBlockTimeframe", prefs.getStopLossBlockTimeframe());
                 
                 configData.put("tradePreference", preferences);
             } else {

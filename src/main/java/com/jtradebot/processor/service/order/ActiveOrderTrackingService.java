@@ -14,6 +14,8 @@ import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
 import com.jtradebot.processor.service.tracking.OptionLTPTrackingService;
 import com.jtradebot.processor.config.DayTradingSettingService;
+import com.jtradebot.processor.service.TickSetupService;
+import com.jtradebot.processor.repository.document.TradeConfig;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Tick;
 import jakarta.annotation.PostConstruct;
@@ -51,6 +53,7 @@ public class ActiveOrderTrackingService {
     private final BarSeriesManager barSeriesManager;
     private final OptionLTPTrackingService optionLTPTrackingService;
     private final DayTradingSettingService dayTradingSettingService;
+    private final TickSetupService tickSetupService;
 
 
     // In-memory storage for active orders
@@ -75,10 +78,13 @@ public class ActiveOrderTrackingService {
 
     /**
      * Check if entry should be blocked based on recent exit reasons
-     * Blocks entry if the specified candle is still open since the last exit with matching reason
+     * Blocks entry based on configuration:
+     * - If enableTradeAfterStopLossHit is true: allows entry immediately (no blocking)
+     * - If enableTradeAfterStopLossHit is false: blocks entry until the configured candle timeframe closes
+     *   The stopLossBlockTimeframe specifies which candle timeframe to use (e.g., "ONE_MIN", "THREE_MIN", "FIVE_MIN")
      * 
      * @param instrumentToken The instrument token
-     * @param timeframe The candle timeframe to check (e.g., ONE_MIN, FIVE_MIN)
+     * @param timeframe The candle timeframe to check (e.g., ONE_MIN, FIVE_MIN) - used as fallback if config is not available
      * @param exitReasons Exit reasons to check for blocking (e.g., STOPLOSS_HIT, FORCE_EXIT)
      * @return true if entry should be blocked, false otherwise
      */
@@ -88,7 +94,44 @@ public class ActiveOrderTrackingService {
             return false;
         }
 
-        // Check if the candle has closed since the last exit
+        // Get trade config to check the enableTradeAfterStopLossHit flag
+        try {
+            TradeConfig tradeConfig = tickSetupService.getTradeConfig();
+            TradeConfig.TradePreference tradePreference = tradeConfig.getTradePreference();
+            
+            if (tradePreference != null) {
+                // Check if trading after stop loss is enabled
+                if (tradePreference.isEnableTradeAfterStopLossHit()) {
+                    log.info("ENTRY ALLOWED - enableTradeAfterStopLossHit is true, allowing entry after stop loss");
+                    lastExitTime = null; // Reset to avoid repeated blocks
+                    lastExitReason = null; // Reset to avoid repeated blocks
+                    return false;
+                }
+                
+                // If flag is false, use candle-based blocking with configured timeframe
+                String blockTimeframeStr = tradePreference.getStopLossBlockTimeframe();
+                CandleTimeFrameEnum blockingTimeframe = parseCandleTimeframe(blockTimeframeStr, timeframe);
+                
+                // Check if the candle is still open since the last exit
+                boolean isCandleOpen = barSeriesManager.isCandleOpen(String.valueOf(instrumentToken), lastExitTime, blockingTimeframe);
+                
+                if (isCandleOpen) {
+                    log.warn("🚫 ENTRY BLOCKED - Stop loss hit, blocking until {} candle closes (stopLossBlockTimeframe: {})", 
+                            blockingTimeframe, blockTimeframeStr);
+                    return true;
+                } else {
+                    log.info("ENTRY ALLOWED - {} candle has closed since stop loss hit (stopLossBlockTimeframe: {})", 
+                            blockingTimeframe, blockTimeframeStr);
+                    lastExitTime = null; // Reset to avoid repeated blocks
+                    lastExitReason = null; // Reset to avoid repeated blocks
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get trade config, falling back to candle-based blocking: {}", e.getMessage());
+        }
+
+        // Fallback to original candle-based blocking if config is not available
         boolean isCandleOpen = barSeriesManager.isCandleOpen(String.valueOf(instrumentToken), lastExitTime, timeframe);
 
         if (isCandleOpen) {
@@ -98,6 +141,26 @@ public class ActiveOrderTrackingService {
         lastExitReason = null; // Reset to avoid repeated blocks
         log.info("ENTRY ALLOWED - {} candle has closed now", timeframe);
         return false;
+    }
+
+    /**
+     * Parse the candle timeframe string to CandleTimeFrameEnum
+     * @param timeframeStr The timeframe string (e.g., "ONE_MIN", "THREE_MIN", "FIVE_MIN")
+     * @param defaultTimeframe The default timeframe to use if parsing fails
+     * @return The parsed CandleTimeFrameEnum or default if parsing fails
+     */
+    private CandleTimeFrameEnum parseCandleTimeframe(String timeframeStr, CandleTimeFrameEnum defaultTimeframe) {
+        if (timeframeStr == null || timeframeStr.trim().isEmpty()) {
+            log.warn("stopLossBlockTimeframe is null or empty, using default: {}", defaultTimeframe);
+            return defaultTimeframe;
+        }
+        
+        try {
+            return CandleTimeFrameEnum.valueOf(timeframeStr.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid stopLossBlockTimeframe value: {}, using default: {}", timeframeStr, defaultTimeframe);
+            return defaultTimeframe;
+        }
     }
 
     /**

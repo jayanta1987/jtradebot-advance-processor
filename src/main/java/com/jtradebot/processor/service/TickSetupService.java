@@ -377,6 +377,32 @@ public class TickSetupService {
                 }
                 break;
                 
+            case "enableTradeAfterStopLossHit":
+                if (value instanceof Boolean) {
+                    boolean enableTrade = (Boolean) value;
+                    preferences.setEnableTradeAfterStopLossHit(enableTrade);
+                    log.info("Updated enableTradeAfterStopLossHit to: {}", enableTrade);
+                } else {
+                    throw new IllegalArgumentException("enableTradeAfterStopLossHit must be a boolean");
+                }
+                break;
+                
+            case "stopLossBlockTimeframe":
+                if (value instanceof String) {
+                    String timeframe = ((String) value).trim().toUpperCase();
+                    // Validate that it's a valid CandleTimeFrameEnum value
+                    try {
+                        com.jtradebot.processor.model.enums.CandleTimeFrameEnum.valueOf(timeframe);
+                        preferences.setStopLossBlockTimeframe(timeframe);
+                        log.info("Updated stopLossBlockTimeframe to: {}", timeframe);
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException("stopLossBlockTimeframe must be a valid candle timeframe (ONE_MIN, THREE_MIN, FIVE_MIN, FIFTEEN_MIN, ONE_HOUR, ONE_DAY)");
+                    }
+                } else {
+                    throw new IllegalArgumentException("stopLossBlockTimeframe must be a string");
+                }
+                break;
+                
             default:
                 log.error("Unknown tradePreference field: {}", fieldName);
                 return false;
