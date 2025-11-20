@@ -111,6 +111,8 @@ public class DayTradingSettingService implements InitializingBean {
         this.defaultTradePreference.setMaxLossPerDay(tradePrefsNode.get("maxLossPerDay").asDouble());
         this.defaultTradePreference.setMaxProfitPerDay(tradePrefsNode.get("maxProfitPerDay").asDouble());
         this.defaultTradePreference.setMaxTradeHoldingTimeInSec(tradePrefsNode.get("maxTradeHoldingTimeInSec").asLong());
+        this.defaultTradePreference.setEnableTradeAfterStopLossHit(tradePrefsNode.has("enableTradeAfterStopLossHit") ? tradePrefsNode.get("enableTradeAfterStopLossHit").asBoolean() : false);
+        this.defaultTradePreference.setStopLossBlockTimeframe(tradePrefsNode.has("stopLossBlockTimeframe") ? tradePrefsNode.get("stopLossBlockTimeframe").asText() : "ONE_MIN");
         
         log.info("✅ Trade preferences loaded from JSON - MaxInvestment: {}, MaxLoss: {}, MaxProfit: {}", 
                 defaultTradePreference.getMaxInvestment(), defaultTradePreference.getMaxLossPerDay(), defaultTradePreference.getMaxProfitPerDay());

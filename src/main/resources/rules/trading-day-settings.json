@@ -32,6 +32,8 @@
     "maxQuantity": 525,
     "maxLossPerDay": 4000.0,
     "maxProfitPerDay": 12000.0,
-    "maxTradeHoldingTimeInSec": 100
+    "maxTradeHoldingTimeInSec": 100,
+    "enableTradeAfterStopLossHit": false,
+    "stopLossBlockTimeframe": "ONE_MIN"
   }
 }

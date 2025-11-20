@@ -30,6 +30,7 @@ public class RuleHelper {
     private final MACDIndicator macdIndicator;
     private final ScoringConfigurationService scoringConfigService;
     private final OIIndicator oiIndicator;
+    private final com.jtradebot.processor.service.price.OIAnalysisService oiAnalysisService;
 
     /**
      * Flatten EMA indicators for all timeframes
@@ -1230,8 +1231,8 @@ public class RuleHelper {
 
 
     /**
-     * Enhance OI indicators using future tick data (real OI data) instead of index data.
-     * Uses OIIndicator to classify signals into 4 cases (long buildup, short buildup, short covering, long unwinding).
+     * Enhance OI indicators using OIAnalysisService (fetched from getQuote API every 5 seconds).
+     * Replaces the old logic that used future tick data.
      */
     public void enhanceOIIndicatorsWithFutureData(
             FlattenedIndicators indicators,
@@ -1239,27 +1240,36 @@ public class RuleHelper {
             TickDataManager tickDataManager) {
 
         try {
-            String futureToken = String.valueOf(futureTick.getInstrumentToken());
+            // Get OI signals from OIAnalysisService (fetched from getQuote API)
+            com.jtradebot.processor.service.price.OIAnalysisService.OISignalsCache oiSignals = oiAnalysisService.getOISignals();
 
-            // Get future BarSeries for price data
-            BarSeries oneMinSeries = tickDataManager.getBarSeriesForTimeFrame(futureToken, ONE_MIN);
-            BarSeries fiveMinSeries = tickDataManager.getBarSeriesForTimeFrame(futureToken, FIVE_MIN);
-            BarSeries fifteenMinSeries = tickDataManager.getBarSeriesForTimeFrame(futureToken, FIFTEEN_MIN);
+            if (oiSignals == null) {
+                log.debug("No OI signals available from OIAnalysisService, setting to null");
+                setNullOiSignals(indicators, "1min");
+                setNullOiSignals(indicators, "5min");
+                setNullOiSignals(indicators, "15min");
+                return;
+            }
 
-            double currentOI = futureTick.getOi();
+            // Set OI signals from cache
+            indicators.setOi_bullish_signal_1min(oiSignals.getOiBullishSignal1min());
+            indicators.setOi_bearish_signal_1min(oiSignals.getOiBearishSignal1min());
+            indicators.setOi_bullish_signal_5min(oiSignals.getOiBullishSignal5min());
+            indicators.setOi_bearish_signal_5min(oiSignals.getOiBearishSignal5min());
+            indicators.setOi_bullish_signal_15min(oiSignals.getOiBullishSignal15min());
+            indicators.setOi_bearish_signal_15min(oiSignals.getOiBearishSignal15min());
 
-            log.debug("Enhancing OI indicators - Token: {}, Current OI: {}",
-                    futureToken, currentOI);
-
-            // Process OI signals per timeframe
-            processOiSignalsForTimeframe(indicators, futureToken, currentOI, oneMinSeries, "1min");
-            processOiSignalsForTimeframe(indicators, futureToken, currentOI, fiveMinSeries, "5min");
-            processOiSignalsForTimeframe(indicators, futureToken, currentOI, fifteenMinSeries, "15min");
-
-            log.debug("OI signals enhanced with future data successfully");
+            log.debug("✅ OI signals set from OIAnalysisService - 1min: {}/{}, 5min: {}/{}, 15min: {}/{}",
+                    oiSignals.getOiBullishSignal1min(), oiSignals.getOiBearishSignal1min(),
+                    oiSignals.getOiBullishSignal5min(), oiSignals.getOiBearishSignal5min(),
+                    oiSignals.getOiBullishSignal15min(), oiSignals.getOiBearishSignal15min());
 
         } catch (Exception e) {
-            log.error("Error enhancing OI signals with future data", e);
+            log.error("Error enhancing OI signals from OIAnalysisService", e);
+            // Fallback: set to null on error
+            setNullOiSignals(indicators, "1min");
+            setNullOiSignals(indicators, "5min");
+            setNullOiSignals(indicators, "15min");
         }
     }
 
