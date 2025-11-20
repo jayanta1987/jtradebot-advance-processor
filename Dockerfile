@@ -1,5 +1,5 @@
-# Use an official OpenJDK runtime as a parent image
-FROM openjdk:17-jdk-slim
+# Use Eclipse Temurin (official OpenJDK replacement) as a parent image
+FROM eclipse-temurin:17-jdk
 
 # Set the timezone argument (default to Asia/Kolkata)
 ARG TIMEZONE=Asia/Kolkata
