@@ -23,7 +23,7 @@ public class LiveOptionPricingService {
     private final Environment environment;
     private final KiteConnect kiteConnect;
     private final KiteInstrumentHandler kiteInstrumentHandler;
-    private final GreeksAnalysisService greeksAnalysisService;
+    private final OIAnalysisService oiAnalysisService;
 
     /**
      * Get live option pricing information for live profile
@@ -48,22 +48,21 @@ public class LiveOptionPricingService {
 
             double niftyIndexPrice = niftyTick.getLastTradedPrice();
             String optionType = "CALL_BUY".equals(orderType) ? "CE" : "PE";
-            log.info("Using Greeks analysis for strike selection - Index Price: {}, Option Type: {}", niftyIndexPrice, optionType);
+            log.info("Using OI analysis for strike selection - Index Price: {}, Option Type: {}", niftyIndexPrice, optionType);
             
-            GreeksAnalysisService.BestStrikeResult bestStrikeResult = greeksAnalysisService.getBestStrikeForScalping(optionType);
+            OIAnalysisService.BestStrikeResult bestStrikeResult = oiAnalysisService.getBestStrikeForScalping(optionType);
             
             if (!bestStrikeResult.isSuccess() || bestStrikeResult.getBestStrike() == null) {
-                log.error("Greeks analysis failed - Cannot proceed with order entry. Error: {}", 
+                log.error("OI analysis failed - Cannot proceed with order entry. Error: {}", 
                         bestStrikeResult.getError());
                 return Optional.empty();
             }
 
-            // Use Greeks analysis result - it already contains all required details
-            GreeksAnalysisService.StrikeGreeksData bestStrike = bestStrikeResult.getBestStrike();
-            log.info("Greeks analysis successful - Symbol: {}, Strike: {}, Delta: %.3f, Price: %.2f, IV: %.2f%%", 
+            // Use OI analysis result - it already contains all required details
+            OIAnalysisService.StrikeOIData bestStrike = bestStrikeResult.getBestStrike();
+            log.info("OI analysis successful - Symbol: {}, Strike: {}, OI: {}, Price: %.2f", 
                     bestStrike.getTradingSymbol(), bestStrike.getStrikePrice(), 
-                    bestStrike.getGreeks().getDelta(), bestStrike.getOptionPrice(), 
-                    bestStrike.getImpliedVolatility() * 100);
+                    bestStrike.getOi(), bestStrike.getOptionPrice());
             
             // Get live LTP from Kite API for real-time pricing
             log.debug("Fetching live LTP from Kite API - Token: {}, Symbol: {}", 
@@ -97,9 +96,9 @@ public class LiveOptionPricingService {
                     .build();
 
             long executionTime = System.currentTimeMillis() - startTime;
-            log.info("Live option pricing completed in {}ms - Symbol: {}, LTP: {}, Strike: {}, Index: {}, Type: {}, Delta: %.3f, IV: %.2f%%", 
+            log.info("Live option pricing completed in {}ms - Symbol: {}, LTP: {}, Strike: {}, Index: {}, Type: {}, OI: {}", 
                     executionTime, instrument.getTradingSymbol(), optionLTP, strikePrice, niftyIndexPrice, optionType,
-                    bestStrike.getGreeks().getDelta(), bestStrike.getImpliedVolatility() * 100);
+                    bestStrike.getOi());
 
             return Optional.of(pricingInfo);
 
@@ -140,18 +139,18 @@ public class LiveOptionPricingService {
 
             LiveOptionPricingInfo liveInfo = livePricing.get();
             
-            // Get additional Greeks data from the Greeks analysis service
+            // Get additional OI data from the OI analysis service
             String optionType = "CALL_BUY".equals(orderType) ? "CE" : "PE";
-            GreeksAnalysisService.BestStrikeResult bestStrikeResult = greeksAnalysisService.getBestStrikeForScalping(optionType);
+            OIAnalysisService.BestStrikeResult bestStrikeResult = oiAnalysisService.getBestStrikeForScalping(optionType);
             
             if (!bestStrikeResult.isSuccess() || bestStrikeResult.getBestStrike() == null) {
-                log.warn("Greeks analysis failed - Using basic pricing info only");
+                log.warn("OI analysis failed - Using basic pricing info only");
                 return Optional.empty();
             }
 
-            GreeksAnalysisService.StrikeGreeksData bestStrike = bestStrikeResult.getBestStrike();
+            OIAnalysisService.StrikeOIData bestStrike = bestStrikeResult.getBestStrike();
             
-            // Create enhanced pricing info with all Greeks data
+            // Create enhanced pricing info with OI data (Greeks not available with OI-based selection)
             GreeksEnhancedPricingInfo pricingInfo = GreeksEnhancedPricingInfo.builder()
                     .tradingSymbol(bestStrike.getTradingSymbol())
                     .instrumentToken(bestStrike.getInstrumentToken())
@@ -162,17 +161,17 @@ public class LiveOptionPricingService {
                     .liveLTP(liveInfo.getOptionLTP())
                     .calculatedPrice(bestStrike.getOptionPrice())
                     .niftyIndexPrice(liveInfo.getNiftyIndexPrice())
-                    .greeks(bestStrike.getGreeks())
-                    .impliedVolatility(bestStrike.getImpliedVolatility())
-                    .timeToExpiry(bestStrike.getTimeToExpiry())
+                    .greeks(null) // Not available with OI-based selection
+                    .impliedVolatility(null) // Not available with OI-based selection
+                    .timeToExpiry(null) // Not available with OI-based selection
                     .scalpingAnalysis(null) // Not available in current structure
                     .isCached(false) // Always false for live pricing
                     .build();
 
             long executionTime = System.currentTimeMillis() - startTime;
-            log.info("Greeks-enhanced pricing completed in {}ms - Symbol: {}, Strike: {}, Live LTP: %.2f, Delta: %.3f, IV: %.2f%%", 
+            log.info("OI-enhanced pricing completed in {}ms - Symbol: {}, Strike: {}, Live LTP: %.2f, OI: {}", 
                     executionTime, bestStrike.getTradingSymbol(), bestStrike.getStrikePrice(), liveInfo.getOptionLTP(),
-                    bestStrike.getGreeks().getDelta(), bestStrike.getImpliedVolatility() * 100);
+                    bestStrike.getOi());
 
             return Optional.of(pricingInfo);
 
@@ -263,8 +262,8 @@ public class LiveOptionPricingService {
         private double calculatedPrice;
         private double niftyIndexPrice;
         private OptionGreeksCalculator.OptionGreeks greeks;
-        private double impliedVolatility;
-        private double timeToExpiry;
+        private Double impliedVolatility; // Nullable - not available with OI-based selection
+        private Double timeToExpiry; // Nullable - not available with OI-based selection
         private Object scalpingAnalysis; // Can be null if not available
         private boolean isCached;
     }

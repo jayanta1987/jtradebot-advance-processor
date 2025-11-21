@@ -18,7 +18,7 @@ import com.jtradebot.processor.service.entry.UnstableMarketConditionAnalysisServ
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
-import com.jtradebot.processor.service.price.GreeksAnalysisService;
+import com.jtradebot.processor.service.price.OIAnalysisService;
 import com.jtradebot.processor.service.price.OptionGreeksCalculator;
 import com.jtradebot.processor.service.quantity.DynamicQuantityService;
 import com.jtradebot.processor.service.tracking.OptionLTPTrackingService;
@@ -54,7 +54,7 @@ public class OrderManagementService {
 
     private final LiveOptionPricingService liveOptionPricingService;
     private final MockOptionPricingService mockOptionPricingService;
-    private final GreeksAnalysisService greeksAnalysisService;
+    private final OIAnalysisService oiAnalysisService;
     private final TradingConfigurationService tradingConfigService;
     private final DayTradingSettingService dayTradingSettingService;
     private final KiteInstrumentHandler kiteInstrumentHandler;
@@ -109,7 +109,7 @@ public class OrderManagementService {
             long optionInstrumentToken;
             
             // Variables to store Greeks data for order
-            GreeksAnalysisService.StrikeGreeksData bestStrikeData = null;
+            OIAnalysisService.StrikeOIData bestStrikeData = null;
             String optionType = "CALL_BUY".equals(orderType) ? "CE" : "PE";
 
             if (liveOptionPricing.isPresent()) { // live pricing available
@@ -118,45 +118,45 @@ public class OrderManagementService {
                 optionSymbol = pricingInfo.getOptionInstrument().getTradingSymbol();
                 optionInstrumentToken = pricingInfo.getOptionInstrument().getInstrumentToken();
                 
-                // Try to get Greeks data for live pricing as well
+                // Try to get OI-based strike data for live pricing
                 try {
-                    GreeksAnalysisService.BestStrikeResult bestStrikeResult = greeksAnalysisService.getBestStrikeForScalping(optionType);
+                    OIAnalysisService.BestStrikeResult bestStrikeResult = oiAnalysisService.getBestStrikeForScalping(optionType);
                     if (bestStrikeResult.isSuccess() && bestStrikeResult.getBestStrike() != null) {
                         bestStrikeData = bestStrikeResult.getBestStrike();
-                        log.info("🎯 USING LIVE OPTION PRICING WITH GREEKS - Symbol: {}, LTP: {}, Strike: {}, Index: {}, Delta: {}",
+                        log.info("🎯 USING LIVE OPTION PRICING WITH OI DATA - Symbol: {}, LTP: {}, Strike: {}, Index: {}, OI: {}",
                                 optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice,
-                                String.format("%.3f", bestStrikeData.getGreeks().getDelta()));
+                                bestStrikeData.getOi());
                     } else {
-                        log.info("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {} (No Greeks data)",
+                        log.info("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {} (No OI data)",
                                 optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice);
                     }
                 } catch (Exception e) {
-                    log.warn("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {} (Greeks fetch failed: {})",
+                    log.warn("🎯 USING LIVE OPTION PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {} (OI fetch failed: {})",
                             optionSymbol, optionEntryPrice, pricingInfo.getStrikePrice(), currentIndexPrice, e.getMessage());
                 }
             } else { // local or fallback to mock pricing
-                // Try to get best strike data from Greeks analysis for more realistic local testing
+                // Try to get best strike data from OI analysis for more realistic local testing
                 try {
-                    GreeksAnalysisService.BestStrikeResult bestStrikeResult = greeksAnalysisService.getBestStrikeForScalping(optionType);
+                    OIAnalysisService.BestStrikeResult bestStrikeResult = oiAnalysisService.getBestStrikeForScalping(optionType);
                     
                     if (bestStrikeResult.isSuccess() && bestStrikeResult.getBestStrike() != null) {
                         bestStrikeData = bestStrikeResult.getBestStrike();
                         optionEntryPrice = bestStrikeData.getOptionPrice();
                         optionSymbol = bestStrikeData.getTradingSymbol();
                         optionInstrumentToken = bestStrikeData.getInstrumentToken();
-                        log.info("🎯 USING GREEKS-BASED LOCAL PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {}, Delta: {}",
+                        log.info("🎯 USING OI-BASED LOCAL PRICING - Symbol: {}, LTP: {}, Strike: {}, Index: {}, OI: {}",
                                 optionSymbol, optionEntryPrice, bestStrikeData.getStrikePrice(), currentIndexPrice, 
-                                String.format("%.3f", bestStrikeData.getGreeks().getDelta()));
+                                bestStrikeData.getOi());
                     } else {
                         // Fallback to simple mock pricing
                         optionEntryPrice = mockOptionPricingService.calculateEntryLTP(currentIndexPrice);
                         optionSymbol = "CALL_BUY".equals(orderType) ? "LOCAL_CALL_CE" : "LOCAL_PUT_PE";
                         optionInstrumentToken = 0L;
-                        log.info("📊 USING FALLBACK LOCAL PRICING - Index: {}, Premium: {} (Greeks data unavailable)",
+                        log.info("📊 USING FALLBACK LOCAL PRICING - Index: {}, Premium: {} (OI data unavailable)",
                                 currentIndexPrice, optionEntryPrice);
                     }
                 } catch (Exception e) {
-                    // Fallback to simple mock pricing if Greeks analysis fails
+                    // Fallback to simple mock pricing if OI analysis fails
                     optionEntryPrice = mockOptionPricingService.calculateEntryLTP(currentIndexPrice);
                     optionSymbol = "CALL_BUY".equals(orderType) ? "LOCAL_CALL_CE" : "LOCAL_PUT_PE";
                     optionInstrumentToken = 0L;
@@ -250,26 +250,20 @@ public class OrderManagementService {
                 order.setEntryQualityScore(qualityScore);
                 order.setEntryDominantTrend(dominantTrend);
                 
-                // 🔥 NEW: Store Greeks data at entry time
+                // Store OI-based strike data at entry time
                 if (bestStrikeData != null) {
-                    OptionGreeksCalculator.OptionGreeks greeks = bestStrikeData.getGreeks();
-                    order.setEntryDelta(greeks.getDelta());
-                    order.setEntryGamma(greeks.getGamma());
-                    order.setEntryTheta(greeks.getTheta());
-                    order.setEntryVega(greeks.getVega());
-                    order.setEntryImpliedVolatility(bestStrikeData.getImpliedVolatility());
-                    order.setEntryTimeToExpiry(bestStrikeData.getTimeToExpiry());
                     order.setEntryStrikePrice(bestStrikeData.getStrikePrice());
                     order.setEntryOptionType(optionType);
+                    // Note: Greeks data (Delta, Gamma, Theta, Vega, IV) not available with OI-based selection
+                    // These fields will remain null/zero in the order
                     
-                    log.info("📊 GREEKS DATA STORED - Delta: {}, Gamma: {}, Theta: {}, Vega: {}, IV: {}%, TTE: {} days, Strike: {}",
-                            String.format("%.3f", greeks.getDelta()), String.format("%.4f", greeks.getGamma()),
-                            String.format("%.2f", greeks.getTheta()), String.format("%.2f", greeks.getVega()),
-                            String.format("%.1f", bestStrikeData.getImpliedVolatility() * 100),
-                            String.format("%.1f", bestStrikeData.getTimeToExpiry()),
-                            bestStrikeData.getStrikePrice());
+                    log.info("📊 OI DATA STORED - Strike: {}, OI: {}, Volume: {}, Price: {}",
+                            bestStrikeData.getStrikePrice(),
+                            bestStrikeData.getOi(),
+                            bestStrikeData.getVolume() != null ? bestStrikeData.getVolume() : 0L,
+                            bestStrikeData.getOptionPrice());
                 } else {
-                    log.info("📊 NO GREEKS DATA AVAILABLE - Using fallback pricing without Greeks details");
+                    log.info("📊 NO OI DATA AVAILABLE - Using fallback pricing without OI details");
                 }
 
                 // 🔥 NEW: Store NTP filter results at entry time
