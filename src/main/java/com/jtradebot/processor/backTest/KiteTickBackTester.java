@@ -68,6 +68,18 @@ public class KiteTickBackTester {
                 tick.setInstrumentToken(kiteInstrumentHandler.getNifty50Token());
             }
             
+            // Temporarily reduce 1 second from timestamp before processing
+            if (tick.getTickTimestamp() != null) {
+                Date originalTimestamp = tick.getTickTimestamp();
+                Date adjustedTimestamp = new Date(originalTimestamp.getTime() - 1000); // Subtract 1 second
+                tick.setTickTimestamp(adjustedTimestamp);
+            }
+            if (tick.getLastTradedTime() != null) {
+                Date originalLastTradedTime = tick.getLastTradedTime();
+                Date adjustedLastTradedTime = new Date(originalLastTradedTime.getTime() - 1000); // Subtract 1 second
+                tick.setLastTradedTime(adjustedLastTradedTime);
+            }
+            
             // Use the new unified tick processing method
             // Create a list with single tick to match the new interface
             // Skip market hours check for backtesting

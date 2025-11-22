@@ -22,7 +22,6 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.jtradebot.processor.handler.DateTimeHandler.getHolidaysAndWeekends;
 import static com.jtradebot.processor.handler.DateTimeHandler.goBackInPast;
 import static com.jtradebot.processor.model.enums.CandleTimeFrameEnum.*;
 import static com.jtradebot.processor.model.enums.KiteHistoricalDataTimeframeEnum.*;
@@ -102,25 +101,194 @@ public class BarSeriesManager {
             return;
         }
         if (series.isEmpty()) {
-            series.addBar(duration, tickTime, tick.getOpenPrice(), tick.getHighPrice(), tick.getLowPrice(), tick.getClosePrice(), volume);
+            // For empty series, calculate bar start time and then add duration to get end time
+            // addBar() expects the end time as the second parameter
+            ZonedDateTime barStartTime = calculateBarStartTime(tickTime, duration);
+            ZonedDateTime barEndTime = barStartTime.plus(duration);
+            try {
+                series.addBar(duration, barEndTime, tick.getOpenPrice(), tick.getHighPrice(), tick.getLowPrice(), tick.getClosePrice(), volume);
+            } catch (IllegalArgumentException e) {
+                // If bar already exists (shouldn't happen for empty series, but handle gracefully)
+                log.warn("Failed to add bar to empty series - bar may already exist. Bar end time: {}, Error: {}", barEndTime, e.getMessage());
+                // Re-check if series is still empty or if another thread added a bar
+                if (!series.isEmpty()) {
+                    // Series is no longer empty, process as normal
+                    Bar lastBar = series.getLastBar();
+                    ZonedDateTime lastBarEndTime = lastBar.getEndTime();
+                    if (!tickTime.getZone().equals(lastBarEndTime.getZone())) {
+                        tickTime = tickTime.withZoneSameInstant(lastBarEndTime.getZone());
+                    }
+                    boolean isSameDay = tickTime.toLocalDate().equals(lastBarEndTime.toLocalDate());
+                    boolean isWithinBar = isSameDay && !tickTime.isBefore(lastBar.getBeginTime()) && tickTime.isBefore(lastBarEndTime);
+                    if (isWithinBar) {
+                        lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
+                    }
+                }
+            }
         } else {
             Bar lastBar = series.getLastBar();
             ZonedDateTime lastBarEndTime = lastBar.getEndTime();
             ZonedDateTime lastBarBeginTime = lastBar.getBeginTime();
-            ZonedDateTime nextBarBeginTime = lastBarEndTime.plus(duration);
+            
             // Ensure tickTime is in the same zone as lastBarEndTime
             if (!tickTime.getZone().equals(lastBarEndTime.getZone())) {
                 tickTime = tickTime.withZoneSameInstant(lastBarEndTime.getZone());
             }
 
-            if (tickTime.isBefore(lastBarEndTime) && tickTime.isAfter(lastBarBeginTime)) {
+            // Check if tick is within the current bar's time range
+            // For daily bars (duration >= 1 day), check time range directly since bars span two days
+            // For intraday bars, also check if it's the same day
+            boolean isDailyBar = duration.toDays() >= 1;
+            boolean isSameDay = tickTime.toLocalDate().equals(lastBarEndTime.toLocalDate());
+            
+            // Include the bar begin time (use !isBefore instead of isAfter to allow equality)
+            // For daily bars, only check time range. For intraday bars, also require same day.
+            boolean isWithinBar = !tickTime.isBefore(lastBarBeginTime) && tickTime.isBefore(lastBarEndTime);
+            if (!isDailyBar) {
+                // For intraday bars, also require same day
+                isWithinBar = isWithinBar && isSameDay;
+            }
+            
+            if (isWithinBar) {
                 lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
-            } else if (!tickTime.isBefore(lastBarEndTime)) { // Equals and after create new bar
-                // Only add a new bar if tickTime is strictly after
-                log.debug("Creating new bar. Tick time: {}, Last bar end: {}, Next bar start: {}", tickTime, lastBarEndTime, nextBarBeginTime);
-                series.addBar(duration, nextBarBeginTime, tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), volume);
+            } else {
+                // Need to create a new bar - tick is either from a different day or at/after the current bar end
+                ZonedDateTime nextBarBeginTime;
+                
+                // Calculate what bar start time this tick should belong to
+                ZonedDateTime calculatedBarStart = calculateBarStartTime(tickTime, duration);
+                ZonedDateTime calculatedBarEnd = calculatedBarStart.plus(duration);
+                
+                // If the calculated bar matches the last bar's start time, tick should update the existing bar
+                if (calculatedBarStart.equals(lastBarBeginTime)) {
+                    log.debug("Tick belongs to existing bar based on calculated bar start. Updating last bar. " +
+                            "Tick time: {}, Last bar start: {}, Last bar end: {}", 
+                            tickTime, lastBarBeginTime, lastBarEndTime);
+                    lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
+                    return;
+                }
+                
+                // If calculated bar end is not after last bar end, tick belongs to existing bar
+                if (!calculatedBarEnd.isAfter(lastBarEndTime)) {
+                    log.debug("Tick belongs to existing bar - calculated bar end {} is not after last bar end {}. " +
+                            "Tick time: {}, Calculated start: {}. Updating last bar instead.",
+                            calculatedBarEnd, lastBarEndTime, tickTime, calculatedBarStart);
+                    lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
+                    return;
+                }
+                
+                // Calculate new bar start time
+                if (isDailyBar) {
+                    // For daily bars, use the calculated bar start
+                    nextBarBeginTime = calculatedBarStart;
+                } else {
+                    // For intraday bars
+                    boolean isDifferentDay = !isSameDay;
+                    if (isDifferentDay) {
+                        // Cross-day for intraday bars
+                        nextBarBeginTime = calculatedBarStart;
+                    } else {
+                        // Same day: check if tick time exactly equals the last bar end time
+                        if (tickTime.equals(lastBarEndTime)) {
+                            // Tick is exactly at the bar boundary - update the last bar
+                            lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
+                            return;
+                        }
+                        // Next bar starts where the last bar ended (bars are adjacent)
+                        nextBarBeginTime = lastBarEndTime;
+                    }
+                }
+                
+                log.debug("Creating new bar. Tick time: {}, Last bar end: {}, Calculated new bar start: {}", 
+                         tickTime, lastBarEndTime, nextBarBeginTime);
+                
+                // addBar() expects the end time, so add duration to the begin time
+                ZonedDateTime nextBarEndTime = nextBarBeginTime.plus(duration);
+                
+                // Validate that the new bar end time is strictly after the last bar end time
+                // This prevents duplicate bars or bars that overlap
+                if (!nextBarEndTime.isAfter(lastBarEndTime)) {
+                    log.warn("Skipping bar creation - calculated end time {} is not after last bar end time {}. Tick time: {}, Duration: {}",
+                            nextBarEndTime, lastBarEndTime, tickTime, duration);
+                    // Instead of creating a new bar, update the last bar
+                    lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
+                    return;
+                }
+                
+                try {
+                    series.addBar(duration, nextBarEndTime, tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), tick.getLastTradedPrice(), volume);
+                } catch (IllegalArgumentException e) {
+                    // If bar already exists (race condition or duplicate tick), update the last bar instead
+                    log.warn("Failed to add bar - bar may already exist. Bar end time: {}, Last bar end: {}, Error: {}. Updating last bar instead.",
+                            nextBarEndTime, lastBarEndTime, e.getMessage());
+                    // Update the existing last bar with the tick price
+                    lastBar.addPrice(DecimalNum.valueOf(tick.getLastTradedPrice()));
+                }
             }
         }
+    }
+    
+    /**
+     * Calculate the start time of the bar that should contain the given tick time.
+     * This aligns the tick time to the appropriate bar boundary based on the duration.
+     */
+    private ZonedDateTime calculateBarStartTime(ZonedDateTime tickTime, Duration duration) {
+        LocalDateTime localDateTime = tickTime.toLocalDateTime();
+        
+        // For daily bars, start at market open (09:15:00)
+        if (duration.toDays() >= 1) {
+            return localDateTime.toLocalDate().atStartOfDay()
+                    .atZone(tickTime.getZone())
+                    .withHour(9).withMinute(15).withSecond(0).withNano(0);
+        }
+        
+        // For hourly bars, align to the hour boundary starting from market open (09:15)
+        if (duration.toHours() >= 1) {
+            int hour = localDateTime.getHour();
+            int minute = localDateTime.getMinute();
+            
+            // If before market open, align to market open (09:15)
+            if (hour < 9 || (hour == 9 && minute < 15)) {
+                return localDateTime.toLocalDate().atStartOfDay()
+                        .atZone(tickTime.getZone())
+                        .withHour(9).withMinute(15).withSecond(0).withNano(0);
+            }
+            
+            // Calculate hours since market open (09:15)
+            long minutesSinceOpen = ((hour - 9) * 60) + (minute - 15);
+            long hoursSinceOpen = minutesSinceOpen / 60;
+            long alignedHours = (hoursSinceOpen / duration.toHours()) * duration.toHours();
+            
+            return localDateTime.toLocalDate().atStartOfDay()
+                    .atZone(tickTime.getZone())
+                    .withHour(9).withMinute(15)
+                    .plusHours(alignedHours)
+                    .withSecond(0).withNano(0);
+        }
+        
+        // For minute-based bars (1min, 3min, 5min, 15min), align to minute boundaries starting from market open (09:15)
+        long minutesSinceMidnight = (localDateTime.getHour() * 60) + localDateTime.getMinute();
+        long marketOpenMinutes = (9 * 60) + 15; // 09:15 = 555 minutes
+        
+        // If before market open, align to market open
+        if (minutesSinceMidnight < marketOpenMinutes) {
+            return localDateTime.toLocalDate().atStartOfDay()
+                    .atZone(tickTime.getZone())
+                    .withHour(9).withMinute(15).withSecond(0).withNano(0);
+        }
+        
+        // Calculate minutes since market open
+        long minutesSinceOpen = minutesSinceMidnight - marketOpenMinutes;
+        long durationMinutes = duration.toMinutes();
+        
+        // Align to the appropriate bar boundary
+        long alignedMinutes = (minutesSinceOpen / durationMinutes) * durationMinutes;
+        
+        return localDateTime.toLocalDate().atStartOfDay()
+                .atZone(tickTime.getZone())
+                .withHour(9).withMinute(15)
+                .plusMinutes(alignedMinutes)
+                .withSecond(0).withNano(0);
     }
 
     private BarSeries fetchAndConvertToBarSeries(String instrumentToken, KiteHistoricalDataTimeframeEnum kiteTimeFrame,

@@ -129,6 +129,12 @@ public class RuleHelper {
             if (fiveMinSeries != null && fiveMinSeries.getBarCount() >= 21) {
                 try {
                     EmaInfo emaInfo_5min = multiEmaIndicator.calculateEmaValues(fiveMinSeries, FIVE_MIN);
+                    
+                    // Log all EMA values for 5-minute timeframe
+                    log.info("5-Min EMA Values - EMA5: {}, EMA9: {}, EMA14: {}, EMA20: {}, EMA34: {}, EMA200: {}",
+                            emaInfo_5min.getEma5(), emaInfo_5min.getEma9(), emaInfo_5min.getEma14(),
+                            emaInfo_5min.getEma20(), emaInfo_5min.getEma34(), emaInfo_5min.getEma200());
+                    
                     double ema5_5min = emaInfo_5min.getEma5();
                     double ema34_5min = emaInfo_5min.getEma34();
 
