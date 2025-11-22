@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class MockOptionPricingService {
 
-    private final GreeksAnalysisService greeksAnalysisService;
+    private final OIAnalysisService oiAnalysisService;
 
 
     public Double calculateCurrentLTP(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice, OrderTypeEnum orderType) {
@@ -20,87 +20,15 @@ public class MockOptionPricingService {
             return entryPrice; // Return entry price if any value is null
         }
 
-        // Try to use Greeks-based pricing first
-        try {
-            Double greeksBasedPrice = calculateCurrentLTPWithGreeks(entryPrice, entryIndexPrice, currentIndexPrice, orderType);
-            if (greeksBasedPrice != null) {
-                // Use the simplified Greeks-based pricing
-                log.debug("Using simplified Greeks-based pricing: {} (Entry: {}, Index Movement: {}, Order Type: {})",
-                        greeksBasedPrice, entryPrice, currentIndexPrice - entryIndexPrice, orderType);
-                return greeksBasedPrice;
-            }
-        } catch (Exception e) {
-            log.warn("Greeks-based pricing failed, falling back to simple calculation: {}", e.getMessage());
-        }
+        // Try to use OI-based pricing first (simplified - no Greeks available)
+        // Note: OI-based selection doesn't provide Greeks, so we use simple calculation
 
         // Fallback to simple index movement calculation
         return calculateCurrentLTPSimple(entryPrice, entryIndexPrice, currentIndexPrice, orderType);
     }
 
-    /**
-     * Calculate current LTP using Greeks-based pricing
-     * This provides more accurate option pricing by considering Delta, Gamma, and other Greeks
-     */
-    private Double calculateCurrentLTPWithGreeks(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice, OrderTypeEnum orderType) {
-        try {
-            String optionType = (orderType == OrderTypeEnum.CALL_BUY) ? "CE" : "PE";
-            
-            // Get current Greeks analysis to find the best strike
-            GreeksAnalysisService.BestStrikeResult bestStrikeResult = greeksAnalysisService.getBestStrikeForScalping(optionType);
-            
-            if (!bestStrikeResult.isSuccess() || bestStrikeResult.getBestStrike() == null) {
-                log.debug("No Greeks data available for option type: {}", optionType);
-                return null;
-            }
-
-            GreeksAnalysisService.StrikeGreeksData bestStrike = bestStrikeResult.getBestStrike();
-            return calculateLTPWithGreeksData(entryPrice, entryIndexPrice, currentIndexPrice, orderType, bestStrike);
-            
-        } catch (Exception e) {
-            log.warn("Error in Greeks-based pricing calculation: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Calculate LTP using specific Greeks data
-     * This method can be used when you have specific strike and Greeks information
-     */
-    public Double calculateLTPWithGreeksData(Double entryPrice, Double entryIndexPrice, Double currentIndexPrice, 
-                                           OrderTypeEnum orderType, GreeksAnalysisService.StrikeGreeksData strikeData) {
-        try {
-            OptionGreeksCalculator.OptionGreeks greeks = strikeData.getGreeks();
-            
-            // Calculate index movement
-            double indexMovement = currentIndexPrice - entryIndexPrice;
-            
-            // Simple approach: multiply index movement by absolute Delta value
-            double deltaPriceChange = Math.abs(greeks.getDelta()) * indexMovement;
-            
-            // Apply the price change based on option type
-            double newOptionPrice;
-            if (orderType == OrderTypeEnum.CALL_BUY) {
-                // CALL: option price increases when index increases
-                newOptionPrice = entryPrice + deltaPriceChange;
-            } else {
-                // PUT: option price decreases when index increases
-                newOptionPrice = entryPrice - deltaPriceChange;
-            }
-            
-            // Ensure price doesn't go below 0
-            newOptionPrice = Math.max(newOptionPrice, 0.0);
-            
-            log.debug("Simple Greeks pricing - Entry: {}, Index Movement: {}, Delta: {}, Price Change: {}, New Price: {}, Strike: {}",
-                    entryPrice, String.format("%.2f", indexMovement), String.format("%.3f", greeks.getDelta()), 
-                    String.format("%.2f", deltaPriceChange), String.format("%.2f", newOptionPrice), strikeData.getStrikePrice());
-            
-            return newOptionPrice;
-            
-        } catch (Exception e) {
-            log.warn("Error in Greeks-based pricing calculation with specific data: {}", e.getMessage());
-            return null;
-        }
-    }
+    // Note: Greeks-based pricing removed - OI-based selection doesn't provide Greeks
+    // Using simple index movement calculation instead
 
     /**
      * Fallback method for simple index movement calculation
@@ -151,15 +79,15 @@ public class MockOptionPricingService {
 
 
     public double calculateEntryLTP(Double currentIndexPrice) {
-        // Try to use Greeks-based entry pricing first
+        // Try to use OI-based entry pricing first
         try {
-            Double greeksBasedEntryPrice = calculateEntryLTPWithGreeks(currentIndexPrice);
-            if (greeksBasedEntryPrice != null) {
-                log.debug("Using Greeks-based entry pricing: {} (Index: {})", greeksBasedEntryPrice, currentIndexPrice);
-                return greeksBasedEntryPrice;
+            Double oiBasedEntryPrice = calculateEntryLTPWithOI(currentIndexPrice);
+            if (oiBasedEntryPrice != null) {
+                log.debug("Using OI-based entry pricing: {} (Index: {})", oiBasedEntryPrice, currentIndexPrice);
+                return oiBasedEntryPrice;
             }
         } catch (Exception e) {
-            log.warn("Greeks-based entry pricing failed, falling back to simple calculation: {}", e.getMessage());
+            log.warn("OI-based entry pricing failed, falling back to simple calculation: {}", e.getMessage());
         }
         
         // Fallback to simple percentage-based calculation
@@ -167,17 +95,17 @@ public class MockOptionPricingService {
     }
 
     /**
-     * Calculate entry LTP using Greeks-based pricing
+     * Calculate entry LTP using OI-based pricing
      * This provides more realistic entry prices based on current market conditions
      */
-    private Double calculateEntryLTPWithGreeks(Double currentIndexPrice) {
+    private Double calculateEntryLTPWithOI(Double currentIndexPrice) {
         try {
-            // Get Greeks analysis for both CE and PE to find the best strike
-            GreeksAnalysisService.BestStrikeResult callResult = greeksAnalysisService.getBestStrikeForScalping("CE");
-            GreeksAnalysisService.BestStrikeResult putResult = greeksAnalysisService.getBestStrikeForScalping("PE");
+            // Get OI analysis for both CE and PE to find the best strike
+            OIAnalysisService.BestStrikeResult callResult = oiAnalysisService.getBestStrikeForScalping("CE");
+            OIAnalysisService.BestStrikeResult putResult = oiAnalysisService.getBestStrikeForScalping("PE");
             
             // Use the strike with better pricing (lower price for entry)
-            GreeksAnalysisService.StrikeGreeksData bestStrike = null;
+            OIAnalysisService.StrikeOIData bestStrike = null;
             if (callResult.isSuccess() && callResult.getBestStrike() != null && 
                 putResult.isSuccess() && putResult.getBestStrike() != null) {
                 
@@ -194,14 +122,14 @@ public class MockOptionPricingService {
             }
             
             if (bestStrike != null) {
-                // Use the calculated option price from Greeks analysis
+                // Use the calculated option price from OI analysis
                 double entryPrice = bestStrike.getOptionPrice();
                 
                 // Ensure minimum price
                 entryPrice = Math.max(entryPrice, 1.0);
                 
-                log.debug("Greeks-based entry LTP calculation - Index: {}, Strike: {}, Entry Price: {}, Delta: {}",
-                        currentIndexPrice, bestStrike.getStrikePrice(), entryPrice, String.format("%.3f", bestStrike.getGreeks().getDelta()));
+                log.debug("OI-based entry LTP calculation - Index: {}, Strike: {}, Entry Price: {}, OI: {}",
+                        currentIndexPrice, bestStrike.getStrikePrice(), entryPrice, bestStrike.getOi());
                 
                 return entryPrice;
             }
@@ -209,7 +137,7 @@ public class MockOptionPricingService {
             return null;
             
         } catch (Exception e) {
-            log.warn("Error in Greeks-based entry pricing calculation: {}", e.getMessage());
+            log.warn("Error in OI-based entry pricing calculation: {}", e.getMessage());
             return null;
         }
     }

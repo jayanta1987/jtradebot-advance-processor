@@ -8,6 +8,7 @@ import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Quote;
 import com.zerodhatech.models.Tick;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -44,11 +45,19 @@ public class OIAnalysisService {
     // Cache for OI data per strike
     private final Map<String, List<OIDataPoint>> oiDataHistory = new ConcurrentHashMap<>();
     
+    // Cache for current quote data (for strike selection)
+    private final Map<String, Quote> currentQuotesCache = new ConcurrentHashMap<>();
+    
     // Cache for current OI signals
     private volatile OISignalsCache oiSignalsCache = OISignalsCache.builder().build();
     private volatile boolean isCacheInitialized = false;
     private volatile long lastCacheRefreshTime = 0L;
     private static final long REFRESH_INTERVAL = 5000L; // 5 seconds
+    
+    // Cache for best strike prices
+    private volatile BestStrikeCache bestStrikeCache = BestStrikeCache.builder().build();
+    private volatile double lastCachedIndexPrice = 0.0;
+    private static final double PRICE_CHANGE_THRESHOLD = 10.0; // Recalculate if index moves ≥10 points
     
     // ReadWriteLock for thread-safe access
     private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
@@ -127,6 +136,11 @@ public class OIAnalysisService {
                                     if (oiValue > 0) {
                                         String timestamp = quote.timestamp != null ? quote.timestamp.toString() : String.valueOf(System.currentTimeMillis());
                                         storeOIDataPoint(tradingSymbol, oiValue, quote.lastPrice, timestamp);
+                                        
+                                        // Store current quote for strike selection (remove NFO: prefix for key)
+                                        String symbolKey = tradingSymbol.replace("NFO:", "");
+                                        currentQuotesCache.put(symbolKey, quote);
+                                        
                                         totalFetched++;
                                     }
                                 }
@@ -139,6 +153,9 @@ public class OIAnalysisService {
 
                 // Calculate OI signals after storing data
                 calculateOISignals(niftyIndexPrice);
+                
+                // Refresh best strike cache if needed
+                refreshBestStrikeCache(niftyIndexPrice);
                 
                 lastCacheRefreshTime = System.currentTimeMillis();
                 isCacheInitialized = true;
@@ -420,7 +437,283 @@ public class OIAnalysisService {
     }
 
     /**
+     * Get best strike for scalping based on OI data (LIGHTWEIGHT alternative to GreeksAnalysisService)
+     * Uses OI, price, volume, and moneyness for scoring instead of heavy Greeks calculations
+     */
+    public BestStrikeResult getBestStrikeForScalping(String optionType) {
+        try {
+            log.info("🔍 GETTING BEST STRIKE (OI-BASED) - Option Type: {}", optionType);
+            
+            // Get current Nifty index price
+            double currentIndexPrice = getCurrentNiftyIndexPrice();
+            log.info("📊 CURRENT NIFTY PRICE - {}", currentIndexPrice);
+            
+            if (currentIndexPrice <= 0) {
+                log.error("❌ NO NIFTY INDEX DATA - Price: {}", currentIndexPrice);
+                return BestStrikeResult.error("No Nifty index data available");
+            }
+
+            // Check if cache needs refresh
+            long currentTime = System.currentTimeMillis();
+            long timeSinceLastRefresh = currentTime - lastCacheRefreshTime;
+            
+            boolean needsTimeRefresh = timeSinceLastRefresh >= REFRESH_INTERVAL;
+            boolean needsPriceRefresh = !isCacheInitialized || 
+                                     Math.abs(currentIndexPrice - lastCachedIndexPrice) >= PRICE_CHANGE_THRESHOLD;
+
+            if (needsTimeRefresh || needsPriceRefresh) {
+                String reason = needsTimeRefresh ? "TIME" : "PRICE";
+                log.info("🔄 REFRESHING BEST STRIKE CACHE (OI-BASED) - Reason: {}, Index: {} (was: {}), Change: {:.2f} points, Time: {}ms", 
+                        reason, currentIndexPrice, lastCachedIndexPrice, 
+                        Math.abs(currentIndexPrice - lastCachedIndexPrice), timeSinceLastRefresh);
+                
+                refreshBestStrikeCache(currentIndexPrice);
+            }
+
+            // Use read lock for concurrent reads
+            cacheLock.readLock().lock();
+            try {
+                // Return cached result
+                StrikeOIData bestStrike = "CE".equals(optionType) ? 
+                        bestStrikeCache.getBestCallStrike() : bestStrikeCache.getBestPutStrike();
+
+                if (bestStrike == null) {
+                    return BestStrikeResult.error("No suitable strike found for " + optionType);
+                }
+
+                return BestStrikeResult.success(bestStrike, currentIndexPrice, optionType);
+            } finally {
+                cacheLock.readLock().unlock();
+            }
+
+        } catch (Exception e) {
+            log.error("Error getting best strike for scalping (OI-based)", e);
+            return BestStrikeResult.error("Error occurred: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Refresh the best strike cache with current index price
+     */
+    private void refreshBestStrikeCache(double currentIndexPrice) {
+        try {
+            cacheLock.writeLock().lock();
+            try {
+                // Get valid options in ±200 range
+                List<com.jtradebot.processor.repository.document.Instrument> instruments = getValidOptionsInRange(currentIndexPrice);
+                
+                if (instruments.isEmpty()) {
+                    log.warn("⚠️ No instruments found for best strike calculation");
+                    return;
+                }
+
+                // Filter by option type and find best strikes
+                List<StrikeOIData> callStrikes = new ArrayList<>();
+                List<StrikeOIData> putStrikes = new ArrayList<>();
+
+                for (com.jtradebot.processor.repository.document.Instrument instrument : instruments) {
+                    String tradingSymbol = instrument.getTradingSymbol();
+                    Quote quote = currentQuotesCache.get(tradingSymbol);
+                    
+                    if (quote == null || quote.oi <= 0) {
+                        continue; // Skip if no quote data available
+                    }
+
+                    try {
+                        int strikePrice = Integer.parseInt(instrument.getStrike());
+                        
+                        // Extract volume (handle both primitive and object types)
+                        Long volume = 0L;
+                        try {
+                            // Try to get volume using reflection or direct access
+                            if (quote.volumeTradedToday > 0) {
+                                volume = (long) quote.volumeTradedToday;
+                            }
+                        } catch (Exception e) {
+                            // Volume field may not exist or have different name - use 0
+                        }
+                        
+                        // Extract bid/ask from depth (MarketDepth structure)
+                        Double bid = null;
+                        Double ask = null;
+                        try {
+                            if (quote.depth != null && quote.depth.buy != null && !quote.depth.buy.isEmpty()) {
+                                com.zerodhatech.models.Depth buyDepth = quote.depth.buy.get(0);
+                                bid = buyDepth.getPrice();
+                            }
+                            if (quote.depth != null && quote.depth.sell != null && !quote.depth.sell.isEmpty()) {
+                                com.zerodhatech.models.Depth sellDepth = quote.depth.sell.get(0);
+                                ask = sellDepth.getPrice();
+                            }
+                        } catch (Exception e) {
+                            // Depth may not be available or have different structure
+                        }
+                        
+                        StrikeOIData strikeData = StrikeOIData.builder()
+                                .tradingSymbol(tradingSymbol)
+                                .strikePrice(strikePrice)
+                                .expiry(instrument.getExpiry())
+                                .instrumentToken(instrument.getInstrumentToken())
+                                .optionPrice(quote.lastPrice)
+                                .lastTradedPrice(quote.lastPrice)
+                                .oi(quote.oi)
+                                .volume(volume)
+                                .bid(bid)
+                                .ask(ask)
+                                .build();
+
+                        if ("CE".equals(instrument.getInstrumentType())) {
+                            callStrikes.add(strikeData);
+                        } else if ("PE".equals(instrument.getInstrumentType())) {
+                            putStrikes.add(strikeData);
+                        }
+                    } catch (Exception e) {
+                        log.debug("Error processing instrument: {}", tradingSymbol, e);
+                    }
+                }
+
+                // Find best strikes using OI-based scoring
+                StrikeOIData bestCallStrike = findBestStrikeForScalping(callStrikes, currentIndexPrice, "CE");
+                StrikeOIData bestPutStrike = findBestStrikeForScalping(putStrikes, currentIndexPrice, "PE");
+
+                // Update cache
+                bestStrikeCache = BestStrikeCache.builder()
+                        .bestCallStrike(bestCallStrike)
+                        .bestPutStrike(bestPutStrike)
+                        .indexPrice(currentIndexPrice)
+                        .lastUpdated(System.currentTimeMillis())
+                        .build();
+
+                lastCachedIndexPrice = currentIndexPrice;
+
+                log.info("✅ BEST STRIKE CACHE UPDATED (OI-BASED) - Index: {}, Call: {} ({}), Put: {} ({})", 
+                        currentIndexPrice,
+                        bestCallStrike != null ? bestCallStrike.getStrikePrice() : "N/A",
+                        bestCallStrike != null ? bestCallStrike.getTradingSymbol() : "N/A",
+                        bestPutStrike != null ? bestPutStrike.getStrikePrice() : "N/A",
+                        bestPutStrike != null ? bestPutStrike.getTradingSymbol() : "N/A");
+
+            } finally {
+                cacheLock.writeLock().unlock();
+            }
+        } catch (Exception e) {
+            log.error("Error refreshing best strike cache (OI-based)", e);
+        }
+    }
+
+    /**
+     * Find best strike using OI-based scoring (lighter than Greeks-based)
+     */
+    private StrikeOIData findBestStrikeForScalping(List<StrikeOIData> strikes, double niftyIndexPrice, String optionType) {
+        if (strikes.isEmpty()) {
+            return null;
+        }
+
+        StrikeOIData bestStrike = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+
+        for (StrikeOIData strike : strikes) {
+            double score = calculateOIBasedScalpingScore(strike, niftyIndexPrice, optionType);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestStrike = strike;
+            }
+        }
+
+        return bestStrike;
+    }
+
+    /**
+     * Calculate scalping score based on OI data (lighter alternative to Greeks-based scoring)
+     * Uses: OI, Price, Moneyness, Volume, Bid-Ask spread
+     */
+    private double calculateOIBasedScalpingScore(StrikeOIData strike, double niftyIndexPrice, String optionType) {
+        try {
+            double optionPrice = strike.getOptionPrice();
+            double oi = strike.getOi();
+            long volume = strike.getVolume() != null ? strike.getVolume() : 0L;
+            int strikePrice = strike.getStrikePrice();
+            
+            // Calculate moneyness (how close to ATM)
+            double moneyness = Math.abs(niftyIndexPrice - strikePrice) / niftyIndexPrice;
+            
+            // Calculate bid-ask spread (lower is better)
+            double spread = 0.0;
+            if (strike.getBid() != null && strike.getAsk() != null) {
+                spread = (strike.getAsk() - strike.getBid()) / optionPrice; // Normalized spread
+            }
+            
+            // Score components (0-100 each)
+            double priceScore = calculatePriceScore(optionPrice);
+            double moneynessScore = calculateMoneynessScore(moneyness);
+            double oiScore = calculateOIScore(oi);
+            double volumeScore = calculateVolumeScore(volume);
+            double spreadScore = calculateSpreadScore(spread);
+            
+            // Weighted total score (OI-based, no Greeks needed)
+            double totalScore = (priceScore * 0.25) +      // Reasonable price
+                               (moneynessScore * 0.25) +   // Close to ATM
+                               (oiScore * 0.20) +          // Good liquidity (OI)
+                               (volumeScore * 0.15) +       // Active trading
+                               (spreadScore * 0.15);       // Tight spread
+            
+            return totalScore;
+            
+        } catch (Exception e) {
+            log.warn("Error calculating OI-based scalping score for strike: {}", strike.getStrikePrice(), e);
+            return 0.0;
+        }
+    }
+
+    // Scoring methods for OI-based selection
+    private double calculatePriceScore(double optionPrice) {
+        if (optionPrice < 50) return 0;
+        if (optionPrice > 500) return 0;
+        if (optionPrice >= 150 && optionPrice <= 300) return 100;
+        if (optionPrice >= 100 && optionPrice <= 400) return 80;
+        return 60;
+    }
+
+    private double calculateMoneynessScore(double moneyness) {
+        if (moneyness <= 0.005) return 100;
+        if (moneyness <= 0.01) return 90;
+        if (moneyness <= 0.02) return 70;
+        if (moneyness <= 0.03) return 50;
+        return 20;
+    }
+
+    private double calculateOIScore(double oi) {
+        // Higher OI is better (more liquidity)
+        if (oi > 1000000) return 100;
+        if (oi > 500000) return 80;
+        if (oi > 200000) return 60;
+        if (oi > 100000) return 40;
+        return 20;
+    }
+
+    private double calculateVolumeScore(long volume) {
+        // Higher volume is better (more active)
+        if (volume > 100000) return 100;
+        if (volume > 50000) return 80;
+        if (volume > 20000) return 60;
+        if (volume > 10000) return 40;
+        return 20;
+    }
+
+    private double calculateSpreadScore(double spread) {
+        // Lower spread is better
+        if (spread <= 0.01) return 100;  // 1% or less
+        if (spread <= 0.02) return 80;   // 2% or less
+        if (spread <= 0.03) return 60;   // 3% or less
+        if (spread <= 0.05) return 40;   // 5% or less
+        return 20;
+    }
+
+    /**
      * Get valid options in ±200 range
+     * Filters to only next expiry (not next-to-next) and within 7 days from today (including today's expiry)
+     * Today's expiry is included because first few hours price may be higher; low prices will be rejected by price scoring
      */
     private List<com.jtradebot.processor.repository.document.Instrument> getValidOptionsInRange(double niftyIndexPrice) {
         try {
@@ -433,6 +726,30 @@ public class OIAnalysisService {
             LocalDate currentDate = LocalDate.now();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
 
+            // First, find the next available expiry date (earliest expiry, not expired)
+            Optional<LocalDate> nextExpiryDate = allInstruments.stream()
+                    .map(instrument -> {
+                        try {
+                            return LocalDate.parse(instrument.getExpiry(), formatter);
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    })
+                    .filter(expiryDate -> expiryDate != null && !expiryDate.isBefore(currentDate))
+                    .distinct()
+                    .min(LocalDate::compareTo);
+
+            if (nextExpiryDate.isEmpty()) {
+                log.warn("⚠️ No valid expiry date found");
+                return new ArrayList<>();
+            }
+
+            LocalDate targetExpiry = nextExpiryDate.get();
+            long daysToExpiry = java.time.temporal.ChronoUnit.DAYS.between(currentDate, targetExpiry);
+            
+            log.info("📅 NEXT EXPIRY SELECTED - Date: {}, Days to expiry: {}", targetExpiry, daysToExpiry);
+
+            // Filter options: must be in strike range AND match next expiry AND within 7 days
             return allInstruments.stream()
                     .filter(instrument -> {
                         try {
@@ -441,9 +758,30 @@ public class OIAnalysisService {
                                 return false;
                             }
                             
-                            // Check if expiry is valid
+                            // Check if expiry matches next expiry
                             LocalDate expiryDate = LocalDate.parse(instrument.getExpiry(), formatter);
-                            return !expiryDate.isBefore(currentDate);
+                            
+                            // Must match next expiry date
+                            if (!expiryDate.equals(targetExpiry)) {
+                                return false;
+                            }
+                            
+                            // Must be within 7 days from today (including today's expiry)
+                            // Include today's expiry because first few hours price may be higher
+                            // If price drops too low, it will be rejected by price scoring (< ₹50)
+                            if (daysToExpiry > 7) {
+                                log.debug("⏭️ SKIPPING EXPIRY TOO FAR - Expiry: {}, Days: {} (>7 days)", 
+                                        expiryDate, daysToExpiry);
+                                return false;
+                            }
+                            
+                            // Accept today's expiry (daysToExpiry = 0) - price scoring will filter out low prices
+                            if (daysToExpiry == 0) {
+                                log.debug("✅ INCLUDING TODAY'S EXPIRY - Symbol: {}, Expiry: {} (price scoring will filter if too low)", 
+                                        instrument.getTradingSymbol(), expiryDate);
+                            }
+                            
+                            return true;
                         } catch (Exception e) {
                             return false;
                         }
@@ -561,6 +899,60 @@ public class OIAnalysisService {
         private double callBuyScore;
         private double putBuyScore;
         private long lastUpdated;
+    }
+
+    @Data
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class StrikeOIData {
+        private String tradingSymbol;
+        private int strikePrice;
+        private String expiry;
+        private Long instrumentToken;
+        private double optionPrice;
+        private double lastTradedPrice;
+        private double oi;
+        private Long volume;
+        private Double bid;
+        private Double ask;
+    }
+
+    @Data
+    @Builder
+    public static class BestStrikeCache {
+        private StrikeOIData bestCallStrike;
+        private StrikeOIData bestPutStrike;
+        private double indexPrice;
+        private long lastUpdated;
+    }
+
+    @Data
+    @Builder
+    public static class BestStrikeResult {
+        private boolean success;
+        private StrikeOIData bestStrike;
+        private double niftyIndexPrice;
+        private String optionType;
+        private String error;
+        private long timestamp;
+
+        public static BestStrikeResult success(StrikeOIData bestStrike, double niftyIndexPrice, String optionType) {
+            return BestStrikeResult.builder()
+                    .success(true)
+                    .bestStrike(bestStrike)
+                    .niftyIndexPrice(niftyIndexPrice)
+                    .optionType(optionType)
+                    .timestamp(System.currentTimeMillis())
+                    .build();
+        }
+
+        public static BestStrikeResult error(String error) {
+            return BestStrikeResult.builder()
+                    .success(false)
+                    .error(error)
+                    .timestamp(System.currentTimeMillis())
+                    .build();
+        }
     }
 }
 
