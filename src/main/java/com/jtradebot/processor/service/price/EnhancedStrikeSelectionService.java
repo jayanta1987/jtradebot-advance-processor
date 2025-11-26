@@ -76,9 +76,11 @@ public class EnhancedStrikeSelectionService {
     private List<Instrument> getValidNiftyOptionsInRange(String optionType, double minStrike, double maxStrike) {
         LocalDate currentDate = LocalDate.now();
         
-        return instrumentRepository.findAll().stream()
-                .filter(instrument -> "NIFTY".equals(instrument.getName()))
-                .filter(instrument -> optionType.equals(instrument.getInstrumentType()))
+        // Use optimized query with index: instrumentType_1_name_1_segment_1_expiry_1
+        // Query by instrumentType first to leverage the compound index
+        List<Instrument> allNiftyOptions = instrumentRepository.findByInstrumentTypeAndNameOrderByExpiryAsc(optionType, "NIFTY");
+        
+        return allNiftyOptions.stream()
                 .filter(instrument -> {
                     try {
                         // Check if strike is within range

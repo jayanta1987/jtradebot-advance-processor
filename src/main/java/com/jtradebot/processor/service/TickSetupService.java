@@ -90,8 +90,14 @@ public class TickSetupService {
             throw new RuntimeException(errorMsg);
         }
         
-        log.info("🔧 TRADE PREFERENCE VALIDATION - MaxProfitPerDay: {}, MaxLossPerDay: {}", 
-                tradePreference.getMaxProfitPerDay(), tradePreference.getMaxLossPerDay());
+        if (tradePreference.getMaxPointsPerDay() <= 0) {
+            String errorMsg = "TradePreference.maxPointsPerDay is not set or invalid: " + tradePreference.getMaxPointsPerDay() + ". Configuration must be properly set.";
+            log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
+            throw new RuntimeException(errorMsg);
+        }
+        
+        log.info("🔧 TRADE PREFERENCE VALIDATION - MaxProfitPerDay: {}, MaxLossPerDay: {}, MaxPointsPerDay: {}", 
+                tradePreference.getMaxProfitPerDay(), tradePreference.getMaxLossPerDay(), tradePreference.getMaxPointsPerDay());
         
         if (existingConfig != null) {
             // Update existing record
@@ -361,6 +367,19 @@ public class TickSetupService {
                     log.info("Updated maxProfitPerDay to: {}", maxProfitPerDay);
                 } else {
                     throw new IllegalArgumentException("Max profit per day must be a number");
+                }
+                break;
+                
+            case "maxPointsPerDay":
+                if (value instanceof Number) {
+                    double maxPointsPerDay = ((Number) value).doubleValue();
+                    if (maxPointsPerDay < 0) {
+                        throw new IllegalArgumentException("Max points per day must be greater than or equal to 0");
+                    }
+                    preferences.setMaxPointsPerDay(maxPointsPerDay);
+                    log.info("Updated maxPointsPerDay to: {}", maxPointsPerDay);
+                } else {
+                    throw new IllegalArgumentException("Max points per day must be a number");
                 }
                 break;
                 

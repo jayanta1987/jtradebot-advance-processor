@@ -184,6 +184,23 @@ public class TradingConfigurationService implements InitializingBean {
         }
     }
 
+    public double getMaxPointsPerDay() {
+        try {
+            TradeConfig tradeConfig = tickSetupService.getTradeConfig();
+            if (tradeConfig.getTradePreference() != null && tradeConfig.getTradePreference().getMaxPointsPerDay() > 0) {
+                return tradeConfig.getTradePreference().getMaxPointsPerDay();
+            }
+            
+            String errorMsg = "Max points per day not configured in database. TradePreference is " + 
+                            (tradeConfig.getTradePreference() == null ? "NULL" : "present but maxPointsPerDay is " + tradeConfig.getTradePreference().getMaxPointsPerDay());
+            log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
+            throw new RuntimeException(errorMsg);
+        } catch (Exception e) {
+            log.error("Failed to get maxPointsPerDay from database: {}", e.getMessage());
+            throw new RuntimeException("Failed to get max points per day from configuration", e);
+        }
+    }
+
     // Risk Management Methods
     public double getMinMilestonePoints() {
         return tradingConfig.getRiskManagement().getMinMilestonePoints();

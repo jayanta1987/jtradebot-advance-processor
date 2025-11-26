@@ -112,7 +112,7 @@ public class OIAnalysisService {
                 // Prepare trading symbols with "NFO:" prefix
                 List<String> tradingSymbols = instruments.stream()
                         .map(instrument -> "NFO:" + instrument.getTradingSymbol())
-                        .collect(Collectors.toList());
+                        .toList();
 
                 // Batch fetch quotes (max 8-10 symbols in ±200 range, so batch size of 10 is sufficient)
                 int batchSize = 10;
@@ -408,7 +408,7 @@ public class OIAnalysisService {
             
             if (categoryScoring.isPresent() && categoryScoring.get().getIndicators() != null) {
                 Map<String, Double> indicators = categoryScoring.get().getIndicators();
-                log.debug("📊 Loaded OI scoring from config - Type: {}, Name: {}, Scores: {}", 
+                log.debug("📊 Loaded OI scoring from config (cached) - Type: {}, Name: {}, Scores: {}", 
                         categoryType, categoryName, indicators);
                 return new HashMap<>(indicators); // Return a copy to avoid modification
             } else {
@@ -804,12 +804,13 @@ public class OIAnalysisService {
             if (!instrumentsCacheInitialized || !currentDate.equals(lastCacheDate)) {
                 log.info("🔄 REFRESHING INSTRUMENTS CACHE - Date: {} (was: {})", currentDate, lastCacheDate);
                 
-                List<com.jtradebot.processor.repository.document.Instrument> allInstruments = instrumentRepository.findAll();
+                // Use optimized query with index: instrumentType_1_name_1_segment_1_expiry_1
+                // Query by instrumentType first to leverage the compound index
+                List<String> optionTypes = List.of("CE", "PE");
+                List<com.jtradebot.processor.repository.document.Instrument> allInstruments = 
+                        instrumentRepository.findByInstrumentTypeInAndNameAndSegment(optionTypes, "NIFTY", "NFO-OPT");
                 
                 List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = allInstruments.stream()
-                        .filter(instrument -> "NIFTY".equals(instrument.getName()) &&
-                                ("CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())) &&
-                                "NFO-OPT".equals(instrument.getSegment()))
                         .filter(instrument -> {
                             try {
                                 LocalDate expiryDate = LocalDate.parse(instrument.getExpiry(), 

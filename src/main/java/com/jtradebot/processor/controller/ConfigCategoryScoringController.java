@@ -24,7 +24,16 @@ public class ConfigCategoryScoringController {
     @GetMapping
     public ResponseEntity<List<CategoryScoring>> getAllCategoryScorings() {
         try {
+            log.debug("📡 API ENDPOINT CALLED - GET /api/config/category-scoring (ALL) | Thread: {} | Timestamp: {}", 
+                    Thread.currentThread().getName(), System.currentTimeMillis());
+            
+            long startTime = System.currentTimeMillis();
             List<CategoryScoring> categoryScorings = configCategoryScoringService.getAllCategoryScorings();
+            long duration = System.currentTimeMillis() - startTime;
+            
+            log.debug("📡 API ENDPOINT RESPONSE - GET /api/config/category-scoring (ALL) | Duration: {}ms | Count: {}", 
+                    duration, categoryScorings.size());
+            
             return ResponseEntity.ok(categoryScorings);
         } catch (Exception e) {
             log.error("Error retrieving category scorings", e);
@@ -35,7 +44,16 @@ public class ConfigCategoryScoringController {
     @GetMapping("/type/{categoryType}")
     public ResponseEntity<List<CategoryScoring>> getCategoryScoringsByType(@PathVariable String categoryType) {
         try {
+            log.debug("📡 API ENDPOINT CALLED - GET /api/config/category-scoring/type/{} | Thread: {} | Timestamp: {}", 
+                    categoryType, Thread.currentThread().getName(), System.currentTimeMillis());
+            
+            long startTime = System.currentTimeMillis();
             List<CategoryScoring> categoryScorings = configCategoryScoringService.getCategoryScoringsByType(categoryType);
+            long duration = System.currentTimeMillis() - startTime;
+            
+            log.debug("📡 API ENDPOINT RESPONSE - GET /api/config/category-scoring/type/{} | Duration: {}ms | Count: {}", 
+                    categoryType, duration, categoryScorings.size());
+            
             return ResponseEntity.ok(categoryScorings);
         } catch (Exception e) {
             log.error("Error retrieving category scorings for type: {}", categoryType, e);
@@ -46,7 +64,16 @@ public class ConfigCategoryScoringController {
     @GetMapping("/{categoryType}/{categoryName}")
     public ResponseEntity<CategoryScoring> getCategoryScoring(@PathVariable String categoryType, @PathVariable String categoryName) {
         try {
+            log.debug("📡 API ENDPOINT CALLED - GET /api/config/category-scoring/{}/{} | Thread: {} | Timestamp: {}", 
+                    categoryType, categoryName, Thread.currentThread().getName(), System.currentTimeMillis());
+            
+            long startTime = System.currentTimeMillis();
             Optional<CategoryScoring> categoryScoring = configCategoryScoringService.getCategoryScoring(categoryType, categoryName);
+            long duration = System.currentTimeMillis() - startTime;
+            
+            log.debug("📡 API ENDPOINT RESPONSE - GET /api/config/category-scoring/{}/{} | Duration: {}ms | Found: {}", 
+                    categoryType, categoryName, duration, categoryScoring.isPresent());
+            
             return categoryScoring.map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {

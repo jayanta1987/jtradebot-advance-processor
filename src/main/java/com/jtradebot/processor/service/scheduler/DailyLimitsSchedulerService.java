@@ -10,7 +10,6 @@ import com.jtradebot.processor.service.order.OrderManagementService;
 import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +32,7 @@ public class DailyLimitsSchedulerService {
     private final AtomicBoolean dailyLimitReached = new AtomicBoolean(false);
     private final AtomicBoolean dailyProfitLimitReached = new AtomicBoolean(false);
     private final AtomicBoolean dailyLossLimitReached = new AtomicBoolean(false);
+    private final AtomicBoolean dailyPointsLimitReached = new AtomicBoolean(false);
 
     /**
      * Check daily P&L limits every 30 sec
@@ -47,12 +47,15 @@ public class DailyLimitsSchedulerService {
             // Get daily limits from configuration with error handling
             double maxProfitPerDay;
             double maxLossPerDay;
+            double maxPointsPerDay;
             
             try {
                 maxProfitPerDay = tradingConfigurationService.getMaxProfitPerDay();
                 maxLossPerDay = tradingConfigurationService.getMaxLossPerDay();
-                log.debug("Daily limits loaded - Max Profit: {}, Max Loss: {}", 
-                         String.format("%.2f", maxProfitPerDay), String.format("%.2f", maxLossPerDay));
+                maxPointsPerDay = tradingConfigurationService.getMaxPointsPerDay();
+                log.debug("Daily limits loaded - Max Profit: {}, Max Loss: {}, Max Points: {}", 
+                         String.format("%.2f", maxProfitPerDay), String.format("%.2f", maxLossPerDay), 
+                         String.format("%.2f", maxPointsPerDay));
             } catch (Exception e) {
                 log.error("❌ CRITICAL CONFIGURATION ERROR: Failed to load daily limits from configuration: {}", e.getMessage());
                 log.error("❌ Daily P&L limits scheduler will be disabled until configuration is fixed");
@@ -94,6 +97,21 @@ public class DailyLimitsSchedulerService {
                 return;
             }
             
+            // Check if points limit is exceeded
+            double todayTotalPoints = calculateTodayTotalPoints();
+            if (todayTotalPoints >= maxPointsPerDay) {
+                log.debug("📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊\n" +
+                        "🚨 POINTS LIMIT HIT! 🚨\n" +
+                        "📈 Today's Total Points: {} >= Max Allowed: {}\n" +
+                        "🎯 EXCELLENT TRADING PERFORMANCE! 🎯\n" +
+                        "📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊📊", 
+                        String.format("%.2f", todayTotalPoints), String.format("%.2f", maxPointsPerDay));
+                dailyPointsLimitReached.set(true);
+                dailyLimitReached.set(true);
+                closeAllActiveOrdersWhenLimitsHit("DAILY_POINTS_LIMIT_HIT");
+                return;
+            }
+            
             log.debug("All limits within bounds, continuing trading");
             
         } catch (Exception e) {
@@ -110,6 +128,7 @@ public class DailyLimitsSchedulerService {
         dailyLimitReached.set(false);
         dailyProfitLimitReached.set(false);
         dailyLossLimitReached.set(false);
+        dailyPointsLimitReached.set(false);
     }
 
     /**
@@ -134,6 +153,14 @@ public class DailyLimitsSchedulerService {
      */
     public boolean isDailyLossLimitReached() {
         return dailyLossLimitReached.get();
+    }
+
+    /**
+     * Check if daily points limit has been reached
+     * @return true if points limit is reached, false otherwise
+     */
+    public boolean isDailyPointsLimitReached() {
+        return dailyPointsLimitReached.get();
     }
 
 
@@ -200,6 +227,68 @@ public class DailyLimitsSchedulerService {
     }
     
     /**
+     * Calculate today's total points from closed orders and active orders
+     * Note: Active orders are retrieved from the in-memory map (not DB) for performance
+     * @return today's total points including both closed and active orders
+     */
+    private double calculateTodayTotalPoints() {
+        try {
+            double totalPoints = 0.0;
+            
+            // 1. Get all closed orders for today and sum their totalPoints
+            List<JtradeOrder> closedOrders = orderManagementService.getCompletedOrdersForToday();
+            double closedOrdersPoints = 0.0;
+            for (JtradeOrder order : closedOrders) {
+                if (order.getTotalPoints() != null) {
+                    closedOrdersPoints += order.getTotalPoints();
+                }
+            }
+            
+            // 2. Get all active orders from in-memory map and calculate their current points
+            double activeOrdersPoints = 0.0;
+            List<JtradeOrder> activeOrders = activeOrderTrackingService.getActiveOrders();
+            for (JtradeOrder activeOrder : activeOrders) {
+                try {
+                    // Get current index price
+                    Double currentIndexPrice = getCurrentIndexPrice();
+                    if (currentIndexPrice != null) {
+                        // Get current option price for the active order
+                        Double currentOptionPrice = activeOrderTrackingService.getCurrentPrice(activeOrder, currentIndexPrice);
+                        if (currentOptionPrice != null) {
+                            // Calculate current points for this active order
+                            double points = currentOptionPrice - activeOrder.getEntryPrice();
+                            activeOrdersPoints += points;
+                            
+                            log.debug("Active order points - ID: {}, Entry: {}, Current: {}, Points: {}", 
+                                     activeOrder.getId(), activeOrder.getEntryPrice(), currentOptionPrice, 
+                                     String.format("%.2f", points));
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error calculating points for active order: {} - {}", activeOrder.getId(), e.getMessage());
+                }
+            }
+            
+            // 3. Calculate total points
+            totalPoints = closedOrdersPoints + activeOrdersPoints;
+            
+            // Create points visualization for logs
+            log.debug("📊 Closed Orders Points: {} ({} orders) " +
+                     "📈 Active Orders Points: {} ({} orders) " +
+                     "💎 Total Points: {}",
+                     String.format("%.2f", closedOrdersPoints), closedOrders.size(),
+                     String.format("%.2f", activeOrdersPoints), activeOrders.size(),
+                     String.format("%.2f", totalPoints));
+            
+            return totalPoints;
+            
+        } catch (Exception e) {
+            log.error("Error calculating today's total points: {}", e.getMessage(), e);
+            return 0.0; // Return 0 on error to avoid false positives
+        }
+    }
+    
+    /**
      * Get current index price for active order P&L calculation
      * @return current Nifty index price
      */
@@ -244,8 +333,14 @@ public class DailyLimitsSchedulerService {
                             order.getId(), order.getOrderType(), order.getTradingSymbol());
 
                     // Use the same exitOrder method as MarketEndSchedulerService
-                    ExitReasonEnum exitReason = reason.equals("DAILY_PROFIT_LIMIT_HIT") ? 
-                            ExitReasonEnum.MAX_DAY_PROFIT_REACHED : ExitReasonEnum.MAX_DAY_LOSS_REACHED;
+                    ExitReasonEnum exitReason;
+                    if (reason.equals("DAILY_PROFIT_LIMIT_HIT")) {
+                        exitReason = ExitReasonEnum.MAX_DAY_PROFIT_REACHED;
+                    } else if (reason.equals("DAILY_POINTS_LIMIT_HIT")) {
+                        exitReason = ExitReasonEnum.MAX_POINTS_PER_DAY_REACHED;
+                    } else {
+                        exitReason = ExitReasonEnum.MAX_DAY_LOSS_REACHED;
+                    }
                     
                     orderManagementService.exitOrder(
                             order.getId(), 

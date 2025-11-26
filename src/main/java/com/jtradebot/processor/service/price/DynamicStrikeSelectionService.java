@@ -123,11 +123,9 @@ public class DynamicStrikeSelectionService {
         LocalDate currentDate = LocalDate.now();
         log.info("📅 CURRENT DATE: {}", currentDate);
         
-        // Get all NIFTY options first
-        List<Instrument> allNiftyOptions = instrumentRepository.findAll().stream()
-                .filter(instrument -> "NIFTY".equals(instrument.getName()))
-                .filter(instrument -> optionType.equals(instrument.getInstrumentType()))
-                .collect(Collectors.toList());
+        // Use optimized query with index: instrumentType_1_name_1_segment_1_expiry_1
+        // Query by instrumentType first to leverage the compound index
+        List<Instrument> allNiftyOptions = instrumentRepository.findByInstrumentTypeAndNameOrderByExpiryAsc(optionType, "NIFTY");
         
         log.info("🔍 TOTAL NIFTY {} OPTIONS FOUND: {}", optionType, allNiftyOptions.size());
         

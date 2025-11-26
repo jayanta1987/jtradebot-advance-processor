@@ -522,10 +522,8 @@ public class OrderService {
      */
     private double getTotalClosedOrdersProfit() {
         try {
-            // Get all closed orders from database
-            List<JtradeOrder> closedOrders = jtradeOrderRepository.findAll().stream()
-                    .filter(order -> "CLOSED".equals(order.getStatus()))
-                    .toList();
+            // Use optimized query with status index
+            List<JtradeOrder> closedOrders = jtradeOrderRepository.findByStatus("CLOSED");
             
             double totalProfit = 0.0;
             for (JtradeOrder order : closedOrders) {
