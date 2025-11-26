@@ -51,7 +51,15 @@ public class MongoConfigurationService {
      * Maximum score: 8.0 points
      */
     public ScalpingEntryConfig.CategoryScoring getCategoryScoringFromMongoDB() {
+        long startTime = System.currentTimeMillis();
+        log.debug("🔍 DB QUERY TRIGGERED (MONGO CONFIG SERVICE) - findByActiveTrue | Thread: {} | Timestamp: {} | Caller: getCategoryScoringFromMongoDB", 
+                Thread.currentThread().getName(), System.currentTimeMillis());
+        
         List<CategoryScoring> mongoCategoryScorings = categoryScoringRepository.findByActiveTrue();
+        
+        long duration = System.currentTimeMillis() - startTime;
+        log.debug("✅ DB QUERY COMPLETED (MONGO CONFIG SERVICE) - findByActiveTrue | Duration: {}ms | Count: {} | Loading category scoring configuration...", 
+                duration, mongoCategoryScorings.size());
         
         Map<String, ScalpingEntryConfig.CategoryIndicatorScoring> callCategories = new HashMap<>();
         Map<String, ScalpingEntryConfig.CategoryIndicatorScoring> putCategories = new HashMap<>();

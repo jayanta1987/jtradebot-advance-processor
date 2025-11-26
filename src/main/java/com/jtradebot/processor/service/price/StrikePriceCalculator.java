@@ -90,11 +90,12 @@ public class StrikePriceCalculator {
             LocalDate currentDate = LocalDate.now();
             log.info("📅 CURRENT DATE: {}", currentDate);
             
-            // Find all instruments and filter for Nifty options (same approach as API)
-            List<Instrument> allInstruments = instrumentRepository.findAll();
-            List<Instrument> niftyOptions = allInstruments.stream()
-                .filter(instrument -> "NIFTY".equals(instrument.getName()) && 
-                        ("OPT".equals(instrument.getInstrumentType()) || "CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
+            // Use optimized query with index: instrumentType_1_name_1_segment_1_expiry_1
+            // Query by instrumentType first to leverage the compound index
+            List<String> optionTypes = List.of("CE", "PE", "OPT");
+            List<Instrument> allNiftyOptions = instrumentRepository.findByInstrumentTypeInAndName(optionTypes, "NIFTY");
+            
+            List<Instrument> niftyOptions = allNiftyOptions.stream()
                 .filter(instrument -> {
                     // Filter out expired options - include today's expiry if today is expiry date
                     try {
@@ -155,9 +156,7 @@ public class StrikePriceCalculator {
                         strikePrice, optionType, currentDate);
                 
                 // Try to find any option with this strike (including expired ones) for debugging
-                List<Instrument> allOptionsWithStrike = allInstruments.stream()
-                    .filter(instrument -> "NIFTY".equals(instrument.getName()) && 
-                            ("OPT".equals(instrument.getInstrumentType()) || "CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
+                List<Instrument> allOptionsWithStrike = allNiftyOptions.stream()
                     .filter(instrument -> {
                         String tradingSymbol = instrument.getTradingSymbol();
                         return tradingSymbol != null && 

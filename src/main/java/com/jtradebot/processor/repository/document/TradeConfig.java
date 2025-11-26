@@ -30,6 +30,7 @@ public class TradeConfig {
         private int maxQuantity;
         private double maxLossPerDay;  // Fixed value instead of percentage
         private double maxProfitPerDay;  // Fixed value instead of percentage
+        private double maxPointsPerDay;  // Maximum total points allowed per day (sum of closed + active order points)
         private long maxTradeHoldingTimeInSec;
         private boolean enableTradeAfterStopLossHit;  // Flag to enable/disable trading after stop loss hit
         private String stopLossBlockTimeframe;  // Candle timeframe to block entries after stop loss hit (e.g., "ONE_MIN", "THREE_MIN", "FIVE_MIN") - used if enableTradeAfterStopLossHit is false

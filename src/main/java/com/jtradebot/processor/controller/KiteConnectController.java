@@ -232,11 +232,11 @@ public class KiteConnectController {
     public Map<String, Object> checkNextAvailableExpiry() {
         Map<String, Object> response = new HashMap<>();
         try {
-            // Get only Nifty option instruments with minimal processing
-            List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = instrumentRepository.findAll().stream()
-                    .filter(instrument -> "NIFTY".equals(instrument.getName()) &&
-                            ("CE".equals(instrument.getInstrumentType()) || "PE".equals(instrument.getInstrumentType())))
-                    .toList();
+            // Use optimized query with index: instrumentType_1_name_1_segment_1_expiry_1
+            // Query by instrumentType first to leverage the compound index
+            List<String> optionTypes = List.of("CE", "PE");
+            List<com.jtradebot.processor.repository.document.Instrument> niftyOptions = 
+                    instrumentRepository.findByInstrumentTypeInAndName(optionTypes, "NIFTY");
 
             // Find next available expiry (earliest date)
             String nextExpiry = niftyOptions.stream()
