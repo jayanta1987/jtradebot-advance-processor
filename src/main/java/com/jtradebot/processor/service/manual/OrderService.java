@@ -457,6 +457,7 @@ public class OrderService {
             // Add daily limit flags
             status.put("dailyProfitLimitReached", dailyLimitsSchedulerService.isDailyProfitLimitReached());
             status.put("dailyLossLimitReached", dailyLimitsSchedulerService.isDailyLossLimitReached());
+            status.put("dailyPointsLimitReached", dailyLimitsSchedulerService.isDailyPointsLimitReached());
             status.put("dailyLimitReached", dailyLimitsSchedulerService.isDailyLimitReached());
             
             status.put("success", true);
