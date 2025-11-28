@@ -78,17 +78,23 @@ public class TickSetupService {
         }
         
         // Validate that TradePreference has required values
-        if (tradePreference.getMaxProfitPerDay() <= 0) {
-            String errorMsg = "TradePreference.maxProfitPerDay is not set or invalid: " + tradePreference.getMaxProfitPerDay() + ". Configuration must be properly set.";
+        double maxInvestment = tradePreference.getMaxInvestment();
+        
+        // Validate percentage values
+        if (tradePreference.getMaxProfitPerDayPercentage() == null || tradePreference.getMaxProfitPerDayPercentage() <= 0) {
+            String errorMsg = "TradePreference.maxProfitPerDayPercentage is not set or invalid: " + tradePreference.getMaxProfitPerDayPercentage() + ". Configuration must be properly set.";
             log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
             throw new RuntimeException(errorMsg);
         }
         
-        if (tradePreference.getMaxLossPerDay() <= 0) {
-            String errorMsg = "TradePreference.maxLossPerDay is not set or invalid: " + tradePreference.getMaxLossPerDay() + ". Configuration must be properly set.";
+        if (tradePreference.getMaxLossPerDayPercentage() == null || tradePreference.getMaxLossPerDayPercentage() <= 0) {
+            String errorMsg = "TradePreference.maxLossPerDayPercentage is not set or invalid: " + tradePreference.getMaxLossPerDayPercentage() + ". Configuration must be properly set.";
             log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
             throw new RuntimeException(errorMsg);
         }
+        
+        double maxProfitPercentage = tradePreference.getMaxProfitPerDayPercentage();
+        double maxLossPercentage = tradePreference.getMaxLossPerDayPercentage();
         
         if (tradePreference.getMaxPointsPerDay() <= 0) {
             String errorMsg = "TradePreference.maxPointsPerDay is not set or invalid: " + tradePreference.getMaxPointsPerDay() + ". Configuration must be properly set.";
@@ -96,8 +102,12 @@ public class TickSetupService {
             throw new RuntimeException(errorMsg);
         }
         
-        log.info("🔧 TRADE PREFERENCE VALIDATION - MaxProfitPerDay: {}, MaxLossPerDay: {}, MaxPointsPerDay: {}", 
-                tradePreference.getMaxProfitPerDay(), tradePreference.getMaxLossPerDay(), tradePreference.getMaxPointsPerDay());
+        // Calculate actual values for logging
+        double maxProfitValue = maxInvestment * (maxProfitPercentage / 100.0);
+        double maxLossValue = maxInvestment * (maxLossPercentage / 100.0);
+        
+        log.info("🔧 TRADE PREFERENCE VALIDATION - MaxInvestment: ₹{}, MaxProfitPerDay: {}% (₹{}), MaxLossPerDay: {}% (₹{}), MaxPointsPerDay: {}", 
+                maxInvestment, maxProfitPercentage, maxProfitValue, maxLossPercentage, maxLossValue, tradePreference.getMaxPointsPerDay());
         
         if (existingConfig != null) {
             // Update existing record
@@ -344,29 +354,33 @@ public class TickSetupService {
                 }
                 break;
                 
-            case "maxLossPerDay":
+            case "maxLossPerDayPercentage":
                 if (value instanceof Number) {
-                    double maxLossPerDay = ((Number) value).doubleValue();
-                    if (maxLossPerDay < 0) {
-                        throw new IllegalArgumentException("Max loss per day must be greater than or equal to 0");
+                    double maxLossPercentage = ((Number) value).doubleValue();
+                    if (maxLossPercentage < 0 || maxLossPercentage > 100) {
+                        throw new IllegalArgumentException("Max loss per day percentage must be between 0 and 100");
                     }
-                    preferences.setMaxLossPerDay(maxLossPerDay);
-                    log.info("Updated maxLossPerDay to: {}", maxLossPerDay);
+                    preferences.setMaxLossPerDayPercentage(maxLossPercentage);
+                    double maxLossValue = preferences.getMaxInvestment() * (maxLossPercentage / 100.0);
+                    log.info("Updated maxLossPerDayPercentage to: {}% (₹{} based on maxInvestment: ₹{})", 
+                            maxLossPercentage, maxLossValue, preferences.getMaxInvestment());
                 } else {
-                    throw new IllegalArgumentException("Max loss per day must be a number");
+                    throw new IllegalArgumentException("Max loss per day percentage must be a number");
                 }
                 break;
                 
-            case "maxProfitPerDay":
+            case "maxProfitPerDayPercentage":
                 if (value instanceof Number) {
-                    double maxProfitPerDay = ((Number) value).doubleValue();
-                    if (maxProfitPerDay < 0) {
-                        throw new IllegalArgumentException("Max profit per day must be greater than or equal to 0");
+                    double maxProfitPercentage = ((Number) value).doubleValue();
+                    if (maxProfitPercentage < 0 || maxProfitPercentage > 100) {
+                        throw new IllegalArgumentException("Max profit per day percentage must be between 0 and 100");
                     }
-                    preferences.setMaxProfitPerDay(maxProfitPerDay);
-                    log.info("Updated maxProfitPerDay to: {}", maxProfitPerDay);
+                    preferences.setMaxProfitPerDayPercentage(maxProfitPercentage);
+                    double maxProfitValue = preferences.getMaxInvestment() * (maxProfitPercentage / 100.0);
+                    log.info("Updated maxProfitPerDayPercentage to: {}% (₹{} based on maxInvestment: ₹{})", 
+                            maxProfitPercentage, maxProfitValue, preferences.getMaxInvestment());
                 } else {
-                    throw new IllegalArgumentException("Max profit per day must be a number");
+                    throw new IllegalArgumentException("Max profit per day percentage must be a number");
                 }
                 break;
                 

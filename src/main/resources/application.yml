@@ -18,10 +18,9 @@ spring:
       session.timeout.ms: 45000
   data:
     mongodb:
-      uri: mongodb+srv://${MONGODB_USERNAME:jtradebotuser}:${MONGODB_PASSWORD:ByQMNv50k6wWZDXj}@${MONGODB_CLUSTER:jtradebot-prod}.joexsjf.mongodb.net/${MONGODB_DATABASE:jtradebot}?retryWrites=true&w=majority&appName=jtradebot-prod
+      uri: mongodb+srv://${MONGODB_USERNAME:jtradebotuser}:${MONGODB_PASSWORD:ByQMNv50k6wWZDXj}@${MONGODB_CLUSTER:jtradebot-prod-new}.czqpoxe.mongodb.net/${MONGODB_DATABASE:jtradebot}?retryWrites=true&w=majority&appName=appName=jtradebot-prod-new
       database: ${MONGODB_DATABASE:jtradebot}
       auto-index-creation: true
-
 aws:
   region: ap-south-1
   kite:

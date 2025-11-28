@@ -113,8 +113,14 @@ public class TickSetupController {
                 preferences.put("maxInvestment", prefs.getMaxInvestment());
                 preferences.put("minQuantity", prefs.getMinQuantity());
                 preferences.put("maxQuantity", prefs.getMaxQuantity());
-                preferences.put("maxLossPerDay", prefs.getMaxLossPerDay());
-                preferences.put("maxProfitPerDay", prefs.getMaxProfitPerDay());
+                
+                // Return percentage values
+                double maxLossPercentage = prefs.getMaxLossPerDayPercentage() != null ? prefs.getMaxLossPerDayPercentage() : 0.0;
+                double maxProfitPercentage = prefs.getMaxProfitPerDayPercentage() != null ? prefs.getMaxProfitPerDayPercentage() : 0.0;
+                
+                preferences.put("maxLossPerDayPercentage", maxLossPercentage);
+                preferences.put("maxProfitPerDayPercentage", maxProfitPercentage);
+                
                 preferences.put("maxPointsPerDay", prefs.getMaxPointsPerDay());
                 preferences.put("maxTradeHoldingTimeInSec", prefs.getMaxTradeHoldingTimeInSec());
                 preferences.put("enableTradeAfterStopLossHit", prefs.isEnableTradeAfterStopLossHit());
@@ -201,8 +207,14 @@ public class TickSetupController {
                 preferences.put("maxInvestment", prefs.getMaxInvestment());
                 preferences.put("minQuantity", prefs.getMinQuantity());
                 preferences.put("maxQuantity", prefs.getMaxQuantity());
-                preferences.put("maxLossPerDay", prefs.getMaxLossPerDay());
-                preferences.put("maxProfitPerDay", prefs.getMaxProfitPerDay());
+                
+                // Return percentage values
+                double maxLossPercentage = prefs.getMaxLossPerDayPercentage() != null ? prefs.getMaxLossPerDayPercentage() : 0.0;
+                double maxProfitPercentage = prefs.getMaxProfitPerDayPercentage() != null ? prefs.getMaxProfitPerDayPercentage() : 0.0;
+                
+                preferences.put("maxLossPerDayPercentage", maxLossPercentage);
+                preferences.put("maxProfitPerDayPercentage", maxProfitPercentage);
+                
                 preferences.put("maxPointsPerDay", prefs.getMaxPointsPerDay());
                 preferences.put("maxTradeHoldingTimeInSec", prefs.getMaxTradeHoldingTimeInSec());
                 preferences.put("enableTradeAfterStopLossHit", prefs.isEnableTradeAfterStopLossHit());
