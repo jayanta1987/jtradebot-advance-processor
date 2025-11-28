@@ -153,12 +153,18 @@ public class TradingConfigurationService implements InitializingBean {
     public double getMaxProfitPerDay() {
         try {
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            if (tradeConfig.getTradePreference() != null && tradeConfig.getTradePreference().getMaxProfitPerDay() > 0) {
-                return tradeConfig.getTradePreference().getMaxProfitPerDay();
+            if (tradeConfig.getTradePreference() != null) {
+                TradeConfig.TradePreference prefs = tradeConfig.getTradePreference();
+                double maxInvestment = prefs.getMaxInvestment();
+                
+                if (prefs.getMaxProfitPerDayPercentage() == null || prefs.getMaxProfitPerDayPercentage() <= 0) {
+                    throw new RuntimeException("maxProfitPerDayPercentage is not configured or invalid");
+                }
+                
+                return maxInvestment * (prefs.getMaxProfitPerDayPercentage() / 100.0);
             }
             
-            String errorMsg = "Max profit per day not configured in database. TradePreference is " + 
-                            (tradeConfig.getTradePreference() == null ? "NULL" : "present but maxProfitPerDay is " + tradeConfig.getTradePreference().getMaxProfitPerDay());
+            String errorMsg = "Max profit per day not configured in database. TradePreference is NULL";
             log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
             throw new RuntimeException(errorMsg);
         } catch (Exception e) {
@@ -170,12 +176,18 @@ public class TradingConfigurationService implements InitializingBean {
     public double getMaxLossPerDay() {
         try {
             TradeConfig tradeConfig = tickSetupService.getTradeConfig();
-            if (tradeConfig.getTradePreference() != null && tradeConfig.getTradePreference().getMaxLossPerDay() > 0) {
-                return tradeConfig.getTradePreference().getMaxLossPerDay();
+            if (tradeConfig.getTradePreference() != null) {
+                TradeConfig.TradePreference prefs = tradeConfig.getTradePreference();
+                double maxInvestment = prefs.getMaxInvestment();
+                
+                if (prefs.getMaxLossPerDayPercentage() == null || prefs.getMaxLossPerDayPercentage() <= 0) {
+                    throw new RuntimeException("maxLossPerDayPercentage is not configured or invalid");
+                }
+                
+                return maxInvestment * (prefs.getMaxLossPerDayPercentage() / 100.0);
             }
             
-            String errorMsg = "Max loss per day not configured in database. TradePreference is " + 
-                            (tradeConfig.getTradePreference() == null ? "NULL" : "present but maxLossPerDay is " + tradeConfig.getTradePreference().getMaxLossPerDay());
+            String errorMsg = "Max loss per day not configured in database. TradePreference is NULL";
             log.error("❌ CONFIGURATION ERROR: {}", errorMsg);
             throw new RuntimeException(errorMsg);
         } catch (Exception e) {

@@ -28,8 +28,8 @@ public class TradeConfig {
         private double maxInvestment;
         private int minQuantity;
         private int maxQuantity;
-        private double maxLossPerDay;  // Fixed value instead of percentage
-        private double maxProfitPerDay;  // Fixed value instead of percentage
+        private Double maxLossPerDayPercentage;  // Percentage of maxInvestment (e.g., 8.0 means 8%)
+        private Double maxProfitPerDayPercentage;  // Percentage of maxInvestment (e.g., 24.0 means 24%)
         private double maxPointsPerDay;  // Maximum total points allowed per day (sum of closed + active order points)
         private long maxTradeHoldingTimeInSec;
         private boolean enableTradeAfterStopLossHit;  // Flag to enable/disable trading after stop loss hit

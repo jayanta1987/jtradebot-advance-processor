@@ -245,24 +245,27 @@ public class DailyLimitsSchedulerService {
             }
             
             // 2. Get all active orders from in-memory map and calculate their current points
+            // Points are calculated from index price movement with sign adjustment for CALL vs PUT
             double activeOrdersPoints = 0.0;
             List<JtradeOrder> activeOrders = activeOrderTrackingService.getActiveOrders();
             for (JtradeOrder activeOrder : activeOrders) {
                 try {
                     // Get current index price
                     Double currentIndexPrice = getCurrentIndexPrice();
-                    if (currentIndexPrice != null) {
-                        // Get current option price for the active order
-                        Double currentOptionPrice = activeOrderTrackingService.getCurrentPrice(activeOrder, currentIndexPrice);
-                        if (currentOptionPrice != null) {
-                            // Calculate current points for this active order
-                            double points = currentOptionPrice - activeOrder.getEntryPrice();
-                            activeOrdersPoints += points;
-                            
-                            log.debug("Active order points - ID: {}, Entry: {}, Current: {}, Points: {}", 
-                                     activeOrder.getId(), activeOrder.getEntryPrice(), currentOptionPrice, 
-                                     String.format("%.2f", points));
-                        }
+                    if (currentIndexPrice != null && activeOrder.getEntryIndexPrice() != null) {
+                        // Calculate points based on index price movement for daily points tracking
+                        double points = calculatePointsFromIndexMovement(
+                                activeOrder.getEntryIndexPrice(), 
+                                currentIndexPrice, 
+                                activeOrder.getOrderType()
+                        );
+                        
+                        activeOrdersPoints += points;
+                        
+                        log.debug("Active order points - ID: {}, Order Type: {}, Entry Index: {}, Current Index: {}, Points: {}", 
+                                 activeOrder.getId(), activeOrder.getOrderType(), 
+                                 activeOrder.getEntryIndexPrice(), currentIndexPrice, 
+                                 String.format("%.2f", points));
                     }
                 } catch (Exception e) {
                     log.warn("Error calculating points for active order: {} - {}", activeOrder.getId(), e.getMessage());
@@ -285,6 +288,38 @@ public class DailyLimitsSchedulerService {
         } catch (Exception e) {
             log.error("Error calculating today's total points: {}", e.getMessage(), e);
             return 0.0; // Return 0 on error to avoid false positives
+        }
+    }
+    
+    /**
+     * Calculate points from index price movement for daily points tracking
+     * This is used to track reasonable target points per day to prevent overtrading
+     * CALL: points = exitIndexPrice - entryIndexPrice (positive when index goes up)
+     * PUT: points = entryIndexPrice - exitIndexPrice (positive when index goes down)
+     * 
+     * @param entryIndexPrice Entry index price
+     * @param exitIndexPrice Exit index price (or current index price for active orders)
+     * @param orderType Order type (CALL_BUY or PUT_BUY)
+     * @return Calculated points based on index movement
+     */
+    public static double calculatePointsFromIndexMovement(Double entryIndexPrice, Double exitIndexPrice, com.jtradebot.processor.model.enums.OrderTypeEnum orderType) {
+        if (entryIndexPrice == null || exitIndexPrice == null) {
+            return 0.0;
+        }
+        
+        if (orderType == null) {
+            return 0.0;
+        }
+        
+        if (orderType == com.jtradebot.processor.model.enums.OrderTypeEnum.CALL_BUY) {
+            // CALL: positive when index goes up
+            return exitIndexPrice - entryIndexPrice;
+        } else if (orderType == com.jtradebot.processor.model.enums.OrderTypeEnum.PUT_BUY) {
+            // PUT: positive when index goes down
+            return entryIndexPrice - exitIndexPrice;
+        } else {
+            // Default to CALL calculation for unknown types
+            return exitIndexPrice - entryIndexPrice;
         }
     }
     

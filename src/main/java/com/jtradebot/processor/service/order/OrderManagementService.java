@@ -468,11 +468,21 @@ public class OrderManagementService {
 
         jtradeOrder.markClosed(exitReason, exitPrice, exitIndexPrice, exitTime);
 
-        // Calculate profit/loss using option pricing service
-        Double points = liveOptionPricingService.calculateProfitLoss(jtradeOrder.getEntryPrice(), exitPrice); //
+        // Calculate points from index price movement for daily points tracking
+        // This is used to track reasonable target points per day to prevent overtrading
+        // CALL: points = exitIndexPrice - entryIndexPrice (positive when index goes up)
+        // PUT: points = entryIndexPrice - exitIndexPrice (positive when index goes down)
+        Double points = com.jtradebot.processor.service.scheduler.DailyLimitsSchedulerService.calculatePointsFromIndexMovement(
+                jtradeOrder.getEntryIndexPrice(), 
+                exitIndexPrice, 
+                jtradeOrder.getOrderType()
+        );
 
         jtradeOrder.setTotalPoints(points);
-        jtradeOrder.setTotalProfit(points * jtradeOrder.getQuantity());
+        
+        // Calculate actual P&L using option prices (for profit tracking)
+        Double optionPoints = liveOptionPricingService.calculateProfitLoss(jtradeOrder.getEntryPrice(), exitPrice);
+        jtradeOrder.setTotalProfit(optionPoints * jtradeOrder.getQuantity());
 
         activeOrderTrackingService.updateExitTracking(exitReason, exitTime);
 

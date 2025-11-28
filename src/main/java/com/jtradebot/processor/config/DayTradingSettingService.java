@@ -108,16 +108,33 @@ public class DayTradingSettingService implements InitializingBean {
         this.defaultTradePreference.setMaxInvestment(tradePrefsNode.get("maxInvestment").asDouble());
         this.defaultTradePreference.setMinQuantity(tradePrefsNode.get("minQuantity").asInt());
         this.defaultTradePreference.setMaxQuantity(tradePrefsNode.get("maxQuantity").asInt());
-        this.defaultTradePreference.setMaxLossPerDay(tradePrefsNode.get("maxLossPerDay").asDouble());
-        this.defaultTradePreference.setMaxProfitPerDay(tradePrefsNode.get("maxProfitPerDay").asDouble());
+        
+        // Load percentage values from JSON
+        if (!tradePrefsNode.has("maxLossPerDayPercentage")) {
+            throw new RuntimeException("maxLossPerDayPercentage must be specified in tradePreferences");
+        }
+        this.defaultTradePreference.setMaxLossPerDayPercentage(tradePrefsNode.get("maxLossPerDayPercentage").asDouble());
+        
+        if (!tradePrefsNode.has("maxProfitPerDayPercentage")) {
+            throw new RuntimeException("maxProfitPerDayPercentage must be specified in tradePreferences");
+        }
+        this.defaultTradePreference.setMaxProfitPerDayPercentage(tradePrefsNode.get("maxProfitPerDayPercentage").asDouble());
+        
         this.defaultTradePreference.setMaxPointsPerDay(tradePrefsNode.has("maxPointsPerDay") ? tradePrefsNode.get("maxPointsPerDay").asDouble() : 100.0);
         this.defaultTradePreference.setMaxTradeHoldingTimeInSec(tradePrefsNode.get("maxTradeHoldingTimeInSec").asLong());
         this.defaultTradePreference.setEnableTradeAfterStopLossHit(tradePrefsNode.has("enableTradeAfterStopLossHit") ? tradePrefsNode.get("enableTradeAfterStopLossHit").asBoolean() : false);
         this.defaultTradePreference.setStopLossBlockTimeframe(tradePrefsNode.has("stopLossBlockTimeframe") ? tradePrefsNode.get("stopLossBlockTimeframe").asText() : "ONE_MIN");
         
-        log.info("✅ Trade preferences loaded from JSON - MaxInvestment: {}, MaxLoss: {}, MaxProfit: {}, MaxPoints: {}", 
-                defaultTradePreference.getMaxInvestment(), defaultTradePreference.getMaxLossPerDay(), 
-                defaultTradePreference.getMaxProfitPerDay(), defaultTradePreference.getMaxPointsPerDay());
+        // Calculate actual values for logging
+        double maxInvestment = this.defaultTradePreference.getMaxInvestment();
+        double maxLossValue = maxInvestment * (this.defaultTradePreference.getMaxLossPerDayPercentage() / 100.0);
+        double maxProfitValue = maxInvestment * (this.defaultTradePreference.getMaxProfitPerDayPercentage() / 100.0);
+        
+        log.info("✅ Trade preferences loaded from JSON - MaxInvestment: {}, MaxLoss: {}% (₹{}), MaxProfit: {}% (₹{}), MaxPoints: {}", 
+                maxInvestment, 
+                this.defaultTradePreference.getMaxLossPerDayPercentage(), maxLossValue,
+                this.defaultTradePreference.getMaxProfitPerDayPercentage(), maxProfitValue,
+                defaultTradePreference.getMaxPointsPerDay());
     }
 
     // ========== EXIT SETTINGS METHODS ==========

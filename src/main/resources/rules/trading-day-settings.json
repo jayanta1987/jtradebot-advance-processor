@@ -27,12 +27,12 @@
   },
   
   "tradePreferences": {
-    "maxInvestment": 50000.0,
+    "maxInvestment": 55000.0,
     "minQuantity": 75,
     "maxQuantity": 525,
-    "maxLossPerDay": 4000.0,
-    "maxProfitPerDay": 12000.0,
-    "maxPointsPerDay": 10.0,
+    "maxLossPerDayPercentage": 5.0,
+    "maxProfitPerDayPercentage": 12.5,
+    "maxPointsPerDay": 15.0,
     "maxTradeHoldingTimeInSec": 100,
     "enableTradeAfterStopLossHit": false,
     "stopLossBlockTimeframe": "ONE_MIN"
