@@ -20,6 +20,8 @@ import com.jtradebot.processor.service.price.OIAnalysisService;
 import com.jtradebot.processor.service.price.OptionGreeksCalculator;
 import com.jtradebot.processor.service.quantity.DynamicQuantityService;
 import com.jtradebot.processor.service.scheduler.DailyLimitsSchedulerService;
+import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
+import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Tick;
@@ -52,6 +54,7 @@ public class OrderService {
     private final OrderManagementService orderManagementService;
     private final DynamicQuantityService dynamicQuantityService;
     private final DailyLimitsSchedulerService dailyLimitsSchedulerService;
+    private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
 
     /**
      * Place a manual order immediately, skipping all filters, NTP checks, and category scores
@@ -279,7 +282,17 @@ public class OrderService {
             // Get milestone configuration from strategy config
             double minMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
                     configService.getCallMinMilestonePoints() : configService.getPutMinMilestonePoints();
-            double baseMilestonePoints = configService.getBaseMilestonePoints();
+            
+            // Determine Base Milestone Points based on EMA200 condition
+            // If current price is above EMA200 for 1min, 5min, and 15min, use DB value
+            // Otherwise, use Min Milestone Points as Base Milestone Points
+            double baseMilestonePointsFromDB = configService.getBaseMilestonePoints();
+            double baseMilestonePoints = shouldUseBaseMilestonePointsFromDB(tick) 
+                    ? baseMilestonePointsFromDB 
+                    : minMilestonePoints;
+            
+            log.info("📊 Base Milestone Points Decision - Price above EMA200 (1min, 5min, 15min): {}, Using Base: {} (DB: {}, Min: {})",
+                    shouldUseBaseMilestonePointsFromDB(tick), baseMilestonePoints, baseMilestonePointsFromDB, minMilestonePoints);
             
 
             // Create target milestones using decremental approach
@@ -343,6 +356,53 @@ public class OrderService {
             log.error("Error initializing milestone system for manual order: {}", order.getId(), e);
             order.setTargetMilestones(null);
             order.setMilestoneHistory(null);
+        }
+    }
+
+    /**
+     * Check if current price is above EMA200 for 1min, 5min, and 15min timeframes
+     * @param tick Current tick data
+     * @return true if price is above EMA200 for all three timeframes, false otherwise
+     */
+    private boolean shouldUseBaseMilestonePointsFromDB(Tick tick) {
+        try {
+            // Get flattened indicators to check EMA200 values
+            FlattenedIndicators indicators = dynamicRuleEvaluatorService.getFlattenedIndicators(tick);
+            if (indicators == null) {
+                log.warn("⚠️ FlattenedIndicators not available, defaulting to Min Milestone Points");
+                return false;
+            }
+
+            // Get current price
+            double currentPrice = tick.getLastTradedPrice();
+
+            // Check EMA200 for 1min timeframe
+            Double ema200_1min = indicators.getEma200_1min();
+            boolean priceAboveEma200_1min = ema200_1min != null && currentPrice > ema200_1min;
+
+            // Check EMA200 for 5min timeframe
+            Double ema200_5min = indicators.getEma200_5min();
+            boolean priceAboveEma200_5min = ema200_5min != null && currentPrice > ema200_5min;
+
+            // Check EMA200 for 15min timeframe using distance (if available)
+            // If distance > 0, price is above EMA200
+            Double ema200Distance_15min = indicators.getEma200_distance_15min();
+            boolean priceAboveEma200_15min = ema200Distance_15min != null && ema200Distance_15min > 0;
+
+            // All three timeframes must have price above EMA200
+            boolean result = priceAboveEma200_1min && priceAboveEma200_5min && priceAboveEma200_15min;
+
+            log.debug("📊 EMA200 Check - 1min: {} (price: {} > ema200: {}), 5min: {} (price: {} > ema200: {}), 15min: {} (distance: {}) - Result: {}",
+                    priceAboveEma200_1min, currentPrice, ema200_1min,
+                    priceAboveEma200_5min, currentPrice, ema200_5min,
+                    priceAboveEma200_15min, ema200Distance_15min, result);
+
+            return result;
+
+        } catch (Exception e) {
+            log.error("Error checking EMA200 condition for Base Milestone Points: {}", e.getMessage(), e);
+            // On error, default to using Min Milestone Points (safer approach)
+            return false;
         }
     }
 
@@ -638,6 +698,157 @@ public class OrderService {
         }
         
         return result;
+    }
+
+    /**
+     * Get full details of all orders (active and closed) from database
+     * Excludes entryDetailedCallScores and entryDetailedPutScores as requested
+     */
+    public Map<String, Object> getAllOrdersFullDetails() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            log.info("📊 GETTING ALL ORDERS FULL DETAILS");
+            
+            // Get all orders from database
+            List<JtradeOrder> allOrders = jtradeOrderRepository.findAll();
+            
+            List<Map<String, Object>> orderDetailsList = new ArrayList<>();
+            
+            for (JtradeOrder order : allOrders) {
+                Map<String, Object> orderDetail = convertOrderToMap(order);
+                orderDetailsList.add(orderDetail);
+            }
+            
+            // Separate active and closed orders
+            List<Map<String, Object>> activeOrders = new ArrayList<>();
+            List<Map<String, Object>> closedOrders = new ArrayList<>();
+            
+            for (Map<String, Object> orderDetail : orderDetailsList) {
+                String status = (String) orderDetail.get("status");
+                if ("ACTIVE".equals(status)) {
+                    activeOrders.add(orderDetail);
+                } else if ("CLOSED".equals(status)) {
+                    closedOrders.add(orderDetail);
+                }
+            }
+            
+            result.put("success", true);
+            result.put("message", "All orders retrieved successfully");
+            result.put("totalOrders", allOrders.size());
+            result.put("activeOrdersCount", activeOrders.size());
+            result.put("closedOrdersCount", closedOrders.size());
+            result.put("orders", orderDetailsList);
+            result.put("activeOrders", activeOrders);
+            result.put("closedOrders", closedOrders);
+            
+            log.info("✅ RETRIEVED {} ORDERS ({} active, {} closed)", 
+                    allOrders.size(), activeOrders.size(), closedOrders.size());
+            
+        } catch (Exception e) {
+            log.error("❌ ERROR GETTING ALL ORDERS FULL DETAILS: {}", e.getMessage(), e);
+            result.put("success", false);
+            result.put("message", "Error getting all orders full details: " + e.getMessage());
+            result.put("orders", new ArrayList<>());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Convert JtradeOrder to Map with all fields except entryDetailedCallScores and entryDetailedPutScores
+     */
+    private Map<String, Object> convertOrderToMap(JtradeOrder order) {
+        Map<String, Object> orderMap = new HashMap<>();
+        
+        // Basic order information
+        orderMap.put("id", order.getId());
+        orderMap.put("orderType", order.getOrderType());
+        orderMap.put("tradingSymbol", order.getTradingSymbol());
+        orderMap.put("instrumentToken", order.getInstrumentToken());
+        orderMap.put("status", order.getStatus());
+        orderMap.put("quantity", order.getQuantity());
+        
+        // Entry information
+        orderMap.put("entryTime", order.getEntryTime());
+        orderMap.put("entryPrice", order.getEntryPrice());
+        orderMap.put("entryIndexPrice", order.getEntryIndexPrice());
+        orderMap.put("stopLossPrice", order.getStopLossPrice());
+        orderMap.put("targetPrice", order.getTargetPrice());
+        
+        // Exit information
+        orderMap.put("exitTime", order.getExitTime());
+        orderMap.put("exitPrice", order.getExitPrice());
+        orderMap.put("exitIndexPrice", order.getExitIndexPrice());
+        orderMap.put("exitReason", order.getExitReason());
+        
+        // Profit information
+        orderMap.put("totalPoints", order.getTotalPoints());
+        orderMap.put("totalProfit", order.getTotalProfit());
+        
+        // Kite order information
+        orderMap.put("kiteOrderId", order.getKiteOrderId());
+        orderMap.put("kiteOrderStatus", order.getKiteOrderStatus());
+        
+        // Timestamps
+        orderMap.put("createdAt", order.getCreatedAt());
+        orderMap.put("lastUpdated", order.getLastUpdated());
+        orderMap.put("comments", order.getComments());
+        
+        // Milestone System
+        orderMap.put("targetMilestones", order.getTargetMilestones());
+        orderMap.put("milestoneHistory", order.getMilestoneHistory());
+        
+        // Index Price Tracking
+        orderMap.put("minIndexPrice", order.getMinIndexPrice());
+        orderMap.put("maxIndexPrice", order.getMaxIndexPrice());
+        
+        // Entry Conditions
+        orderMap.put("entryConditions", order.getEntryConditions());
+        
+        // Market Condition Details
+        orderMap.put("entryMarketConditionSuitable", order.getEntryMarketConditionSuitable());
+        orderMap.put("entryMarketConditionDetails", order.getEntryMarketConditionDetails());
+        
+        // Scenario-based Entry Information
+        orderMap.put("entryScenarioName", order.getEntryScenarioName());
+        orderMap.put("entryScenarioDescription", order.getEntryScenarioDescription());
+        orderMap.put("entryScenarioConfidence", order.getEntryScenarioConfidence());
+        orderMap.put("entryCategoryScores", order.getEntryCategoryScores());
+        orderMap.put("entryMatchedConditions", order.getEntryMatchedConditions());
+        
+        // Quality Score and Direction
+        orderMap.put("entryQualityScore", order.getEntryQualityScore());
+        orderMap.put("entryDominantTrend", order.getEntryDominantTrend());
+        
+        // NOTE: entryDetailedCallScores and entryDetailedPutScores are EXCLUDED as requested
+        
+        // Filter Failure Tracking
+        orderMap.put("mandatoryFiltersFailed", order.getMandatoryFiltersFailed());
+        orderMap.put("optionalFiltersFailed", order.getOptionalFiltersFailed());
+        orderMap.put("totalFiltersChecked", order.getTotalFiltersChecked());
+        orderMap.put("filterFailureReason", order.getFilterFailureReason());
+        
+        // NTP Details
+        orderMap.put("entryNtpDetails", order.getEntryNtpDetails());
+        
+        // Support and Resistance Data
+        orderMap.put("entrySupports", order.getEntrySupports());
+        orderMap.put("entryResistances", order.getEntryResistances());
+        orderMap.put("entryNearestSupport", order.getEntryNearestSupport());
+        orderMap.put("entryNearestResistance", order.getEntryNearestResistance());
+        
+        // Greeks Data
+        orderMap.put("entryDelta", order.getEntryDelta());
+        orderMap.put("entryGamma", order.getEntryGamma());
+        orderMap.put("entryTheta", order.getEntryTheta());
+        orderMap.put("entryVega", order.getEntryVega());
+        orderMap.put("entryImpliedVolatility", order.getEntryImpliedVolatility());
+        orderMap.put("entryTimeToExpiry", order.getEntryTimeToExpiry());
+        orderMap.put("entryStrikePrice", order.getEntryStrikePrice());
+        orderMap.put("entryOptionType", order.getEntryOptionType());
+        
+        return orderMap;
     }
 
     /**

@@ -384,7 +384,17 @@ public class OrderManagementService {
             // Get milestone configuration from strategy config
             double minMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
                     configService.getCallMinMilestonePoints() : configService.getPutMinMilestonePoints();
-            double baseMilestonePoints = configService.getBaseMilestonePoints();
+            
+            // Determine Base Milestone Points based on EMA200 condition
+            // If current price is above EMA200 for 1min, 5min, and 15min, use DB value
+            // Otherwise, use Min Milestone Points as Base Milestone Points
+            double baseMilestonePointsFromDB = configService.getBaseMilestonePoints();
+            double baseMilestonePoints = shouldUseBaseMilestonePointsFromDB(tick) 
+                    ? baseMilestonePointsFromDB 
+                    : minMilestonePoints;
+            
+            log.info("📊 Base Milestone Points Decision - Price above EMA200 (1min, 5min, 15min): {}, Using Base: {} (DB: {}, Min: {})",
+                    shouldUseBaseMilestonePointsFromDB(tick), baseMilestonePoints, baseMilestonePointsFromDB, minMilestonePoints);
             
             // Use the actual calculated target points from the order instead of JSON value
             double totalTargetPoints = order.getTargetPrice() - order.getEntryPrice();
@@ -451,6 +461,53 @@ public class OrderManagementService {
             // Fallback to traditional system
             order.setTargetMilestones(null);
             order.setMilestoneHistory(null);
+        }
+    }
+
+    /**
+     * Check if current price is above EMA200 for 1min, 5min, and 15min timeframes
+     * @param tick Current tick data
+     * @return true if price is above EMA200 for all three timeframes, false otherwise
+     */
+    private boolean shouldUseBaseMilestonePointsFromDB(Tick tick) {
+        try {
+            // Get flattened indicators to check EMA200 values
+            FlattenedIndicators indicators = dynamicRuleEvaluatorService.getFlattenedIndicators(tick);
+            if (indicators == null) {
+                log.warn("⚠️ FlattenedIndicators not available, defaulting to Min Milestone Points");
+                return false;
+            }
+
+            // Get current price
+            double currentPrice = tick.getLastTradedPrice();
+
+            // Check EMA200 for 1min timeframe
+            Double ema200_1min = indicators.getEma200_1min();
+            boolean priceAboveEma200_1min = ema200_1min != null && currentPrice > ema200_1min;
+
+            // Check EMA200 for 5min timeframe
+            Double ema200_5min = indicators.getEma200_5min();
+            boolean priceAboveEma200_5min = ema200_5min != null && currentPrice > ema200_5min;
+
+            // Check EMA200 for 15min timeframe using distance (if available)
+            // If distance > 0, price is above EMA200
+            Double ema200Distance_15min = indicators.getEma200_distance_15min();
+            boolean priceAboveEma200_15min = ema200Distance_15min != null && ema200Distance_15min > 0;
+
+            // All three timeframes must have price above EMA200
+            boolean result = priceAboveEma200_1min && priceAboveEma200_5min && priceAboveEma200_15min;
+
+            log.debug("📊 EMA200 Check - 1min: {} (price: {} > ema200: {}), 5min: {} (price: {} > ema200: {}), 15min: {} (distance: {}) - Result: {}",
+                    priceAboveEma200_1min, currentPrice, ema200_1min,
+                    priceAboveEma200_5min, currentPrice, ema200_5min,
+                    priceAboveEma200_15min, ema200Distance_15min, result);
+
+            return result;
+
+        } catch (Exception e) {
+            log.error("Error checking EMA200 condition for Base Milestone Points: {}", e.getMessage(), e);
+            // On error, default to using Min Milestone Points (safer approach)
+            return false;
         }
     }
 

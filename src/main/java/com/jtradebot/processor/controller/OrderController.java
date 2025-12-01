@@ -4,9 +4,11 @@ import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.document.JtradeOrder;
 import com.jtradebot.processor.service.manual.OrderService;
 import com.jtradebot.processor.service.scheduler.BalanceTrackerSchedulerService;
+import com.jtradebot.processor.service.scheduler.OrderCollectionCleanupSchedulerService;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +23,9 @@ public class OrderController {
 
     private final OrderService orderService;
     private final BalanceTrackerSchedulerService balanceTrackerSchedulerService;
+    
+    @Autowired(required = false)
+    private OrderCollectionCleanupSchedulerService orderCollectionCleanupSchedulerService;
 
     /**
      * Place a manual order immediately, skipping all filters and checks
@@ -123,6 +128,26 @@ public class OrderController {
     }
 
     /**
+     * Get full details of all orders (active and closed) from database
+     * Returns comprehensive order information excluding entryDetailedCallScores and entryDetailedPutScores
+     */
+    @GetMapping("/all")
+    public ResponseEntity<Map<String, Object>> getAllOrdersFullDetails() {
+        try {
+            log.info("📊 GET ALL ORDERS FULL DETAILS REQUEST RECEIVED");
+            Map<String, Object> result = orderService.getAllOrdersFullDetails();
+            log.info("✅ GET ALL ORDERS FULL DETAILS RETRIEVED SUCCESSFULLY");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("❌ ERROR GETTING ALL ORDERS FULL DETAILS: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "Error getting all orders full details: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
      * Exit all active orders immediately
      * This will find all ACTIVE orders and close them with FORCE_EXIT reason
      */
@@ -166,6 +191,44 @@ public class OrderController {
             return ResponseEntity.internalServerError().body(Map.of(
                 "success", false,
                 "message", "Error during manual balance check: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Archive old orders (orders with entry date older than today) to archived_orders collection
+     * This uses the same method as the scheduler to ensure consistency
+     * Available in both "live" and "local" profiles
+     */
+    @PostMapping("/archive")
+    public ResponseEntity<Map<String, Object>> archiveOldOrders() {
+        try {
+            log.info("📦 ARCHIVE ORDERS REQUEST RECEIVED");
+            
+            if (orderCollectionCleanupSchedulerService == null) {
+                log.warn("⚠️ ARCHIVE ORDERS - Service not available");
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Archive orders service is not available"
+                ));
+            }
+            
+            Map<String, Object> result = orderCollectionCleanupSchedulerService.archiveOldOrders();
+            
+            boolean success = (boolean) result.get("success");
+            if (success) {
+                log.info("✅ ARCHIVE ORDERS COMPLETED SUCCESSFULLY - Archived {} orders", result.get("archivedCount"));
+                return ResponseEntity.ok(result);
+            } else {
+                log.error("❌ ARCHIVE ORDERS FAILED");
+                return ResponseEntity.internalServerError().body(result);
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ ERROR IN ARCHIVE ORDERS: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "Error during archive orders: " + e.getMessage()
             ));
         }
     }
