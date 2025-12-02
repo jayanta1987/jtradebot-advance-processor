@@ -25,11 +25,11 @@ public class ConfigRiskManagementSettingService {
                 .orElseThrow(() -> new IllegalArgumentException("No active risk management setting found"));
         
         // Update only the provided fields
-        if (updatedSetting.getMinMilestonePoints() != null) {
-            existing.setMinMilestonePoints(updatedSetting.getMinMilestonePoints());
+        if (updatedSetting.getMinMilestonePointPercentage() != null) {
+            existing.setMinMilestonePointPercentage(updatedSetting.getMinMilestonePointPercentage());
         }
-        if (updatedSetting.getBaseMilestonePoints() != null) {
-            existing.setBaseMilestonePoints(updatedSetting.getBaseMilestonePoints());
+        if (updatedSetting.getBaseMilestonePointPercentage() != null) {
+            existing.setBaseMilestonePointPercentage(updatedSetting.getBaseMilestonePointPercentage());
         }
         if (updatedSetting.getVolumeSurgeMultiplierMin() != null) {
             existing.setVolumeSurgeMultiplierMin(updatedSetting.getVolumeSurgeMultiplierMin());

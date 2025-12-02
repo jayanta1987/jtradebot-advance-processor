@@ -47,6 +47,7 @@ public class FlattenedIndicators {
     private Double ema34_5min; // EMA 34 value in 5min timeframe
     private Double ema200_1min; // EMA 200 value in 1min timeframe
     private Double ema200_5min; // EMA 200 value in 5min timeframe
+    private Double ema200_15min; // EMA 200 value in 15min timeframe
     private Double ema5_1hour; // EMA 5 value in 1hour timeframe
     private Double ema34_1hour; // EMA 34 value in 1hour timeframe
     private Double ema200_1hour; // EMA 200 value in 1hour timeframe

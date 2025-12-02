@@ -85,16 +85,16 @@ public class DynamicStrategyConfigService {
         return tradingConfigurationService.getVolumeSurgeMultiplierMin();
     }
 
-    public double getCallMinMilestonePoints() {
-        return tradingConfigurationService.getMinMilestonePoints();
+    public double getCallMinMilestonePointPercentage() {
+        return tradingConfigurationService.getMinMilestonePointPercentage();
     }
 
-    public double getPutMinMilestonePoints() {
-        return tradingConfigurationService.getMinMilestonePoints();
+    public double getPutMinMilestonePointPercentage() {
+        return tradingConfigurationService.getMinMilestonePointPercentage();
     }
 
-    public double getBaseMilestonePoints() {
-        return tradingConfigurationService.getBaseMilestonePoints();
+    public double getBaseMilestonePointPercentage() {
+        return tradingConfigurationService.getBaseMilestonePointPercentage();
     }
 
 

@@ -381,20 +381,26 @@ public class OrderManagementService {
      */
     private void initializeMilestoneSystem(JtradeOrder order, Tick tick) {
         try {
-            // Get milestone configuration from strategy config
-            double minMilestonePoints = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
-                    configService.getCallMinMilestonePoints() : configService.getPutMinMilestonePoints();
+            // Get milestone configuration from strategy config (percentages)
+            double minMilestonePointPercentage = order.getOrderType() == OrderTypeEnum.CALL_BUY ?
+                    configService.getCallMinMilestonePointPercentage() : configService.getPutMinMilestonePointPercentage();
             
-            // Determine Base Milestone Points based on EMA200 condition
-            // If current price is above EMA200 for 1min, 5min, and 15min, use DB value
-            // Otherwise, use Min Milestone Points as Base Milestone Points
-            double baseMilestonePointsFromDB = configService.getBaseMilestonePoints();
-            double baseMilestonePoints = shouldUseBaseMilestonePointsFromDB(tick) 
-                    ? baseMilestonePointsFromDB 
-                    : minMilestonePoints;
+            // Determine Base Milestone Point Percentage based on EMA200 condition
+            // If all EMA200 are in same direction (all above price OR all below price), use DB value
+            // Otherwise (mixed directions), use Min Milestone Point Percentage as Base Milestone Point Percentage
+            double baseMilestonePointPercentageFromDB = configService.getBaseMilestonePointPercentage();
+            double baseMilestonePointPercentage = shouldUseBaseMilestonePointsFromDB(tick) 
+                    ? baseMilestonePointPercentageFromDB 
+                    : minMilestonePointPercentage;
             
-            log.info("📊 Base Milestone Points Decision - Price above EMA200 (1min, 5min, 15min): {}, Using Base: {} (DB: {}, Min: {})",
-                    shouldUseBaseMilestonePointsFromDB(tick), baseMilestonePoints, baseMilestonePointsFromDB, minMilestonePoints);
+            // Convert percentages to actual points based on option entry price
+            double entryPrice = order.getEntryPrice();
+            double minMilestonePoints = (minMilestonePointPercentage / 100.0) * entryPrice;
+            double baseMilestonePoints = (baseMilestonePointPercentage / 100.0) * entryPrice;
+            
+            log.info("📊 Base Milestone Points Decision - Price above or below EMA200 (1min, 5min, 15min): {}, Using Base %: {}% (DB: {}%, Min: {}%), Base Points: {} (Entry Price: {})",
+                    shouldUseBaseMilestonePointsFromDB(tick), baseMilestonePointPercentage, baseMilestonePointPercentageFromDB, 
+                    minMilestonePointPercentage, baseMilestonePoints, entryPrice);
             
             // Use the actual calculated target points from the order instead of JSON value
             double totalTargetPoints = order.getTargetPrice() - order.getEntryPrice();
@@ -465,9 +471,10 @@ public class OrderManagementService {
     }
 
     /**
-     * Check if current price is above EMA200 for 1min, 5min, and 15min timeframes
+     * Check if current price is in same direction relative to all EMA200 values
+     * (all EMA200 above price OR all EMA200 below price)
      * @param tick Current tick data
-     * @return true if price is above EMA200 for all three timeframes, false otherwise
+     * @return true if all EMA200 are in same direction (all above or all below), false if mixed
      */
     private boolean shouldUseBaseMilestonePointsFromDB(Tick tick) {
         try {
@@ -483,24 +490,39 @@ public class OrderManagementService {
 
             // Check EMA200 for 1min timeframe
             Double ema200_1min = indicators.getEma200_1min();
-            boolean priceAboveEma200_1min = ema200_1min != null && currentPrice > ema200_1min;
+            if (ema200_1min == null) {
+                log.warn("⚠️ EMA200_1min not available, defaulting to Min Milestone Points");
+                return false;
+            }
+            boolean priceAboveEma200_1min = currentPrice > ema200_1min;
 
             // Check EMA200 for 5min timeframe
             Double ema200_5min = indicators.getEma200_5min();
-            boolean priceAboveEma200_5min = ema200_5min != null && currentPrice > ema200_5min;
+            if (ema200_5min == null) {
+                log.warn("⚠️ EMA200_5min not available, defaulting to Min Milestone Points");
+                return false;
+            }
+            boolean priceAboveEma200_5min = currentPrice > ema200_5min;
 
-            // Check EMA200 for 15min timeframe using distance (if available)
-            // If distance > 0, price is above EMA200
-            Double ema200Distance_15min = indicators.getEma200_distance_15min();
-            boolean priceAboveEma200_15min = ema200Distance_15min != null && ema200Distance_15min > 0;
+            // Check EMA200 for 15min timeframe using live price comparison
+            Double ema200_15min = indicators.getEma200_15min();
+            if (ema200_15min == null) {
+                log.warn("⚠️ EMA200_15min not available, defaulting to Min Milestone Points");
+                return false;
+            }
+            boolean priceAboveEma200_15min = currentPrice > ema200_15min;
 
-            // All three timeframes must have price above EMA200
-            boolean result = priceAboveEma200_1min && priceAboveEma200_5min && priceAboveEma200_15min;
+            // Check if all EMA200 are in same direction
+            // All above (bearish) OR all below (bullish)
+            boolean allAbove = priceAboveEma200_1min && priceAboveEma200_5min && priceAboveEma200_15min;
+            boolean allBelow = !priceAboveEma200_1min && !priceAboveEma200_5min && !priceAboveEma200_15min;
+            boolean result = allAbove || allBelow;
 
-            log.debug("📊 EMA200 Check - 1min: {} (price: {} > ema200: {}), 5min: {} (price: {} > ema200: {}), 15min: {} (distance: {}) - Result: {}",
-                    priceAboveEma200_1min, currentPrice, ema200_1min,
-                    priceAboveEma200_5min, currentPrice, ema200_5min,
-                    priceAboveEma200_15min, ema200Distance_15min, result);
+            log.debug("📊 EMA200 Direction Check - 1min: {} (price: {} {} ema200: {}), 5min: {} (price: {} {} ema200: {}), 15min: {} (price: {} {} ema200: {}) - All Above: {}, All Below: {}, Result: {}",
+                    priceAboveEma200_1min, currentPrice, priceAboveEma200_1min ? ">" : "<=", ema200_1min,
+                    priceAboveEma200_5min, currentPrice, priceAboveEma200_5min ? ">" : "<=", ema200_5min,
+                    priceAboveEma200_15min, currentPrice, priceAboveEma200_15min ? ">" : "<=", ema200_15min,
+                    allAbove, allBelow, result);
 
             return result;
 

@@ -234,6 +234,7 @@ public class RuleHelper {
                     double currentPrice = fifteenMinSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance15min = currentPrice - ema200_15min;
                     indicators.setEma200_distance_15min(ema200Distance15min);
+                    indicators.setEma200_15min(ema200_15min); // Store EMA 200 value for live price comparison
                     
                     // Calculate EMA 5 distance for 15min timeframe
                     double ema5Distance15min = currentPrice - ema5_15min;
