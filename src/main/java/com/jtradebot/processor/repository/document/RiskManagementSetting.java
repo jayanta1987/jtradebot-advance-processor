@@ -21,9 +21,9 @@ public class RiskManagementSetting {
     @MongoId
     private String id;
     
-    // Risk Management Settings
-    private Double minMilestonePoints;
-    private Double baseMilestonePoints;
+    // Risk Management Settings (percentages of option entry price)
+    private Double minMilestonePointPercentage;
+    private Double baseMilestonePointPercentage;
     private Double volumeSurgeMultiplierMin;
     private Double stopLossPercentage;
     private Double targetPercentage;

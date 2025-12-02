@@ -213,13 +213,13 @@ public class TradingConfigurationService implements InitializingBean {
         }
     }
 
-    // Risk Management Methods
-    public double getMinMilestonePoints() {
-        return tradingConfig.getRiskManagement().getMinMilestonePoints();
+    // Risk Management Methods (percentages of option entry price)
+    public double getMinMilestonePointPercentage() {
+        return tradingConfig.getRiskManagement().getMinMilestonePointPercentage();
     }
 
-    public double getBaseMilestonePoints() {
-        return tradingConfig.getRiskManagement().getBaseMilestonePoints();
+    public double getBaseMilestonePointPercentage() {
+        return tradingConfig.getRiskManagement().getBaseMilestonePointPercentage();
     }
 
     public int getRsiMaPeriod() {
@@ -393,8 +393,8 @@ public class TradingConfigurationService implements InitializingBean {
     public static class RiskManagement {
         private double maxRiskPerDayPercentage;
         private double maxProfitPerDayPercentage;
-        private double minMilestonePoints;
-        private double baseMilestonePoints;
+        private double minMilestonePointPercentage;
+        private double baseMilestonePointPercentage;
         private RsiThresholds rsiThresholds;
         private double volumeSurgeMultiplierMin;
         private double signalStrength;
