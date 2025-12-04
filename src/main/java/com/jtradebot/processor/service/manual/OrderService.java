@@ -7,6 +7,7 @@ import com.jtradebot.processor.config.TradingConfigurationService;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.MilestoneSystem;
+import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import com.jtradebot.processor.model.enums.OrderTypeEnum;
 import com.jtradebot.processor.repository.JtradeOrderRepository;
 import com.jtradebot.processor.repository.document.JtradeOrder;
@@ -226,7 +227,28 @@ public class OrderService {
             order.setStopLossPrice(stopLossPrice);
             order.setTargetPrice(targetPrice);
 
-            order.setQuantity(dynamicQuantity);
+                order.setQuantity(dynamicQuantity);
+                
+                // Add comment if quantity was reduced due to mixed EMA200 directions
+                try {
+                    String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+                    Tick niftyTickForQtyCheck = tickDataManager.getLastTick(niftyToken);
+                    if (niftyTickForQtyCheck != null) {
+                        List<CandleTimeFrameEnum> timeframes = Arrays.asList(CandleTimeFrameEnum.ONE_MIN, CandleTimeFrameEnum.FIVE_MIN, CandleTimeFrameEnum.FIFTEEN_MIN, CandleTimeFrameEnum.ONE_HOUR);
+                        boolean allEma200InSameDirection = dynamicRuleEvaluatorService.areAllEma200InSameDirection(niftyTickForQtyCheck, timeframes);
+                        
+                        if (order.getComments() == null) {
+                            order.setComments(new ArrayList<>());
+                        }
+                        if (!allEma200InSameDirection) {
+                            order.getComments().add("Quantity: Reduced to 50% of max due to mixed EMA200 directions (1min, 5min, 15min, 1hour) - Risk management");
+                        } else {
+                            order.getComments().add("Quantity: Based on balance and investment limits - All EMA200 in same direction");
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error adding quantity comment: {}", e.getMessage());
+                }
             order.setStatus("ACTIVE");
             order.setEntryTime(formatDateToIST(tick.getTickTimestamp()));
             order.setCreatedAt(getCurrentISTTime());
@@ -287,17 +309,28 @@ public class OrderService {
             // If all EMA200 are in same direction (all above price OR all below price), use DB value
             // Otherwise (mixed directions), use Min Milestone Point Percentage as Base Milestone Point Percentage
             double baseMilestonePointPercentageFromDB = configService.getBaseMilestonePointPercentage();
-            double baseMilestonePointPercentage = shouldUseBaseMilestonePointsFromDB(tick) 
+            boolean useBaseFromDB = dynamicRuleEvaluatorService.shouldUseBaseMilestonePointsFromDB(tick);
+            double baseMilestonePointPercentage = useBaseFromDB 
                     ? baseMilestonePointPercentageFromDB 
                     : minMilestonePointPercentage;
+            
+            // Add comment explaining milestone configuration decision
+            if (order.getComments() == null) {
+                order.setComments(new ArrayList<>());
+            }
+            if (useBaseFromDB) {
+                order.getComments().add("Base Milestone: Using DB value - All EMA200 (1min, 5min, 15min, 1hour) are in same direction");
+            } else {
+                order.getComments().add("Base Milestone: Using Min value - Mixed EMA200 directions detected, conservative approach");
+            }
             
             // Convert percentages to actual points based on option entry price
             double entryPrice = order.getEntryPrice();
             double minMilestonePoints = (minMilestonePointPercentage / 100.0) * entryPrice;
             double baseMilestonePoints = (baseMilestonePointPercentage / 100.0) * entryPrice;
             
-            log.info("📊 Base Milestone Points Decision - Price above or below EMA200 (1min, 5min, 15min): {}, Using Base %: {}% (DB: {}%, Min: {}%), Base Points: {} (Entry Price: {})",
-                    shouldUseBaseMilestonePointsFromDB(tick), baseMilestonePointPercentage, baseMilestonePointPercentageFromDB, 
+            log.info("📊 Base Milestone Points Decision - Price above or below EMA200 (1min, 5min, 15min, 1hour): {}, Using Base %: {}% (DB: {}%, Min: {}%), Base Points: {} (Entry Price: {})",
+                    useBaseFromDB, baseMilestonePointPercentage, baseMilestonePointPercentageFromDB, 
                     minMilestonePointPercentage, baseMilestonePoints, entryPrice);
             
 
@@ -365,68 +398,6 @@ public class OrderService {
         }
     }
 
-    /**
-     * Check if current price is in same direction relative to all EMA200 values
-     * (all EMA200 above price OR all EMA200 below price)
-     * @param tick Current tick data
-     * @return true if all EMA200 are in same direction (all above or all below), false if mixed
-     */
-    private boolean shouldUseBaseMilestonePointsFromDB(Tick tick) {
-        try {
-            // Get flattened indicators to check EMA200 values
-            FlattenedIndicators indicators = dynamicRuleEvaluatorService.getFlattenedIndicators(tick);
-            if (indicators == null) {
-                log.warn("⚠️ FlattenedIndicators not available, defaulting to Min Milestone Points");
-                return false;
-            }
-
-            // Get current price
-            double currentPrice = tick.getLastTradedPrice();
-
-            // Check EMA200 for 1min timeframe
-            Double ema200_1min = indicators.getEma200_1min();
-            if (ema200_1min == null) {
-                log.warn("⚠️ EMA200_1min not available, defaulting to Min Milestone Points");
-                return false;
-            }
-            boolean priceAboveEma200_1min = currentPrice > ema200_1min;
-
-            // Check EMA200 for 5min timeframe
-            Double ema200_5min = indicators.getEma200_5min();
-            if (ema200_5min == null) {
-                log.warn("⚠️ EMA200_5min not available, defaulting to Min Milestone Points");
-                return false;
-            }
-            boolean priceAboveEma200_5min = currentPrice > ema200_5min;
-
-            // Check EMA200 for 15min timeframe using live price comparison
-            Double ema200_15min = indicators.getEma200_15min();
-            if (ema200_15min == null) {
-                log.warn("⚠️ EMA200_15min not available, defaulting to Min Milestone Points");
-                return false;
-            }
-            boolean priceAboveEma200_15min = currentPrice > ema200_15min;
-
-            // Check if all EMA200 are in same direction
-            // All above (bearish) OR all below (bullish)
-            boolean allAbove = priceAboveEma200_1min && priceAboveEma200_5min && priceAboveEma200_15min;
-            boolean allBelow = !priceAboveEma200_1min && !priceAboveEma200_5min && !priceAboveEma200_15min;
-            boolean result = allAbove || allBelow;
-
-            log.info("📊 EMA200 Direction Check - 1min: {} (price: {} {} ema200: {}), 5min: {} (price: {} {} ema200: {}), 15min: {} (price: {} {} ema200: {}) - All Above: {}, All Below: {}, Result: {}",
-                    priceAboveEma200_1min, currentPrice, priceAboveEma200_1min ? ">" : "<=", ema200_1min,
-                    priceAboveEma200_5min, currentPrice, priceAboveEma200_5min ? ">" : "<=", ema200_5min,
-                    priceAboveEma200_15min, currentPrice, priceAboveEma200_15min ? ">" : "<=", ema200_15min,
-                    allAbove, allBelow, result);
-
-            return result;
-
-        } catch (Exception e) {
-            log.error("Error checking EMA200 condition for Base Milestone Points: {}", e.getMessage(), e);
-            // On error, default to using Min Milestone Points (safer approach)
-            return false;
-        }
-    }
 
     /**
      * Update orders to database

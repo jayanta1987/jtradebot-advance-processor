@@ -5,14 +5,21 @@ import com.jtradebot.processor.service.TickSetupService;
 import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.common.ProfileUtil;
+import com.jtradebot.processor.handler.KiteInstrumentHandler;
+import com.jtradebot.processor.manager.TickDataManager;
+import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
+import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Margin;
+import com.zerodhatech.models.Tick;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -27,6 +34,9 @@ public class DynamicQuantityService {
     private final TickSetupService tickSetupService;
     private final OrderNotificationService orderNotificationService;
     private final Environment environment;
+    private final TickDataManager tickDataManager;
+    private final KiteInstrumentHandler kiteInstrumentHandler;
+    private final DynamicRuleEvaluatorService dynamicRuleEvaluatorService;
     
     // Constants
     public static final int ZERO_QUANTITY = 0;
@@ -59,10 +69,12 @@ public class DynamicQuantityService {
             int minQuantity = preferences.getMinQuantity();
             int maxQuantity = preferences.getMaxQuantity();
             
-            // For local profile, simply use max quantity without balance checks
+            // For local profile, use max quantity but still check EMA200 direction
             if (ProfileUtil.isProfileActive(environment, "local")) {
-                log.info("🏠 LOCAL PROFILE - Using max quantity directly: {} (Order Type: {})", maxQuantity, orderType);
-                return maxQuantity;
+                int adjustedQuantity = adjustQuantityBasedOnEma200Direction(maxQuantity, maxQuantity, minQuantity);
+                log.info("🏠 LOCAL PROFILE - Using max quantity: {} (Order Type: {}), Adjusted based on EMA200: {}", 
+                        maxQuantity, orderType, adjustedQuantity);
+                return adjustedQuantity;
             }
             
             // For live profile, perform full balance-based calculation
@@ -105,6 +117,9 @@ public class DynamicQuantityService {
             
             // Step 5: Apply safety limits from database
             int calculatedQuantity = Math.max(minQuantity, Math.min(maxAffordableLots * minQuantity, maxQuantity));
+            
+            // Step 6: Check EMA200 direction and adjust quantity if needed
+            calculatedQuantity = adjustQuantityBasedOnEma200Direction(calculatedQuantity, maxQuantity, minQuantity);
             
             log.info("🔴 LIVE PROFILE - DYNAMIC QTY CALCULATION - Order Type: {}, Balance: ₹{}, Max Investment: ₹{}, Option Price: ₹{}, " +
                     "Cost/Lot: ₹{}, Max Lots: {}, Min Qty: {}, Max Qty: {}, Calculated Qty: {}",
@@ -220,6 +235,69 @@ public class DynamicQuantityService {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Adjust quantity based on EMA200 direction
+     * If all EMA200 are in same direction → use calculated quantity (current logic)
+     * If mixed directions → use 50% of maxQuantity, rounded to nearest multiple of lot size (75)
+     * 
+     * @param calculatedQuantity The quantity calculated from balance and investment limits
+     * @param maxQuantity Maximum allowed quantity from configuration
+     * @param lotSize Lot size (typically 75)
+     * @return Adjusted quantity based on EMA200 direction
+     */
+    private int adjustQuantityBasedOnEma200Direction(int calculatedQuantity, int maxQuantity, int lotSize) {
+        try {
+            // Get Nifty index tick for EMA200 check
+            String niftyToken = kiteInstrumentHandler.getNifty50Token().toString();
+            Tick niftyTick = tickDataManager.getLastTick(niftyToken);
+            
+            if (niftyTick == null) {
+                log.warn("⚠️ DYNAMIC QTY - No Nifty tick available for EMA200 check, using calculated quantity: {}", calculatedQuantity);
+                return calculatedQuantity;
+            }
+            
+            // Check if all EMA200 are in same direction (using same timeframes as milestone check: 1min, 5min, 15min, 1hour)
+            List<CandleTimeFrameEnum> timeframes = Arrays.asList(CandleTimeFrameEnum.ONE_MIN, CandleTimeFrameEnum.FIVE_MIN, CandleTimeFrameEnum.FIFTEEN_MIN, CandleTimeFrameEnum.ONE_HOUR);
+            boolean allEma200InSameDirection = dynamicRuleEvaluatorService.areAllEma200InSameDirection(niftyTick, timeframes);
+            
+            if (allEma200InSameDirection) {
+                // All EMA200 in same direction → use calculated quantity (current logic)
+                log.info("📊 DYNAMIC QTY - All EMA200 in same direction, using calculated quantity: {}", calculatedQuantity);
+                return calculatedQuantity;
+            } else {
+                // Mixed directions → use 50% of maxQuantity, rounded to nearest multiple of lot size
+                int fiftyPercentOfMax = (int) Math.round(maxQuantity * 0.5);
+                int adjustedQuantity = roundToNearestMultiple(fiftyPercentOfMax, lotSize);
+                
+                // Ensure adjusted quantity is at least lot size and not more than maxQuantity
+                adjustedQuantity = Math.max(lotSize, Math.min(adjustedQuantity, maxQuantity));
+                
+                log.info("📊 DYNAMIC QTY - Mixed EMA200 directions detected, using 50% of max: {} (rounded to {}), Original calculated: {}",
+                        fiftyPercentOfMax, adjustedQuantity, calculatedQuantity);
+                return adjustedQuantity;
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ DYNAMIC QTY - Error adjusting quantity based on EMA200 direction: {}", e.getMessage(), e);
+            // On error, use calculated quantity (safer approach)
+            return calculatedQuantity;
+        }
+    }
+
+    /**
+     * Round a number to the nearest multiple of a given value
+     * 
+     * @param value The value to round
+     * @param multiple The multiple to round to (e.g., 75 for lot size)
+     * @return The value rounded to the nearest multiple
+     */
+    private int roundToNearestMultiple(int value, int multiple) {
+        if (multiple <= 0) {
+            return value;
+        }
+        return Math.round((float) value / multiple) * multiple;
     }
 
 }
