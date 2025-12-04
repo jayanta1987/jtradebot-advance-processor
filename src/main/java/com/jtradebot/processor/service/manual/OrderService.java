@@ -241,7 +241,7 @@ public class OrderService {
                             order.setComments(new ArrayList<>());
                         }
                         if (!allEma200InSameDirection) {
-                            order.getComments().add("Quantity: Reduced to 50% of max due to mixed EMA200 directions (1min, 5min, 15min, 1hour) - Risk management");
+                            order.getComments().add("Quantity: Reduced to 50% of calculated quantity due to mixed EMA200 directions (1min, 5min, 15min, 1hour) - Risk management");
                         } else {
                             order.getComments().add("Quantity: Based on balance and investment limits - All EMA200 in same direction");
                         }
