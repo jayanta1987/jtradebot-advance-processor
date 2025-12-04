@@ -267,15 +267,15 @@ public class DynamicQuantityService {
                 log.info("📊 DYNAMIC QTY - All EMA200 in same direction, using calculated quantity: {}", calculatedQuantity);
                 return calculatedQuantity;
             } else {
-                // Mixed directions → use 50% of maxQuantity, rounded to nearest multiple of lot size
-                int fiftyPercentOfMax = (int) Math.round(maxQuantity * 0.5);
-                int adjustedQuantity = roundToNearestMultiple(fiftyPercentOfMax, lotSize);
+                // Mixed directions → use 50% of calculatedQuantity, rounded to nearest multiple of lot size
+                int fiftyPercentOfCalculated = (int) Math.round(calculatedQuantity * 0.5);
+                int adjustedQuantity = roundToNearestMultiple(fiftyPercentOfCalculated, lotSize);
                 
-                // Ensure adjusted quantity is at least lot size and not more than maxQuantity
-                adjustedQuantity = Math.max(lotSize, Math.min(adjustedQuantity, maxQuantity));
+                // Ensure adjusted quantity is at least lot size and not more than calculatedQuantity
+                adjustedQuantity = Math.max(lotSize, Math.min(adjustedQuantity, calculatedQuantity));
                 
-                log.info("📊 DYNAMIC QTY - Mixed EMA200 directions detected, using 50% of max: {} (rounded to {}), Original calculated: {}",
-                        fiftyPercentOfMax, adjustedQuantity, calculatedQuantity);
+                log.info("📊 DYNAMIC QTY - Mixed EMA200 directions detected, using 50% of calculated: {} (rounded to {}), Original calculated: {}",
+                        fiftyPercentOfCalculated, adjustedQuantity, calculatedQuantity);
                 return adjustedQuantity;
             }
             
