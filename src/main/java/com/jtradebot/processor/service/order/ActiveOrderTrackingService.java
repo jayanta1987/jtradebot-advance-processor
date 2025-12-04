@@ -334,7 +334,11 @@ public class ActiveOrderTrackingService {
                 // Store detailed exit reason in order comments for later reference
                 String detailedExitReason = String.format("PRICE_MOVEMENT_EXIT - %s: %s", 
                     priceMovementExitInfo.getExitType(), priceMovementExitInfo.getDetailedReason());
-                order.setComments(detailedExitReason);
+                // Set comments as a list
+                if (order.getComments() == null) {
+                    order.setComments(new java.util.ArrayList<>());
+                }
+                order.getComments().add(detailedExitReason);
                 
                 log.info("📈 PRICE MOVEMENT EXIT - Order: {} | Type: {} | Reason: {}", 
                     order.getId(), priceMovementExitInfo.getExitType(), priceMovementExitInfo.getDetailedReason());

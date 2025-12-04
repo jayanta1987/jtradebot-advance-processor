@@ -69,7 +69,10 @@ public class ArchivedOrder {
     private String lastUpdated;
     private String createdAt;
     
-    private String comments;
+    // Comments/Notes about the order - can include reasons for special scenarios like:
+    // - Base milestone points decision (DB vs Min)
+    // - Quantity reduction due to mixed EMA200 directions
+    private List<String> comments;
     
     // Milestone System - Simplified (only target milestones and history)
     private List<Milestone> targetMilestones;
@@ -173,6 +176,7 @@ public class ArchivedOrder {
         return istTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss z"));
     }
 }
+
 
 
 

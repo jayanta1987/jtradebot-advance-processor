@@ -18,6 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 
+import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -360,6 +363,118 @@ public class DynamicRuleEvaluatorService {
         }
     }
 
+
+    /**
+     * Check if current price is in same direction relative to all EMA200 values for given timeframes
+     * (all EMA200 above price OR all EMA200 below price)
+     * 
+     * @param tick Current tick data
+     * @param timeframes List of timeframes to check (e.g., [ONE_MIN, FIVE_MIN, FIFTEEN_MIN])
+     * @return true if all EMA200 are in same direction (all above or all below), false if mixed or unavailable
+     */
+    public boolean areAllEma200InSameDirection(Tick tick, List<CandleTimeFrameEnum> timeframes) {
+        try {
+            // Get flattened indicators to check EMA200 values
+            FlattenedIndicators indicators = getFlattenedIndicators(tick);
+            if (indicators == null) {
+                log.warn("⚠️ FlattenedIndicators not available for EMA200 direction check, defaulting to false");
+                return false;
+            }
+
+            // Get current price
+            double currentPrice = tick.getLastTradedPrice();
+
+            // Track direction for each timeframe
+            int aboveCount = 0;
+            int belowCount = 0;
+            int totalChecked = 0;
+
+            // Check each requested timeframe
+            for (CandleTimeFrameEnum timeframe : timeframes) {
+                Double ema200 = getEma200ForTimeframe(indicators, timeframe);
+                if (ema200 == null) {
+                    log.debug("⚠️ EMA200_{} not available, skipping", timeframe);
+                    continue;
+                }
+
+                boolean priceAboveEma200 = currentPrice > ema200;
+                if (priceAboveEma200) {
+                    aboveCount++;
+                } else {
+                    belowCount++;
+                }
+                totalChecked++;
+
+                log.debug("📊 EMA200 Direction Check - {}: price {} {} ema200 {} (price: {}, ema200: {})",
+                        timeframe, currentPrice, priceAboveEma200 ? ">" : "<=", ema200, currentPrice, ema200);
+            }
+
+            // Need at least one valid timeframe
+            if (totalChecked == 0) {
+                log.warn("⚠️ No valid EMA200 values found for any requested timeframe, defaulting to false");
+                return false;
+            }
+
+            // Check if all are in same direction
+            // All above (bearish) OR all below (bullish)
+            boolean allAbove = aboveCount == totalChecked;
+            boolean allBelow = belowCount == totalChecked;
+            boolean result = allAbove || allBelow;
+
+            log.debug("📊 EMA200 Direction Check Result - Timeframes: {}, Total Checked: {}, Above: {}, Below: {}, All Above: {}, All Below: {}, Result: {}",
+                    timeframes, totalChecked, aboveCount, belowCount, allAbove, allBelow, result);
+
+            return result;
+
+        } catch (Exception e) {
+            log.error("Error checking EMA200 direction for timeframes {}: {}", timeframes, e.getMessage(), e);
+            // On error, default to false (safer approach)
+            return false;
+        }
+    }
+
+    /**
+     * Check if base milestone points should be taken from DB based on EMA200 direction
+     * This is a convenience method that uses default timeframes (1min, 5min, 15min, 1hour)
+     * 
+     * @param tick Current tick data
+     * @return true if all EMA200 are in same direction (use DB value), false if mixed (use min milestone)
+     */
+    public boolean shouldUseBaseMilestonePointsFromDB(Tick tick) {
+        try {
+            // Use default timeframes for milestone calculation
+            return areAllEma200InSameDirection(tick, 
+                    Arrays.asList(ONE_MIN, FIVE_MIN, FIFTEEN_MIN, ONE_HOUR));
+        } catch (Exception e) {
+            log.error("Error checking EMA200 condition for Base Milestone Points: {}", e.getMessage(), e);
+            // On error, default to using Min Milestone Points (safer approach)
+            return false;
+        }
+    }
+
+    /**
+     * Get EMA200 value for a specific timeframe from FlattenedIndicators
+     * 
+     * @param indicators FlattenedIndicators object
+     * @param timeframe CandleTimeFrameEnum (e.g., ONE_MIN, FIVE_MIN, FIFTEEN_MIN, ONE_HOUR)
+     * @return EMA200 value or null if not available
+     */
+    private Double getEma200ForTimeframe(FlattenedIndicators indicators, CandleTimeFrameEnum timeframe) {
+        if (indicators == null || timeframe == null) {
+            return null;
+        }
+
+        return switch (timeframe) {
+            case ONE_MIN -> indicators.getEma200_1min();
+            case FIVE_MIN -> indicators.getEma200_5min();
+            case FIFTEEN_MIN -> indicators.getEma200_15min();
+            case ONE_HOUR -> indicators.getEma200_1hour();
+            default -> {
+                log.warn("⚠️ EMA200 not available for timeframe: {}", timeframe);
+                yield null;
+            }
+        };
+    }
 
     /**
      * Pre-populate BarSeries with historical data to ensure sufficient data for indicator calculations
