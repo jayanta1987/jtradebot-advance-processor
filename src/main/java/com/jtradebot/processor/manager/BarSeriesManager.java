@@ -46,9 +46,9 @@ public class BarSeriesManager {
             Date fromDate1Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 7);  // 1 min: 7 days
             Date fromDate3Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 7);  // 3 min: 7 days
             Date fromDate5Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 12); // 5 min: 12 days
-            Date fromDate15Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 15); // 15 min: 15 days
-            Date fromDate1Hour = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 20); // 1 hour: 20 days
-            Date fromDate1Day = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 60);  // 1 day: 60 days
+            Date fromDate15Min = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 30); // 15 min: 15 days
+            Date fromDate1Hour = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 80); // 1 hour: 50 days (need 200+ bars for EMA200: ~200 hours / 6.5 hours per day ≈ 30+ days)
+            Date fromDate1Day = goBackInPast(toDate, Calendar.DAY_OF_YEAR, 100);  // 1 day: 60 days
             
             BarSeriesData seriesData = BarSeriesData.builder()
                     .series1Min(fetchAndConvertToBarSeries(instrumentToken, MINUTE, fromDate1Min, toDate, ONE_MIN))

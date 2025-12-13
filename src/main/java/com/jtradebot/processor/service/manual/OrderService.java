@@ -18,11 +18,9 @@ import com.jtradebot.processor.service.notification.OrderNotificationService;
 import com.jtradebot.processor.service.price.LiveOptionPricingService;
 import com.jtradebot.processor.service.price.MockOptionPricingService;
 import com.jtradebot.processor.service.price.OIAnalysisService;
-import com.jtradebot.processor.service.price.OptionGreeksCalculator;
 import com.jtradebot.processor.service.quantity.DynamicQuantityService;
 import com.jtradebot.processor.service.scheduler.DailyLimitsSchedulerService;
 import com.jtradebot.processor.service.entry.DynamicRuleEvaluatorService;
-import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Tick;
@@ -236,14 +234,21 @@ public class OrderService {
                     if (niftyTickForQtyCheck != null) {
                         List<CandleTimeFrameEnum> timeframes = Arrays.asList(CandleTimeFrameEnum.ONE_MIN, CandleTimeFrameEnum.FIVE_MIN, CandleTimeFrameEnum.FIFTEEN_MIN, CandleTimeFrameEnum.ONE_HOUR);
                         boolean allEma200InSameDirection = dynamicRuleEvaluatorService.areAllEma200InSameDirection(niftyTickForQtyCheck, timeframes);
+                        String ema200Details = dynamicRuleEvaluatorService.getEma200DirectionCheckDetails(niftyTickForQtyCheck, timeframes);
                         
                         if (order.getComments() == null) {
                             order.setComments(new ArrayList<>());
                         }
                         if (!allEma200InSameDirection) {
                             order.getComments().add("Quantity: Reduced to 50% of calculated quantity due to mixed EMA200 directions (1min, 5min, 15min, 1hour) - Risk management");
+                            if (ema200Details != null) {
+                                order.getComments().add(ema200Details);
+                            }
                         } else {
                             order.getComments().add("Quantity: Based on balance and investment limits - All EMA200 in same direction");
+                            if (ema200Details != null) {
+                                order.getComments().add(ema200Details);
+                            }
                         }
                     }
                 } catch (Exception e) {
