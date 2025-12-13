@@ -131,7 +131,7 @@ public class RuleHelper {
                     EmaInfo emaInfo_5min = multiEmaIndicator.calculateEmaValues(fiveMinSeries, FIVE_MIN);
                     
                     // Log all EMA values for 5-minute timeframe
-                    log.info("5-Min EMA Values - EMA5: {}, EMA9: {}, EMA14: {}, EMA20: {}, EMA34: {}, EMA200: {}",
+                    log.debug("5-Min EMA Values - EMA5: {}, EMA9: {}, EMA14: {}, EMA20: {}, EMA34: {}, EMA200: {}",
                             emaInfo_5min.getEma5(), emaInfo_5min.getEma9(), emaInfo_5min.getEma14(),
                             emaInfo_5min.getEma20(), emaInfo_5min.getEma34(), emaInfo_5min.getEma200());
                     
@@ -276,6 +276,13 @@ public class RuleHelper {
                     double ema200_1hour = emaInfo_1hour.getEma200();
                     double currentPrice = oneHourSeries.getLastBar().getClosePrice().doubleValue();
                     double ema200Distance1hour = currentPrice - ema200_1hour;
+                    
+                    // Warn if insufficient data for EMA200 (need 200+ bars for accurate calculation)
+                    int barCount = oneHourSeries.getBarCount();
+                    if (barCount < 200) {
+                        log.warn("⚠️ 1-HOUR EMA200: Insufficient data - Only {} bars available, need 200+ for accurate EMA200 calculation. Current EMA200 value may be unreliable.", barCount);
+                    }
+                    
                     indicators.setEma200_1hour(ema200_1hour); // Store EMA 200 value
                     indicators.setEma200_distance_1hour(ema200Distance1hour);
                     

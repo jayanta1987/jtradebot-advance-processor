@@ -7,8 +7,6 @@ import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.model.indicator.FlattenedIndicators;
 import com.jtradebot.processor.model.strategy.DetailedCategoryScore;
-import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgeCallRule;
-import com.jtradebot.processor.model.strategy.ScalpingVolumeSurgePutRule;
 import com.jtradebot.processor.model.strategy.ScalpingEntryDecision;
 import com.jtradebot.processor.indicator.VWAPIndicator;
 
@@ -20,6 +18,7 @@ import org.ta4j.core.BarSeries;
 
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -384,10 +383,11 @@ public class DynamicRuleEvaluatorService {
             // Get current price
             double currentPrice = tick.getLastTradedPrice();
 
-            // Track direction for each timeframe
+            // Track direction for each timeframe and collect EMA200 values for logging
             int aboveCount = 0;
             int belowCount = 0;
             int totalChecked = 0;
+            Map<String, Double> ema200Values = new HashMap<>();
 
             // Check each requested timeframe
             for (CandleTimeFrameEnum timeframe : timeframes) {
@@ -397,6 +397,7 @@ public class DynamicRuleEvaluatorService {
                     continue;
                 }
 
+                ema200Values.put(timeframe.name(), ema200);
                 boolean priceAboveEma200 = currentPrice > ema200;
                 if (priceAboveEma200) {
                     aboveCount++;
@@ -405,7 +406,7 @@ public class DynamicRuleEvaluatorService {
                 }
                 totalChecked++;
 
-                log.debug("📊 EMA200 Direction Check - {}: price {} {} ema200 {} (price: {}, ema200: {})",
+                log.debug("EMA200 Direction Check - {}: price {} {} ema200 {} (price: {}, ema200: {})",
                         timeframe, currentPrice, priceAboveEma200 ? ">" : "<=", ema200, currentPrice, ema200);
             }
 
@@ -421,6 +422,53 @@ public class DynamicRuleEvaluatorService {
             boolean allBelow = belowCount == totalChecked;
             boolean result = allAbove || allBelow;
 
+            // Log EMA200 values and current price at INFO level (always show all 4 timeframes)
+            Double ema200_1min = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.ONE_MIN);
+            Double ema200_5min = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.FIVE_MIN);
+            Double ema200_15min = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.FIFTEEN_MIN);
+            Double ema200_1hour = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.ONE_HOUR);
+            
+            // Debug: Check 1-hour BarSeries last bar close price vs live tick price
+            try {
+                String instrumentToken = String.valueOf(tick.getInstrumentToken());
+                BarSeries oneHourSeries = tickDataManager.getBarSeriesForTimeFrame(instrumentToken, ONE_HOUR);
+                if (oneHourSeries != null && !oneHourSeries.isEmpty()) {
+                    double lastBarClose = oneHourSeries.getLastBar().getClosePrice().doubleValue();
+                    int endIndex = oneHourSeries.getEndIndex();
+                    int barCount = oneHourSeries.getBarCount();
+                    
+                    // Check EMA200 calculation directly from BarSeries
+                    org.ta4j.core.indicators.EMAIndicator ema200Indicator = 
+                        new org.ta4j.core.indicators.EMAIndicator(
+                            new org.ta4j.core.indicators.helpers.ClosePriceIndicator(oneHourSeries), 200);
+                    double ema200Direct = ema200Indicator.getValue(endIndex).doubleValue();
+                    
+                    // Warn if insufficient data for EMA200 (need 200+ bars for accurate calculation)
+                    String dataWarning = barCount < 200 ? String.format("⚠️ INSUFFICIENT DATA: Only %d bars available, need 200+ for accurate EMA200", barCount) : "✓ Sufficient data";
+                    
+                    log.info("🔍 1-HOUR EMA200 DEBUG - Live Tick Price: {}, Last 1H Bar Close: {}, EMA200_1H (from FlattenedIndicators): {}, EMA200_1H (direct calc): {}, EndIndex: {}, BarCount: {}, Data Status: {}, Difference (Tick-EMA): {}, Difference (BarClose-EMA): {}",
+                            String.format("%.2f", currentPrice),
+                            String.format("%.2f", lastBarClose),
+                            ema200_1hour != null ? String.format("%.2f", ema200_1hour) : "null",
+                            String.format("%.2f", ema200Direct),
+                            endIndex,
+                            barCount,
+                            dataWarning,
+                            ema200_1hour != null ? String.format("%.2f", currentPrice - ema200_1hour) : "null",
+                            ema200_1hour != null ? String.format("%.2f", lastBarClose - ema200_1hour) : "null");
+                }
+            } catch (Exception e) {
+                log.debug("Error getting 1-hour BarSeries for debug: {}", e.getMessage());
+            }
+            
+            log.info("📊 EMA200 Direction Check - Current Price: {}, EMA200 Values: 1min={}, 5min={}, 15min={}, 1hour={}, Above: {}, Below: {}, Result: {}",
+                    String.format("%.2f", currentPrice),
+                    ema200_1min != null ? String.format("%.2f", ema200_1min) : "null",
+                    ema200_5min != null ? String.format("%.2f", ema200_5min) : "null",
+                    ema200_15min != null ? String.format("%.2f", ema200_15min) : "null",
+                    ema200_1hour != null ? String.format("%.2f", ema200_1hour) : "null",
+                    aboveCount, belowCount, result);
+
             log.debug("📊 EMA200 Direction Check Result - Timeframes: {}, Total Checked: {}, Above: {}, Below: {}, All Above: {}, All Below: {}, Result: {}",
                     timeframes, totalChecked, aboveCount, belowCount, allAbove, allBelow, result);
 
@@ -430,6 +478,53 @@ public class DynamicRuleEvaluatorService {
             log.error("Error checking EMA200 direction for timeframes {}: {}", timeframes, e.getMessage(), e);
             // On error, default to false (safer approach)
             return false;
+        }
+    }
+
+    /**
+     * Get formatted EMA200 direction check details string for comments
+     * Returns a string with current price, all EMA200 values, and direction check result
+     * 
+     * @param tick Current tick data
+     * @param timeframes List of timeframes to check
+     * @return Formatted string with EMA200 check details, or null if indicators not available
+     */
+    public String getEma200DirectionCheckDetails(Tick tick, List<CandleTimeFrameEnum> timeframes) {
+        try {
+            FlattenedIndicators indicators = getFlattenedIndicators(tick);
+            if (indicators == null) {
+                return null;
+            }
+
+            double currentPrice = tick.getLastTradedPrice();
+            Double ema200_1min = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.ONE_MIN);
+            Double ema200_5min = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.FIVE_MIN);
+            Double ema200_15min = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.FIFTEEN_MIN);
+            Double ema200_1hour = getEma200ForTimeframe(indicators, CandleTimeFrameEnum.ONE_HOUR);
+
+            int aboveCount = 0;
+            int belowCount = 0;
+            for (CandleTimeFrameEnum timeframe : timeframes) {
+                Double ema200 = getEma200ForTimeframe(indicators, timeframe);
+                if (ema200 == null) continue;
+                if (currentPrice > ema200) {
+                    aboveCount++;
+                } else {
+                    belowCount++;
+                }
+            }
+            boolean result = (aboveCount > 0 && belowCount == 0) || (belowCount > 0 && aboveCount == 0);
+
+            return String.format("📊 EMA200 Direction Check - Current Price: %s, EMA200 Values: 1min=%s, 5min=%s, 15min=%s, 1hour=%s, Above: %d, Below: %d, Result: %s",
+                    String.format("%.2f", currentPrice),
+                    ema200_1min != null ? String.format("%.2f", ema200_1min) : "null",
+                    ema200_5min != null ? String.format("%.2f", ema200_5min) : "null",
+                    ema200_15min != null ? String.format("%.2f", ema200_15min) : "null",
+                    ema200_1hour != null ? String.format("%.2f", ema200_1hour) : "null",
+                    aboveCount, belowCount, result);
+        } catch (Exception e) {
+            log.error("Error getting EMA200 direction check details: {}", e.getMessage(), e);
+            return null;
         }
     }
 
