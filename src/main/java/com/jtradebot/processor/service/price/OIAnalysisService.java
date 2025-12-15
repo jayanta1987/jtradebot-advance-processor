@@ -652,10 +652,16 @@ public class OIAnalysisService {
             double spreadScore = calculateSpreadScore(spread);
             
             // Weighted total score (OI-based, no Greeks needed)
-            double totalScore = (priceScore * 0.25) +      // Reasonable price
-                               (moneynessScore * 0.25) +   // Close to ATM
-                               (oiScore * 0.20) +          // Good liquidity (OI)
-                               (volumeScore * 0.15) +       // Active trading
+            // Weights:
+            // - OI: 25%
+            // - Volume: 20%
+            // - Price: 20%
+            // - Moneyness: 20%
+            // - Spread: 15%
+            double totalScore = (oiScore * 0.25) +         // Good liquidity (OI)
+                               (volumeScore * 0.20) +      // Active trading
+                               (priceScore * 0.20) +       // Reasonable price
+                               (moneynessScore * 0.20) +   // Close to ATM
                                (spreadScore * 0.15);       // Tight spread
             
             return totalScore;
@@ -668,10 +674,11 @@ public class OIAnalysisService {
 
     // Scoring methods for OI-based selection
     private double calculatePriceScore(double optionPrice) {
+        // Prefer options in the ₹100–₹200 range for scalping
         if (optionPrice < 50) return 0;
         if (optionPrice > 500) return 0;
-        if (optionPrice >= 150 && optionPrice <= 300) return 100;
-        if (optionPrice >= 100 && optionPrice <= 400) return 80;
+        if (optionPrice >= 100 && optionPrice <= 200) return 100;
+        if (optionPrice >= 80 && optionPrice <= 220) return 80;
         return 60;
     }
 
