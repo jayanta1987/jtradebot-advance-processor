@@ -1,5 +1,6 @@
 package com.jtradebot.processor.service.price;
 
+import com.jtradebot.processor.common.ProfileUtil;
 import com.jtradebot.processor.handler.KiteInstrumentHandler;
 import com.jtradebot.processor.manager.TickDataManager;
 import com.jtradebot.processor.model.enums.CandleTimeFrameEnum;
@@ -13,6 +14,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.Bar;
@@ -41,6 +43,7 @@ public class OIAnalysisService {
     private final TickDataManager tickDataManager;
     private final KiteInstrumentHandler kiteInstrumentHandler;
     private final com.jtradebot.processor.service.config.ConfigCategoryScoringService configCategoryScoringService;
+    private final Environment environment;
 
     // Cache for OI data per strike
     private final Map<String, List<OIDataPoint>> oiDataHistory = new ConcurrentHashMap<>();
@@ -70,9 +73,15 @@ public class OIAnalysisService {
 
     /**
      * Scheduled task to fetch OI data every 5 seconds
+     * Only runs in live profile to avoid unnecessary API calls and DB queries in local/testing environments
      */
     @Scheduled(fixedRate = 5000) // Every 5 seconds
     public void scheduledFetchOIData() {
+        // Skip completely on non-live profiles (e.g. local)
+        if (!ProfileUtil.isProfileActive(environment, "live")) {
+            return;
+        }
+
         try {
             double currentIndexPrice = getCurrentNiftyIndexPrice();
             if (currentIndexPrice > 0) {
